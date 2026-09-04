@@ -608,6 +608,15 @@ a {
 .product-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; margin-top: auto; padding-top: 1.4rem; }
 .product-actions button { min-height: 46px; border: 1px solid #222; border-radius: 999px; font-size: .6rem; font-weight: 600; letter-spacing: .09em; }
 .product-actions button:first-child { background: #1d1d1d; color: #fff; }
+.product-actions button:first-child.is-added {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  border-color: #1d1d1d;
+  color: #1d1d1d;
+  background: transparent;
+}
 
 .career-layout { display: grid; grid-template-columns: .8fr 1.2fr; gap: clamp(4rem,9vw,9rem); width: min(1180px,100%); margin: clamp(5rem,9vw,8rem) auto; }
 .career-role > span, .application-section > div > span { color: #666; font-size: .62rem; letter-spacing: .16em; }

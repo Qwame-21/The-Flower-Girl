@@ -37,6 +37,7 @@ Last verified: 2026-09-04
 ### Shop and order flows
 
 - Product cutouts are centered inside consistent pale visual areas without clipping.
+- A product-card “Add to Order” action briefly confirms with a checkmark and “Added,” then returns to its original label without changing the button footprint.
 - Cart and wishlist persist through `localStorage` under `gifting-factory-cart` and `gifting-factory-wishlist`.
 - The bag opens checkout. Quantity controls allow multiple units.
 - Recipient name is optional and its helper remains on one line where space permits.
