@@ -1,7 +1,7 @@
 import { X, ArrowRight, Globe, MessageCircle, MapPin, Phone } from 'lucide-react';
 import { PORTFOLIO_SERIES, ARTIST_INFO } from '../data/portfolioData';
 
-export default function DrawerMenu({ isOpen, onClose, currentSlideIndex, onSelectSlide, onOpenShop, onOpenAbout }) {
+export default function DrawerMenu({ isOpen, onClose, currentSlideIndex, onSelectSlide, onNavigate }) {
   if (!isOpen) return null;
 
   return (
@@ -55,15 +55,20 @@ export default function DrawerMenu({ isOpen, onClose, currentSlideIndex, onSelec
           <div style={styles.sectionGroup}>
             <span style={styles.sectionLabel}>PAGES</span>
             <div style={styles.pagesGrid}>
-              <button onClick={() => { onOpenAbout(); onClose(); }} style={styles.pageBtn}>
-                Our Story & Services
-              </button>
-              <button onClick={() => { onOpenShop(); onClose(); }} style={styles.pageBtn}>
-                Shop Gifts
-              </button>
-              <a href="https://wa.me/message/WWAXSHH3LEGIL1" target="_blank" rel="noreferrer" style={styles.pageBtn}>
-                Build a Custom Gift
-              </a>
+              {[
+                ['about', 'Our Story'],
+                ['services', 'Services'],
+                ['gallery', 'Gallery'],
+                ['shop', 'Shop Gifts'],
+                ['customize', 'Build a Custom Gift'],
+                ['careers', 'Careers'],
+                ['delivery', 'Delivery & FAQ'],
+                ['policy', 'Order Policy']
+              ].map(([page, label]) => (
+                <button key={page} onClick={() => { onNavigate(page); onClose(); }} style={styles.pageBtn}>
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 

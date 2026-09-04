@@ -249,8 +249,7 @@ export default function App() {
         onClose={() => setDrawerOpen(false)}
         currentSlideIndex={currentSlideIndex}
         onSelectSlide={(idx) => { setCurrentSlideIndex(idx); setActiveTab('home'); }}
-        onOpenShop={() => setActiveTab('shop')}
-        onOpenAbout={() => setActiveTab('about')}
+        onNavigate={setActiveTab}
       />
 
       <SearchModal

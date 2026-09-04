@@ -1319,3 +1319,7 @@ a {
   font-size: inherit;
   line-height: inherit;
 }
+.upload-field,
+.upload-field * {
+  cursor: pointer;
+}
