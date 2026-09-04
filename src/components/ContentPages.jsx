@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, ArrowRight, Check, Upload, Heart, Minus, Plus, MapPin, LocateFixed } from 'lucide-react';
 import { isPaystackTestConfigured } from '../config/payment';
+import { PRODUCTS } from '../data/products';
 
 const SERVICES = [
   { name: 'Gift shop', detail: 'Luxury gift hampers, fresh flowers, chocolates, jewelry, fashion pieces and useful everyday gifts.', image: '/assets/hamper-editorial-v2.png' },
@@ -27,16 +28,6 @@ const CUSTOM_ESTIMATES = {
   'Engraved name': 80, 'Embroidered name': 120, 'Printed message': 40, 'Custom card': 35, 'Photo insert': 25, 'Branded ribbon': 65, 'Company branding': 160,
   'Gift wrapping': 90, 'Engagement wrapping': 240, 'Same-day Accra delivery': 120, 'Scheduled delivery': 90, 'Store collection': 0, 'Surprise delivery': 140
 };
-
-const PRODUCTS = [
-  { id: 'hamper-3750', name: 'Luxury hamper', price: 3750, priceLabel: 'GHS 3,750', detail: 'Laptop bag, Lacoste shirt, YSL perfume, Patek Philippe watch, manicure set and card.', image: '/assets/hamper-editorial-v2.png', tag: 'SIGNATURE', includes: ['Premium gift box', 'Fashion and fragrance selection', 'Watch and grooming pieces', 'Personal message card'] },
-  { id: 'christmas-bundle', name: 'Christmas bundle', price: 1250, priceLabel: 'From GHS 1,250', detail: 'Six yards of Hollandaise fabric, Bodycology fragrance splash and an insulated tumbler.', image: '/assets/engagement-presentation-v2.png', tag: 'SEASONAL', includes: ['Hollandaise fabric', 'Fragrance splash', 'Insulated tumbler', 'Gift presentation'] },
-  { id: 'period-care', name: 'Period care box', price: 650, priceLabel: 'From GHS 650', detail: 'Pads and panty liners, feminine wash and wipes, ginger tea with mint, cranberry juice, cookies and a hot water bottle. Monthly subscription available.', image: '/assets/wrapping-editorial-v2.png', tag: 'SUBSCRIPTION', includes: ['Period-care essentials', 'Tea, juice and cookies', 'Hot water bottle', 'Optional monthly delivery'] },
-  { id: 'fresh-bouquet', name: 'Fresh flower bouquet', price: 450, priceLabel: 'From GHS 450', detail: 'A fresh arrangement selected around your preferred palette, occasion and delivery date.', image: '/assets/bouquet-editorial-v2.png', tag: 'FRESH', includes: ['Seasonal fresh flowers', 'Chosen colour direction', 'Hand-tied finishing', 'Message card'] },
-  { id: 'fragrance-gift', name: 'Fragrance & treats gift', price: 950, priceLabel: 'From GHS 950', detail: 'A personalized combination of fragrance, premium chocolate, flowers and a handwritten card.', image: '/assets/basket-hamper-editorial-v2.png', tag: 'FREQUENTLY CHOSEN', includes: ['Fragrance selection', 'Premium chocolates', 'Fresh floral accent', 'Handwritten card'] },
-  { id: 'personalized-bag', name: 'Personalized wrist bag', price: 650, priceLabel: 'From GHS 650', detail: 'A wrist bag gift with optional name engraving, wrapping and additional accessories.', image: '/assets/delivery-editorial-v2.png', tag: 'PERSONALIZED', includes: ['Wrist bag', 'Optional name finishing', 'Gift wrapping', 'Selected accessories'] },
-  { id: 'embroidery', name: 'Embroidery & personalization', price: 180, priceLabel: 'From GHS 180', detail: 'Add a name or short personal detail to selected shirts, fabric gifts and accessories.', image: '/assets/embroidery-editorial-v2.png', tag: 'MADE TO ORDER', includes: ['Name or short wording', 'Thread colour selection', 'Placement confirmation', 'Production approval'] }
-];
 
 function FooterLogo() {
   return <div className="footer-logo"><img src="/assets/gifting-factory-logo-transparent-v2.png" alt="The Gifting Factory by Flower Girl" /></div>;

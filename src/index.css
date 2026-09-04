@@ -1323,3 +1323,59 @@ a {
 .upload-field * {
   cursor: pointer;
 }
+
+/* Final storefront touch-up: improve wordmark presence without altering the header. */
+@media (min-width: 761px) {
+  .portfolio-page .header-wordmark { width: clamp(205px,19.5vw,285px); }
+}
+
+/* Match About's steps to the open editorial numbering used by Delivery & FAQ. */
+.about-path {
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: clamp(2rem,4vw,5rem);
+}
+.about-path article,
+.about-path article + article {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 310px;
+  padding: 1.2rem 0 1.8rem;
+  border: 0;
+  border-top: 1px solid rgba(17,17,17,.22);
+}
+.about-path article::before { content: none; }
+.about-path span {
+  position: static;
+  display: block;
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #222;
+  font-size: clamp(2.4rem,4vw,4.2rem);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -.055em;
+}
+.about-path p {
+  max-width: 22rem;
+  margin-top: auto;
+  color: #5a5a5a;
+  font-size: .82rem;
+  line-height: 1.7;
+}
+.about-path strong {
+  display: block;
+  margin-bottom: .65rem;
+  color: #111;
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.15;
+}
+@media (max-width: 760px) {
+  .about-path { grid-template-columns: 1fr; }
+  .about-path article,
+  .about-path article + article { min-height: 230px; }
+}

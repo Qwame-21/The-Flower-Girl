@@ -1,12 +1,17 @@
 import { useState } from 'react';
 import { X, Search, ArrowRight } from 'lucide-react';
 import { PORTFOLIO_SERIES } from '../data/portfolioData';
+import { PRODUCTS } from '../data/products';
 
 const SITE_PATHS = [
+  { id: 'about', title: 'About The Gifting Factory', label: 'ABOUT', detail: 'Our story and how each gift is composed', image: '/assets/gifting-factory-logo-transparent-v2.png', keywords: 'about story gifting factory flower girl process' },
   { id: 'shop', title: 'Shop ready-made gifts', label: 'SHOP', detail: 'Hampers, bouquets, bundles and personalized gifts', image: '/assets/hamper-editorial-v2.png', keywords: 'shop gifts hampers bouquets products' },
   { id: 'customize', title: 'Build a custom gift', label: 'CUSTOM', detail: 'Choose the base, contents, finishing and delivery', image: '/assets/basket-hamper-editorial-v2.png', keywords: 'custom builder personalize perfume chocolate engraving' },
   { id: 'services', title: 'Explore our services', label: 'SERVICES', detail: 'Wrapping, engagement presentation, boxes and embroidery', image: '/assets/embroidery-editorial-v2.png', keywords: 'services wrapping boxes embroidery engraving engagement' },
-  { id: 'delivery', title: 'Delivery & common questions', label: 'HELP', detail: 'Same-day availability, scheduling and collection', image: '/assets/delivery-editorial-v2.png', keywords: 'delivery faq questions accra collection schedule' }
+  { id: 'gallery', title: 'View the gift gallery', label: 'GALLERY', detail: 'Selected hampers, flowers and finished gifts', image: '/assets/bouquet-editorial-v2.png', keywords: 'gallery photos images instagram inspiration' },
+  { id: 'careers', title: 'Careers and applications', label: 'CAREERS', detail: 'Current role and application form', image: '/assets/engagement-presentation-v2.png', keywords: 'career job hiring content creator social media manager application' },
+  { id: 'delivery', title: 'Delivery & common questions', label: 'HELP', detail: 'Same-day availability, scheduling and collection', image: '/assets/delivery-editorial-v2.png', keywords: 'delivery faq questions accra collection schedule' },
+  { id: 'policy', title: 'Order policy', label: 'POLICY', detail: 'Payment, custom-order changes and product availability', image: '/assets/wrapping-editorial-v2.png', keywords: 'policy payment cancellation changes replacement availability terms' }
 ];
 
 export default function SearchModal({ isOpen, onClose, onSelectSlide, onNavigate }) {
@@ -21,6 +26,7 @@ export default function SearchModal({ isOpen, onClose, onSelectSlide, onNavigate
   );
 
   const filteredPaths = SITE_PATHS.filter(item => `${item.title} ${item.label} ${item.detail} ${item.keywords}`.toLowerCase().includes(query.toLowerCase()));
+  const filteredProducts = PRODUCTS.filter(item => `${item.name} ${item.tag} ${item.detail} ${item.priceLabel} ${item.includes.join(' ')}`.toLowerCase().includes(query.toLowerCase()));
 
   return (
     <div style={styles.backdrop} onClick={onClose}>
@@ -59,6 +65,24 @@ export default function SearchModal({ isOpen, onClose, onSelectSlide, onNavigate
                     <span style={styles.code}>{item.code} / {item.subject}</span>
                     <strong style={styles.title}>{item.title}</strong>
                     <span style={styles.sub}>{item.origin}</span>
+                  </div>
+                  <ArrowRight size={18} color="#666" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Useful destinations */}
+          <div style={styles.section}>
+            <span style={styles.sectionHeader}>PRODUCTS ({filteredProducts.length})</span>
+            <div style={styles.list}>
+              {filteredProducts.map((item) => (
+                <div key={item.id} style={styles.itemRow} onClick={() => { onNavigate('shop'); onClose(); }} className="hover-lift">
+                  <img src={item.image} alt="" style={styles.thumb} />
+                  <div style={styles.itemMeta}>
+                    <span style={styles.code}>{item.tag}</span>
+                    <strong style={styles.title}>{item.name}</strong>
+                    <span style={styles.sub}>{item.priceLabel}</span>
                   </div>
                   <ArrowRight size={18} color="#666" />
                 </div>

@@ -22,10 +22,9 @@ Last verified: 2026-09-04
 
 ### About
 
-- The three-step sequence uses `01`, `02`, and `03` in circular number controls.
-- Each circle overlaps a slim translucent white horizontal index rail.
-- The explanatory copy sits below the rails without enclosing cards.
-- This numbering treatment is approved and must not be replaced by tables or boxed cards.
+- The three-step sequence uses large open `01`, `02`, and `03` editorial numbers.
+- Its visual language matches Delivery & FAQ: a fine top rule, large number, and unboxed explanatory copy.
+- Do not replace this treatment with circles, tables, or enclosed cards.
 
 ### Services and Gallery
 
