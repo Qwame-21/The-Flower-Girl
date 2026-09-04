@@ -64,3 +64,40 @@ The source dashboard was run locally and reviewed module by module on 4 Septembe
 ## First implementation slice
 
 Build the shared shell and Orders workspace first. It should validate the wordmark scale, module selector, metric rhythm, filters, expandable record treatment, status workflow, and responsive behavior. Once approved, reuse that system for Requests and Catalogue before adding the remaining modules.
+
+## Visual-reference synthesis
+
+The three supplied dashboard references are influences, not templates to reproduce literally.
+
+### Shell and work queues
+
+- Use a narrow icon rail on desktop for the primary operational areas, influenced by the first reference.
+- Pair it with a calm top bar containing the current page title, notifications, search, and the signed-in staff account.
+- Keep secondary states directly beneath the title as segmented filters with counts, such as `All orders`, `Awaiting confirmation`, `Preparing`, `Ready`, and `Delivery`.
+- Use structured record panels for requests and orders, but avoid nesting every field inside another card. Expanded detail should remain easy to scan.
+
+### Circular breakdown
+
+- Adapt the second reference’s circular chart for an operational composition, not generic “expenses”.
+- Recommended overview: `Order mix` split across hampers, flowers, wrapping, personalization, and service requests.
+- A second use may show `Fulfillment mix`: awaiting confirmation, preparing, ready, out for delivery, and completed.
+- Keep the chart monochrome with warm-gray tonal steps and one black active segment. Do not introduce a rainbow legend.
+
+### Performance chart
+
+- Adapt the third reference’s vertical bars for order volume or revenue by day, week, or month.
+- Allow one selected period to become solid black while surrounding periods remain muted and lightly hatched.
+- Pair it with a restrained line chart for average fulfillment time, custom-request conversion, or delivery completion—not decorative engagement statistics.
+- Charts should expose exact values through hover/focus and remain readable as summarized lists on small screens.
+
+### Proposed desktop hierarchy
+
+1. Brand mark and compact icon rail.
+2. Page title, search, notifications, and staff account.
+3. Status filters and urgent operational alerts.
+4. Four priority metrics.
+5. Primary working area: orders or requests.
+6. Supporting analytics: order mix and performance trend.
+7. Contextual detail drawer for editing, notes, delivery, and payment state.
+
+The shell should feel quieter than the references: `#e2e2e0` canvas, near-black type, off-white working surfaces, thin rules, limited rounding, and product imagery only when it helps recognition.
