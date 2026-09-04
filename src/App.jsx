@@ -125,7 +125,7 @@ export default function App() {
       {activeTab === 'home' && (
       <div className="home-scroll">
       <main style={styles.mainCanvas} className="portfolio-layout">
-        {/* Left Column: Photographer Header, Title, Subtitle, Counter */}
+        {/* Left column: collection label, title, subtitle and counter */}
         <section style={styles.leftCol} className="portfolio-copy">
           <div style={styles.tagWrapper}>
             <span style={styles.roleTag}>{currentSlide.category}</span>
