@@ -1444,3 +1444,13 @@ a {
 }
 .flow-modal label.upload-field svg,
 .application-section label.upload-field svg { flex: 0 0 auto; }
+
+/* Footer directory: keep the help links optically centered between pages and contact. */
+@media (min-width: 901px) {
+  .footer-directory {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(1.5rem, 3vw, 3rem);
+  }
+  .footer-guides { justify-self: center; }
+  .site-footer nav { justify-self: end; }
+}
