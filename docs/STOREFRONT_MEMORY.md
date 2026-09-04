@@ -6,6 +6,7 @@ Last verified: 2026-09-04
 
 - Warm light-gray editorial canvas with black typography and controls. Do not introduce purple, pink, gradients, heavy shadows, or generic card styling.
 - Use the supplied black Gifting Factory wordmark. Its one-time write-on reveal lasts exactly 2.2 seconds and must not loop.
+- On desktop the wordmark is optically enlarged inside its existing 82px header; increasing it must never increase the navigation bar height or disturb navigation spacing.
 - Desktop navigation shows Home, About, Services, Gallery, Shop, Careers, search, wishlist, and shopping bag. Mobile replaces the page links with the hamburger drawer while keeping the utility icons visible.
 - Hero products and flowers are transparent cutouts blended into the canvas. They are not placed inside image cards.
 - Buttons and close controls use consistent geometry, visible focus states, pointer cursors, and restrained motion.
@@ -30,6 +31,7 @@ Last verified: 2026-09-04
 
 - Service imagery floats directly on the canvas with no image-card background.
 - Service options remain readable as horizontal text rows.
+- The service-request inspiration upload is a compact horizontal pill with its icon and label centered on one line.
 - Gallery is a compact, orderly image grid with a restrained Instagram action.
 
 ### Shop and order flows

@@ -1326,7 +1326,7 @@ a {
 
 /* Final storefront touch-up: improve wordmark presence without altering the header. */
 @media (min-width: 761px) {
-  .portfolio-page .header-wordmark { width: clamp(205px,19.5vw,285px); }
+  .portfolio-page .header-wordmark { width: clamp(220px,21vw,310px); }
 }
 
 /* Match About's steps to the open editorial numbering used by Delivery & FAQ. */
@@ -1379,3 +1379,41 @@ a {
   .about-path article,
   .about-path article + article { min-height: 230px; }
 }
+
+/* Service-request upload: one composed action, not a stacked form label. */
+.flow-modal label.upload-field,
+.application-section label.upload-field {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  width: auto;
+  min-height: 44px;
+  padding: .72rem 1.05rem;
+  gap: .55rem;
+  border: 1px solid rgba(17,17,17,.3);
+  border-radius: 999px;
+  color: #222;
+  background: rgba(255,255,255,.18);
+  font-size: .66rem;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: .035em;
+  transition: color 220ms ease, background-color 220ms ease, border-color 220ms ease, transform 220ms ease;
+}
+.flow-modal label.upload-field:hover,
+.application-section label.upload-field:hover {
+  border-color: #1d1d1d;
+  color: #fff;
+  background: #1d1d1d;
+}
+.flow-modal label.upload-field:active,
+.application-section label.upload-field:active { transform: translateY(1px); }
+.flow-modal label.upload-field:focus-within,
+.application-section label.upload-field:focus-within {
+  outline: 2px solid #111;
+  outline-offset: 3px;
+}
+.flow-modal label.upload-field svg,
+.application-section label.upload-field svg { flex: 0 0 auto; }
