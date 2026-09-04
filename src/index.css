@@ -1084,6 +1084,24 @@ a {
 .checkout-line { display: grid; grid-template-columns: minmax(130px,1fr) auto auto; gap: 1rem; align-items: center; padding: .75rem 0; border-bottom: 1px solid rgba(17,17,17,.16); }
 .checkout-line > div:first-child { display: flex; flex-direction: column; gap: .15rem; }
 .checkout-line small { color: #777; font-size: .65rem; }
+.checkout-line .checkout-remove {
+  align-self: flex-start;
+  width: fit-content;
+  margin-top: .3rem;
+  padding: .16rem 0;
+  border-bottom: 1px solid rgba(17,17,17,.32);
+  color: #666;
+  font-size: .56rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: .1em;
+  transition: color 180ms ease, border-color 180ms ease;
+}
+.checkout-line .checkout-remove:hover,
+.checkout-line .checkout-remove:focus-visible {
+  border-color: #111;
+  color: #111;
+}
 .checkout-line strong { min-width: 92px; font-size: .82rem; text-align: right; }
 .checkout-total { display: flex; justify-content: space-between; padding: .95rem 0 .25rem; font-size: .72rem; letter-spacing: .08em; }
 .checkout-total strong { font-size: 1rem; }

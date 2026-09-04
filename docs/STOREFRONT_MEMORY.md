@@ -40,6 +40,7 @@ Last verified: 2026-09-04
 - A product-card “Add to Order” action briefly confirms with a checkmark and “Added,” then returns to its original label without changing the button footprint.
 - Cart and wishlist persist through `localStorage` under `gifting-factory-cart` and `gifting-factory-wishlist`.
 - The bag opens checkout. Quantity controls allow multiple units.
+- Every checkout line includes a quiet explicit Remove action in addition to its quantity controls.
 - Recipient name is optional and its helper remains on one line where space permits.
 - Paystack owns the final card or Mobile Money selection. The storefront presents one secure Paystack action rather than duplicate payment-method buttons.
 

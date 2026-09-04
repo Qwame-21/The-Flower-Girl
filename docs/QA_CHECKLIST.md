@@ -21,6 +21,7 @@ Run this list after every approved UI change.
 - Product details open and close.
 - Add to Order updates the shopping-bag count.
 - Increasing and decreasing quantities updates the subtotal.
+- Removing a checkout line updates the subtotal and bag count; removing the final line reveals the empty-order state.
 - Wishlist save or remove updates the heart count.
 - Cart and wishlist counts remain after a reload.
 - Checkout recipient name remains optional.
