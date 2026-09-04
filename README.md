@@ -23,5 +23,6 @@ Copy `.env.example` to `.env` for local payment configuration. Never commit `.en
 - [Approved design baseline](docs/STOREFRONT_MEMORY.md)
 - [Recovery procedure](docs/RECOVERY.md)
 - [Release verification checklist](docs/QA_CHECKLIST.md)
+- [Admin dashboard direction](docs/ADMIN_DASHBOARD_DIRECTION.md)
 
 The protected Git history is the source of truth. Create a new verified commit after each approved design change instead of overwriting the last known-good revision.

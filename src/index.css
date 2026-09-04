@@ -1353,7 +1353,7 @@ a {
 
 /* Final storefront touch-up: improve wordmark presence without altering the header. */
 @media (min-width: 761px) {
-  .portfolio-page .header-wordmark { width: clamp(220px,21vw,310px); }
+  .portfolio-page .header-wordmark { width: clamp(220px,21vw,310px); height: 64px; }
 }
 
 /* Match About's steps to the open editorial numbering used by Delivery & FAQ. */

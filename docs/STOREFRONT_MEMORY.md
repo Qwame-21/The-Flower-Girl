@@ -6,7 +6,8 @@ Last verified: 2026-09-04
 
 - Warm light-gray editorial canvas with black typography and controls. Do not introduce purple, pink, gradients, heavy shadows, or generic card styling.
 - Use the supplied black Gifting Factory wordmark. Its one-time write-on reveal lasts exactly 2.2 seconds and must not loop.
-- On desktop the wordmark is optically enlarged inside its existing 82px header; increasing it must never increase the navigation bar height or disturb navigation spacing.
+- On desktop the wordmark uses a 64px internal frame inside its existing 82px header; increasing it must never increase the navigation bar height or disturb navigation spacing.
+- The browser favicon is the monochrome botanical mark on the same warm-gray storefront canvas. Do not restore the purple starter favicon.
 - Desktop navigation shows Home, About, Services, Gallery, Shop, Careers, search, wishlist, and shopping bag. Mobile replaces the page links with the hamburger drawer while keeping the utility icons visible.
 - Hero products and flowers are transparent cutouts blended into the canvas. They are not placed inside image cards.
 - Buttons and close controls use consistent geometry, visible focus states, pointer cursors, and restrained motion.
