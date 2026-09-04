@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Bell, ChevronDown, ChevronRight, Download, LogOut, Search, ShoppingBag, X } from 'lucide-react';
+import { Bell, ChevronDown, ChevronRight, Download, LogOut, Search, ShoppingBag, X, LayoutDashboard, ClipboardList, WandSparkles, Package, ChartNoAxesColumnIncreasing, Users, Truck, BriefcaseBusiness, Settings, Images, MessageSquareText } from 'lucide-react';
 
-const TABS = ['Orders', 'Log', 'Custom Requests', 'Products', 'Shop', 'Insights', 'Customers', 'Settings'];
+const TABS = ['Overview', 'Orders', 'Log', 'Custom Requests', 'Products', 'Shop', 'Insights', 'Customers', 'Reviews', 'Delivery', 'Careers', 'Content', 'Settings'];
+const TAB_ICONS = { Overview: LayoutDashboard, Orders: ClipboardList, Log: ClipboardList, 'Custom Requests': WandSparkles, Products: Package, Shop: ShoppingBag, Insights: ChartNoAxesColumnIncreasing, Customers: Users, Reviews: MessageSquareText, Delivery: Truck, Careers: BriefcaseBusiness, Content: Images, Settings };
 const STAGES = ['payment', 'confirmed', 'packaged', 'delivered'];
 
 const SEED_ORDERS = [
@@ -30,7 +31,7 @@ function SectionTitle({ eyebrow, title, action }) {
 }
 
 export default function AdminDashboard({ onExit }) {
-  const [tab, setTab] = useState('Orders');
+  const [tab, setTab] = useState('Overview');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -47,6 +48,21 @@ export default function AdminDashboard({ onExit }) {
 
   const revenue = orders.filter(order => order.status.payment).reduce((sum, order) => sum + order.total, 0);
   const awaiting = orders.filter(order => order.status.packaged && !order.status.delivered);
+
+  const overviewContent = <>
+    <SectionTitle eyebrow="OPERATIONS · TODAY" title="Everything that needs attention." action={<button onClick={() => setTab('Orders')}>VIEW ALL ORDERS</button>} />
+    <section className="factory-overview-metrics">
+      <article><small>PAID REVENUE</small><strong>GHS {revenue.toLocaleString()}</strong><span>Across confirmed demo orders</span></article>
+      <article><small>ACTIVE ORDERS</small><strong>{orders.filter(order => !order.status.delivered).length}</strong><span>From payment to delivery</span></article>
+      <article><small>CUSTOM REQUESTS</small><strong>{REQUESTS.length}</strong><span>Two require quotations</span></article>
+      <article><small>DELIVERY QUEUE</small><strong>{awaiting.length}</strong><span>Ready for rider assignment</span></article>
+    </section>
+    <section className="factory-overview-grid">
+      <article className="factory-performance"><header><div><small>ORDER PERFORMANCE</small><h2>Weekly volume</h2></div><span>THIS WEEK</span></header><div className="factory-bars">{[38,62,48,84,57,73,44].map((height,index)=><div key={index}><i style={{height:`${height}%`}} className={index===3?'active':''}/><small>{['M','T','W','T','F','S','S'][index]}</small></div>)}</div></article>
+      <article className="factory-mix"><small>ORDER MIX</small><div className="factory-donut"><strong>12</strong><span>ORDERS</span></div><ul><li><i/>Hampers <b>42%</b></li><li><i/>Flowers <b>25%</b></li><li><i/>Personalized <b>18%</b></li><li><i/>Other <b>15%</b></li></ul></article>
+    </section>
+    <section className="factory-priority"><header><div><small>PRIORITY QUEUE</small><h2>Move these forward.</h2></div></header>{orders.slice(0,3).map(order=><button key={order.id} onClick={()=>{setTab('Orders');setExpanded(order.id)}}><span>{order.id}</span><strong>{order.name}</strong><em>{order.items}</em><b>{order.status.packaged?'ASSIGN DELIVERY':order.status.payment?'PREPARING':'CONFIRM PAYMENT'}</b><ChevronRight size={16}/></button>)}</section>
+  </>;
 
   const toggleStage = (id, stage) => setOrders(current => current.map(order => order.id === id ? { ...order, status: { ...order.status, [stage]: !order.status[stage] } } : order));
   const toggleSelected = id => setSelected(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]);
@@ -80,11 +96,15 @@ export default function AdminDashboard({ onExit }) {
   const shopContent = <><SectionTitle eyebrow="STOREFRONT" title="Shop preview" /><div className="slay-shop-preview-label">LIVE PREVIEW</div><section className="slay-shop-preview"><img src="/assets/hamper-editorial-v2.png" alt="Luxury hamper" /><div><span>FEATURED COLLECTION</span><h1>Thoughtful gifting, beautifully presented.</h1><p>Review the customer-facing catalogue and confirm that imagery, pricing and availability are ready.</p><button onClick={onExit}>OPEN STOREFRONT</button></div></section></>;
   const insightsContent = <><SectionTitle eyebrow="PERFORMANCE" title="Insights" /><section className="slay-insight-grid"><article><span>AVERAGE ORDER VALUE</span><strong>GHS {Math.round(revenue / Math.max(1, orders.filter(order => order.status.payment).length)).toLocaleString()}</strong><p>Based on paid demo orders.</p></article><article><span>TOP CATEGORY</span><strong>Luxury hampers</strong><p>Highest contribution to order value.</p></article><article><span>REPEAT CUSTOMERS</span><strong>18%</strong><p>Demo retention signal.</p></article></section></>;
   const customersContent = <><SectionTitle eyebrow="RELATIONSHIPS" title="Customers" /><section className="slay-customer-list">{orders.map(order => <article key={order.id}><div><strong>{order.name}</strong><span>{order.phone}</span></div><div><small>LATEST ORDER</small><b>{order.id}</b></div><div><small>TOTAL SPEND</small><b>GHS {order.total.toLocaleString()}</b></div></article>)}</section></>;
+  const deliveryContent = <><SectionTitle eyebrow="FULFILMENT" title="Delivery desk" /><section className="slay-stacked-records">{orders.filter(order=>!order.status.delivered).map(order=><article key={order.id}><div><strong>{order.id}</strong><small>{order.name}</small></div><p>{order.address}</p><b>{order.status.packaged?'READY':'PREPARING'}</b><button disabled={!order.status.packaged}>ASSIGN RIDER</button></article>)}</section></>;
+  const careersContent = <><SectionTitle eyebrow="PEOPLE" title="Career applications" /><section className="factory-empty"><strong>No new applications</strong><p>Applications submitted through the storefront will arrive here for review, notes and status updates.</p></section></>;
+  const contentContent = <><SectionTitle eyebrow="STOREFRONT" title="Content control" /><section className="slay-settings-grid"><article><h2>Homepage collections</h2><p>Control featured gifts, gallery imagery and service visibility.</p><button>MANAGE FEATURES</button></article><article><h2>Help and policies</h2><p>Update delivery guidance, frequently asked questions and order policies.</p><button>EDIT CONTENT</button></article></section></>;
+  const reviewsContent = <><SectionTitle eyebrow="SOCIAL PROOF" title="Reviews" /><section className="factory-empty"><strong>Review moderation</strong><p>Verified-order ratings and customer comments will be managed here.</p><button>ADD REVIEW</button></section></>;
   const settingsContent = <><SectionTitle eyebrow="STORE CONTROL" title="Settings" /><section className="slay-settings-grid"><article><h2>Store details</h2><label>BUSINESS NAME<input defaultValue="The Gifting Factory by Flower Girl" /></label><label>PHONE<input defaultValue="020 241 7072" /></label><button>SAVE DETAILS</button></article><article><h2>Delivery note</h2><label>CUSTOMER MESSAGE<textarea defaultValue="Delivery timing and fees are confirmed after the order is reviewed." /></label><button>SAVE MESSAGE</button></article></section></>;
 
-  const content = tab === 'Orders' ? orderContent : tab === 'Log' ? logContent : tab === 'Custom Requests' ? requestsContent : tab === 'Products' ? productsContent : tab === 'Shop' ? shopContent : tab === 'Insights' ? insightsContent : tab === 'Customers' ? customersContent : settingsContent;
+  const content = tab === 'Overview' ? overviewContent : tab === 'Orders' ? orderContent : tab === 'Log' ? logContent : tab === 'Custom Requests' ? requestsContent : tab === 'Products' ? productsContent : tab === 'Shop' ? shopContent : tab === 'Insights' ? insightsContent : tab === 'Customers' ? customersContent : tab === 'Delivery' ? deliveryContent : tab === 'Careers' ? careersContent : tab === 'Content' ? contentContent : tab === 'Reviews' ? reviewsContent : settingsContent;
 
-  return <main className="slay-admin-page"><div className="slay-admin-shell">
+  return <main className="slay-admin-page factory-admin"><aside className="factory-rail"><button className="factory-rail-mark" onClick={()=>setTab('Overview')}>TGF</button><nav>{TABS.filter(item=>!['Log','Shop','Content'].includes(item)).map(item=>{const Icon=TAB_ICONS[item];return <button key={item} title={item} aria-label={item} className={tab===item?'active':''} onClick={()=>setTab(item)}><Icon size={17}/></button>})}</nav><button title="Storefront" aria-label="Storefront" onClick={onExit}><LogOut size={17}/></button></aside><div className="slay-admin-shell factory-admin-shell">
     <header className="slay-admin-heading"><div><span className="slay-admin-title">The Gifting Factory</span><span className="slay-admin-mobile-title">TGF</span><span className="slay-cloud-state"><i /> DEMO DATA</span><button className="slay-bell" onClick={() => setNoticeOpen(current => !current)} aria-label="Notifications"><Bell size={18} /><b>{awaiting.length}</b></button></div>{noticeOpen && <div className="slay-notice"><button onClick={() => setNoticeOpen(false)}><X size={14} /></button><small>OPERATIONS</small><strong>{awaiting.length} order awaiting delivery</strong><p>Review the delivery queue before assigning a rider.</p></div>}</header>
     <section className="slay-admin-controls"><div className="slay-view-picker"><button onClick={() => setPickerOpen(current => !current)}>{tab}<ChevronDown size={15} className={pickerOpen ? 'rotated' : ''} /></button>{pickerOpen && <><button className="slay-picker-shield" onClick={() => setPickerOpen(false)} aria-label="Close navigation" /><div>{TABS.map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => { setTab(item); setPickerOpen(false); }}>{item}</button>)}</div></>}</div><div><span className="slay-sync">LAST SYNC · JUST NOW</span><button className="slay-ghost" onClick={() => setTab('Shop')}><ShoppingBag size={14} /> VIEW SHOP</button><button className="slay-logout" onClick={onExit}><LogOut size={14} /> STOREFRONT</button></div></section>
     {content}

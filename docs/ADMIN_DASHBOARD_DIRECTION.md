@@ -65,6 +65,10 @@ The source dashboard was run locally and reviewed module by module on 4 Septembe
 
 Build the shared shell and Orders workspace first. It should validate the wordmark scale, module selector, metric rhythm, filters, expandable record treatment, status workflow, and responsive behavior. Once approved, reuse that system for Requests and Catalogue before adding the remaining modules.
 
+### Milestone status · 4 September 2026
+
+The first implementation slice is live at `/admin`. It includes the responsive icon rail, module picker, operational overview, priority metrics, weekly-volume bars, monochrome order-mix chart, priority queue, and navigable demo modules. Orders retain filtering, expandable details, stage controls, selection and delivery actions. Products expose stock controls and catalogue status. Deeper create/edit forms, persistence, authentication and backend synchronization remain deliberately outside this visual milestone.
+
 ## Visual-reference synthesis
 
 The three supplied dashboard references are influences, not templates to reproduce literally.
