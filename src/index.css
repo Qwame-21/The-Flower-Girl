@@ -153,6 +153,14 @@ a {
   text-decoration: none;
 }
 
+.portfolio-page a:any-link {
+  color: inherit;
+}
+
+.portfolio-page :is(a, button) {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Seamless Image Blend */
 .seamless-blend {
   mix-blend-mode: multiply;
@@ -1674,7 +1682,7 @@ a {
 }
 
 .site-footer nav a {
-  font-size: .68rem;
+  font-size: .8rem;
   font-weight: 600;
   letter-spacing: .12em;
 }
@@ -1892,6 +1900,17 @@ a {
 }
 
 @media (max-width: 760px) {
+
+  .portfolio-page {
+    height: 100dvh !important;
+  }
+
+  .home-scroll,
+  .content-page {
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
 
   .portfolio-page .portfolio-header nav>button:not(.nav-order),
   .portfolio-page .portfolio-header nav>.link-underline {
@@ -12352,9 +12371,13 @@ a {
     justify-self: center;
     right: auto;
     top: auto;
-    width: min(68vw, 290px);
+    width: min(88vw, 380px);
+    height: min(76vw, 330px);
+    aspect-ratio: auto;
     margin: 1.4rem auto .35rem;
     transform: none;
+    background-size: auto 205%;
+    background-position: center 50%;
     animation: about-flower-breathe 4.8s ease-in-out infinite;
   }
 
@@ -12402,6 +12425,10 @@ a {
     justify-self: center;
     justify-content: center;
     margin-top: .35rem;
+  }
+
+  .site-footer nav a {
+    font-size: .7rem;
   }
 
   .storefront-drawer__location {
