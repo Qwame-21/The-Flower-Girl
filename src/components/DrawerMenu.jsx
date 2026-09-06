@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { MapPin, X } from 'lucide-react';
 import { readAdminData, subscribeAdminData } from '../data/adminStore';
 import { PRODUCTS } from '../data/products';
 
@@ -18,7 +18,7 @@ export default function DrawerMenu({ isOpen, onClose, onNavigate }) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}
-        <button onClick={onClose} style={styles.closeBtn} aria-label="Close menu">
+        <button className="round-icon" onClick={onClose} style={styles.closeBtn} aria-label="Close menu">
           <X size={24} color="#181818" />
         </button>
 
@@ -56,6 +56,15 @@ export default function DrawerMenu({ isOpen, onClose, onNavigate }) {
           <a href="https://wa.me/message/WWAXSHH3LEGIL1" target="_blank" rel="noreferrer" style={styles.socialLink} className="link-underline">WA</a>
           <a href="https://www.instagram.com/flowergirl_ghana/" target="_blank" rel="noreferrer" style={styles.socialLink} className="link-underline">IG</a>
         </div>
+        <a
+          className="storefront-drawer__location"
+          href="https://maps.google.com/?q=ACP+Estate+Junction+Kwabenya+Accra"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <MapPin size={17} strokeWidth={2.35} aria-hidden="true" />
+          <span>ACP Estate Junction, Kwabenya, Accra</span>
+        </a>
       </div>
     </div>
   );
@@ -85,7 +94,7 @@ const styles = {
     alignSelf: 'flex-end',
     padding: '0.5rem',
     borderRadius: '50%',
-    backgroundColor: 'rgba(0,0,0,0.04)',
+    backgroundColor: 'rgba(17,17,17,0.06)',
     marginBottom: '3rem',
   },
   pageList: {

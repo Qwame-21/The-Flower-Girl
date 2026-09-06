@@ -34,6 +34,16 @@ create table if not exists public.products (
   updated_at timestamptz not null default now()
 );
 
+insert into public.products (id,name,slug,tag,description,details,category,price,stock,image_path,visible,sort_order) values
+('hamper-3750','Luxury hamper','luxury-hamper','SIGNATURE','Laptop bag, Lacoste shirt, YSL perfume, Patek Philippe watch, manicure set and card.','["Premium gift box","Fashion and fragrance selection","Watch and grooming pieces","Personal message card"]','hampers',3750,25,'hamper-editorial-v2.png',true,10),
+('christmas-bundle','Christmas bundle','christmas-bundle','SEASONAL','Six yards of Hollandaise fabric, Bodycology fragrance splash and an insulated tumbler.','["Hollandaise fabric","Fragrance splash","Insulated tumbler","Gift presentation"]','bundles',1250,20,'engagement-presentation-v2.png',true,20),
+('period-care','Period care box','period-care-box','SUBSCRIPTION','Pads and panty liners, feminine wash and wipes, ginger tea with mint, cranberry juice, cookies and a hot water bottle.','["Period-care essentials","Tea, juice and cookies","Hot water bottle","Optional monthly delivery"]','care',650,30,'wrapping-editorial-v2.png',true,30),
+('fresh-bouquet','Fresh flower bouquet','fresh-flower-bouquet','FRESH','A fresh arrangement selected around your preferred palette, occasion and delivery date.','["Seasonal fresh flowers","Chosen colour direction","Hand-tied finishing","Message card"]','flowers',450,30,'bouquet-editorial-v2.png',true,40),
+('fragrance-gift','Fragrance & treats gift','fragrance-treats-gift','FREQUENTLY CHOSEN','A personalized combination of fragrance, premium chocolate, flowers and a handwritten card.','["Fragrance selection","Premium chocolates","Fresh floral accent","Handwritten card"]','hampers',950,20,'basket-hamper-editorial-v2.png',true,50),
+('personalized-bag','Personalized wrist bag','personalized-wrist-bag','PERSONALIZED','A wrist bag gift with optional name engraving, wrapping and additional accessories.','["Wrist bag","Optional name finishing","Gift wrapping","Selected accessories"]','personalized',650,20,'delivery-editorial-v2.png',true,60),
+('embroidery','Embroidery & personalization','embroidery-personalization','MADE TO ORDER','Add a name or short personal detail to selected shirts, fabric gifts and accessories.','["Name or short wording","Thread colour selection","Placement confirmation","Production approval"]','personalized',180,50,'embroidery-editorial-v2.png',true,70)
+on conflict (id) do nothing;
+
 create table if not exists public.collections (
   id uuid primary key default gen_random_uuid(), title text not null,
   description text not null default '', status text not null default 'draft' check (status in ('draft','live')),
@@ -94,6 +104,27 @@ create table if not exists public.order_events (
   customer_note text, created_by uuid references auth.users(id) on delete set null, created_at timestamptz not null default now()
 );
 
+-- A checkout attempt is not an order. It holds the server-validated basket until
+-- Paystack confirms payment. Only the signed webhook finalizes it into an order.
+create table if not exists public.checkout_attempts (
+  id uuid primary key default gen_random_uuid(),
+  payment_reference text unique not null,
+  tracking_number text unique not null,
+  order_code text unique not null,
+  customer_email text not null,
+  checkout_data jsonb not null,
+  items jsonb not null,
+  subtotal numeric(12,2) not null check (subtotal >= 0),
+  total numeric(12,2) not null check (total >= 0),
+  currency text not null default 'GHS' check (currency = 'GHS'),
+  status text not null default 'initialized' check (status in ('initialized','paid','failed','expired')),
+  authorization_url text,
+  order_id uuid references public.orders(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  expires_at timestamptz not null default (now() + interval '2 hours')
+);
+
 create table if not exists public.reviews (
   id uuid primary key default gen_random_uuid(), customer_name text not null, product_or_service text not null,
   rating integer not null check (rating between 1 and 5), review_text text not null,
@@ -140,6 +171,7 @@ alter table public.customer_requests enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.order_events enable row level security;
+alter table public.checkout_attempts enable row level security;
 alter table public.reviews enable row level security;
 alter table public.careers enable row level security;
 alter table public.career_applications enable row level security;
@@ -160,7 +192,7 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 do $$ declare table_name text; begin
-  foreach table_name in array array['staff_profiles','products','collections','collection_products','promotions','gallery_items','customer_requests','orders','order_items','order_events','reviews','careers','career_applications','site_content','site_settings','admin_notifications']
+  foreach table_name in array array['staff_profiles','products','collections','collection_products','promotions','gallery_items','customer_requests','orders','order_items','order_events','checkout_attempts','reviews','careers','career_applications','site_content','site_settings','admin_notifications']
   loop execute format('create policy "staff manages %1$s" on public.%1$I for all to authenticated using (public.is_staff()) with check (public.is_staff())', table_name);
   end loop;
 exception when duplicate_object then null; end $$;
@@ -178,12 +210,74 @@ create or replace function public.touch_updated_at()
 returns trigger language plpgsql as $$ begin new.updated_at = now(); return new; end; $$;
 
 do $$ declare table_name text; begin
-  foreach table_name in array array['products','collections','promotions','gallery_items','customer_requests','orders','reviews','careers','career_applications','site_content','site_settings']
+  foreach table_name in array array['products','collections','promotions','gallery_items','customer_requests','orders','checkout_attempts','reviews','careers','career_applications','site_content','site_settings']
   loop
     execute format('drop trigger if exists set_updated_at on public.%I', table_name);
     execute format('create trigger set_updated_at before update on public.%I for each row execute function public.touch_updated_at()', table_name);
   end loop;
 end $$;
+
+-- Idempotent, transactional conversion used only after webhook verification.
+create or replace function public.finalize_paid_checkout(
+  verified_reference text,
+  verified_amount numeric,
+  verified_currency text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  attempt public.checkout_attempts%rowtype;
+  created_order_id uuid;
+begin
+  select * into attempt from public.checkout_attempts
+  where payment_reference = verified_reference
+  for update;
+
+  if not found then raise exception 'checkout_not_found'; end if;
+  if attempt.status = 'paid' and attempt.order_id is not null then
+    return jsonb_build_object('orderId', attempt.order_id, 'trackingNumber', attempt.tracking_number, 'orderCode', attempt.order_code, 'alreadyProcessed', true);
+  end if;
+  if attempt.status <> 'initialized' then raise exception 'checkout_not_payable'; end if;
+  if attempt.currency <> upper(verified_currency) or abs(attempt.total - verified_amount) > 0.01 then
+    raise exception 'payment_mismatch';
+  end if;
+
+  insert into public.orders (
+    tracking_number, order_code, customer_name, customer_email, customer_phone,
+    recipient_name, delivery_address, landmark, location_link, customer_note,
+    card_message, card_style, requested_delivery_date, subtotal, total,
+    payment_provider, payment_reference, payment_status, fulfillment_status
+  ) values (
+    attempt.tracking_number, attempt.order_code,
+    attempt.checkout_data->>'customer_name', attempt.customer_email,
+    attempt.checkout_data->>'customer_phone', attempt.checkout_data->>'recipient_name',
+    attempt.checkout_data->>'delivery_address', nullif(attempt.checkout_data->>'landmark',''),
+    nullif(attempt.checkout_data->>'location_link',''), nullif(attempt.checkout_data->>'customer_note',''),
+    nullif(attempt.checkout_data->>'card_message',''), nullif(attempt.checkout_data->>'card_style',''),
+    nullif(attempt.checkout_data->>'requested_delivery_date','')::date,
+    attempt.subtotal, attempt.total, 'paystack', attempt.payment_reference, 'paid', 'paid'
+  ) returning id into created_order_id;
+
+  insert into public.order_items (order_id, product_id, item_name, quantity, unit_price, metadata)
+  select created_order_id, item.product_id, item.item_name, item.quantity, item.unit_price, coalesce(item.metadata, '{}'::jsonb)
+  from jsonb_to_recordset(attempt.items) as item(product_id text, item_name text, quantity integer, unit_price numeric, metadata jsonb);
+
+  insert into public.order_events (order_id, stage, customer_note)
+  values (created_order_id, 'paid', 'Payment confirmed');
+
+  insert into public.admin_notifications (type, title, body, route, record_id)
+  values ('new_order', 'New paid order', attempt.tracking_number || ' · GHS ' || attempt.total, '/admin', created_order_id::text);
+
+  update public.checkout_attempts set status='paid', order_id=created_order_id, updated_at=now()
+  where id=attempt.id;
+
+  return jsonb_build_object('orderId', created_order_id, 'trackingNumber', attempt.tracking_number, 'orderCode', attempt.order_code, 'alreadyProcessed', false);
+end $$;
+
+revoke all on function public.finalize_paid_checkout(text,numeric,text) from public, anon, authenticated;
+grant execute on function public.finalize_paid_checkout(text,numeric,text) to service_role;
 
 -- Customer-safe tracking lookup. Server-side rate limiting is still required.
 create or replace function public.track_record(lookup_reference text, lookup_contact text)
@@ -199,7 +293,7 @@ begin
     'events',coalesce((select jsonb_agg(jsonb_build_object('stage',e.stage,'note',e.customer_note,'createdAt',e.created_at) order by e.created_at) from public.order_events e where e.order_id=o.id),'[]'::jsonb)
   ) into result from public.orders o
   where lower(o.tracking_number)=lower(trim(lookup_reference))
-    and (lower(coalesce(o.customer_email,''))=lower(trim(lookup_contact)) or (length(normalized_contact)>=7 and regexp_replace(o.customer_phone,'[^0-9]','','g')=normalized_contact))
+    and (lower(coalesce(o.customer_email,''))=lower(trim(lookup_contact)) or (length(normalized_contact)>=9 and length(regexp_replace(o.customer_phone,'[^0-9]','','g'))>=9 and right(regexp_replace(o.customer_phone,'[^0-9]','','g'),9)=right(normalized_contact,9)))
   limit 1;
   if result is not null then return result; end if;
 
@@ -210,7 +304,7 @@ begin
     'adminNote',r.admin_note,'updatedAt',r.updated_at
   ) into result from public.customer_requests r
   where lower(r.reference)=lower(trim(lookup_reference))
-    and (lower(coalesce(r.email,''))=lower(trim(lookup_contact)) or (length(normalized_contact)>=7 and regexp_replace(r.phone,'[^0-9]','','g')=normalized_contact))
+    and (lower(coalesce(r.email,''))=lower(trim(lookup_contact)) or (length(normalized_contact)>=9 and length(regexp_replace(r.phone,'[^0-9]','','g'))>=9 and right(regexp_replace(r.phone,'[^0-9]','','g'),9)=right(normalized_contact,9)))
   limit 1;
   return result;
 end $$;

@@ -32,6 +32,7 @@ interface InitPayload {
   cardMessage?: string;
   cardStyleNotes?: string;
   requestedDeliveryDate?: string;
+  callbackUrl?: string;
   cart: CartItem[];
 }
 
@@ -86,56 +87,46 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
-  // ── Price validation against live DB (with fallback catalog) ─────────────────
-  const FALLBACK_PRODUCTS = new Map<string, { id: string; name: string; price: number; stock: number; visible: boolean }>([
-    ['hamper-3750', { id: 'hamper-3750', name: 'Luxury hamper', price: 3750, stock: 99, visible: true }],
-    ['christmas-bundle', { id: 'christmas-bundle', name: 'Christmas bundle', price: 1250, stock: 99, visible: true }],
-    ['period-care', { id: 'period-care', name: 'Period care box', price: 650, stock: 99, visible: true }],
-    ['fresh-bouquet', { id: 'fresh-bouquet', name: 'Fresh flower bouquet', price: 450, stock: 99, visible: true }],
-    ['fragrance-gift', { id: 'fragrance-gift', name: 'Fragrance & treats gift', price: 950, stock: 99, visible: true }],
-    ['personalized-bag', { id: 'personalized-bag', name: 'Personalized wrist bag', price: 650, stock: 99, visible: true }],
-    ['embroidery', { id: 'embroidery', name: 'Embroidery & personalization', price: 180, stock: 99, visible: true }],
-  ]);
-
+  // ── Price validation against the live database ───────────────────────────────
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-  const productIds = cart.map((i) => i.id);
-
-  let dbProducts: any[] = [];
-  try {
-    const { data, error } = await supabase
-      .from('products')
-      .select('id, name, price, stock, visible')
-      .in('id', productIds);
-    if (!error && Array.isArray(data)) {
-      dbProducts = data;
-    }
-  } catch (err) {
-    console.warn('DB product query notice:', err);
+  const productIds = [...new Set(cart.map((item) => item.id))];
+  const now = new Date().toISOString();
+  const [{ data: dbProducts, error: productError }, { data: promotions, error: promotionError }] = await Promise.all([
+    supabase.from('products').select('id, name, price, stock, visible').in('id', productIds),
+    supabase.from('promotions').select('product_id, percent').eq('status', 'active').or(`starts_at.is.null,starts_at.lte.${now}`).or(`ends_at.is.null,ends_at.gte.${now}`),
+  ]);
+  if (productError || promotionError || !dbProducts || dbProducts.length !== productIds.length) {
+    return new Response(JSON.stringify({ error: 'The live catalogue could not validate every item. Refresh the shop and try again.' }), {
+      status: 409,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
   }
 
   const priceMap = new Map(dbProducts.map((p) => [p.id, p]));
+  const promotionMap = new Map((promotions || []).map((promotion) => [promotion.product_id, Number(promotion.percent)]));
   let serverTotal = 0;
-  const validatedItems: Array<{ product_id: string; item_name: string; quantity: number; unit_price: number }> = [];
+  const validatedItems: Array<{ product_id: string; item_name: string; quantity: number; unit_price: number; metadata: Record<string, number> }> = [];
 
   for (const cartItem of cart) {
-    const dbProduct = priceMap.get(cartItem.id) || FALLBACK_PRODUCTS.get(cartItem.id) || {
-      id: cartItem.id,
-      name: cartItem.name || 'Gift Item',
-      price: Math.max(0, Number(cartItem.price) || 0),
-      stock: 99,
-      visible: true,
-    };
+    const dbProduct = priceMap.get(cartItem.id);
 
-    if (dbProduct.visible === false) {
-      return new Response(JSON.stringify({ error: `Product unavailable: ${dbProduct.name}` }), {
+    if (!dbProduct || dbProduct.visible === false) {
+      return new Response(JSON.stringify({ error: `Product unavailable: ${dbProduct?.name || cartItem.name}` }), {
         status: 400,
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       });
     }
     const qty = Math.max(1, Math.round(cartItem.quantity || 1));
-    const itemPrice = Number(dbProduct.price) || 0;
+    if (qty > Number(dbProduct.stock)) {
+      return new Response(JSON.stringify({ error: `Only ${dbProduct.stock} of ${dbProduct.name} available.` }), {
+        status: 409,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    }
+    const discountPercent = Math.min(90, Math.max(0, promotionMap.get(cartItem.id) || 0));
+    const itemPrice = Math.round(Number(dbProduct.price) * (100 - discountPercent) / 100);
     serverTotal += itemPrice * qty;
-    validatedItems.push({ product_id: cartItem.id, item_name: dbProduct.name, quantity: qty, unit_price: itemPrice });
+    validatedItems.push({ product_id: cartItem.id, item_name: dbProduct.name, quantity: qty, unit_price: itemPrice, metadata: { discount_percent: discountPercent } });
   }
 
   // ── Generate references ───────────────────────────────────────────────────────
@@ -144,43 +135,51 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const orderCode  = `WEB-${String(timestamp).slice(-6)}`;
   const paystackRef = `gf_${timestamp}_${Math.random().toString(36).slice(2, 8)}`;
 
-  // ── Insert pending order (service role bypasses RLS) ──────────────────────────
-  try {
-    const { data: newOrder, error: insertError } = await supabase.from('orders').insert({
-      tracking_number: tracking,
-      order_code: orderCode,
+  // Store a private, expiring attempt. This is deliberately not an order.
+  const { error: attemptError } = await supabase.from('checkout_attempts').insert({
+    payment_reference: paystackRef,
+    tracking_number: tracking,
+    order_code: orderCode,
+    customer_email: customerEmail,
+    checkout_data: {
       customer_name: customerName,
-      customer_email: customerEmail,
       customer_phone: customerPhone,
       recipient_name: recipientName || customerName,
       delivery_address: deliveryAddress,
-      landmark: landmark || null,
-      location_link: locationLink || null,
-      customer_note: customerNote || null,
-      card_message: cardMessage || null,
-      card_style: cardStyleNotes || null,
-      requested_delivery_date: requestedDeliveryDate || null,
-      subtotal: serverTotal,
-      total: serverTotal,
-      payment_provider: 'paystack',
-      payment_reference: paystackRef,
-      payment_status: 'pending',
-      fulfillment_status: 'pending_payment',
-    }).select('id').single();
-
-    if (insertError) {
-      console.warn('DB order insert notice (table unseeded or pending migration):', insertError.message || insertError);
-    } else if (newOrder?.id) {
-      await supabase.from('order_items').insert(
-        validatedItems.map((item) => ({ ...item, order_id: newOrder.id })),
-      );
-    }
-  } catch (err) {
-    console.warn('DB order insert catch notice:', err);
+      landmark: landmark || '',
+      location_link: locationLink || '',
+      customer_note: customerNote || '',
+      card_message: cardMessage || '',
+      card_style: cardStyleNotes || '',
+      requested_delivery_date: requestedDeliveryDate || '',
+    },
+    items: validatedItems,
+    subtotal: serverTotal,
+    total: serverTotal,
+    currency: 'GHS',
+  });
+  if (attemptError) {
+    console.error('Checkout attempt insert failed:', attemptError.message);
+    return new Response(JSON.stringify({ error: 'Checkout could not be prepared.' }), {
+      status: 500,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
   }
 
   // ── Call Paystack transaction/initialize ──────────────────────────────────────
   const amountInPesewas = Math.round(serverTotal * 100);
+  let callbackUrl: string | undefined;
+  if (payload.callbackUrl) {
+    try {
+      const candidate = new URL(payload.callbackUrl);
+      const configuredStorefront = Deno.env.get('STOREFRONT_URL');
+      const isLocal = ['localhost', '127.0.0.1'].includes(candidate.hostname) && PAYSTACK_SECRET.startsWith('sk_test_');
+      const isConfigured = configuredStorefront && candidate.origin === new URL(configuredStorefront).origin;
+      if ((candidate.protocol === 'https:' && isConfigured) || (candidate.protocol === 'http:' && isLocal)) callbackUrl = candidate.toString();
+    } catch {
+      callbackUrl = undefined;
+    }
+  }
 
   const paystackRes = await fetch('https://api.paystack.co/transaction/initialize', {
     method: 'POST',
@@ -193,6 +192,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       email: customerEmail,
       amount: amountInPesewas,
       currency: 'GHS',
+      ...(callbackUrl ? { callback_url: callbackUrl } : {}),
       metadata: {
         tracking_number: tracking,
         order_code: orderCode,
@@ -206,17 +206,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   if (!paystackRes.ok || !paystackData.status) {
     console.error('Paystack error:', paystackData);
+    await supabase.from('checkout_attempts').update({ status: 'failed' }).eq('payment_reference', paystackRef);
     return new Response(JSON.stringify({ error: paystackData.message || 'Payment gateway error' }), {
       status: 502,
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     });
   }
 
+  await supabase.from('checkout_attempts').update({ authorization_url: paystackData.data.authorization_url }).eq('payment_reference', paystackRef);
+
   return new Response(
     JSON.stringify({
       authorizationUrl: paystackData.data.authorization_url,
       reference: paystackRef,
       trackingNumber: tracking,
+      orderCode,
       total: serverTotal,
     }),
     { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },

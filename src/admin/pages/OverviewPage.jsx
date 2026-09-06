@@ -1,0 +1,7 @@
+export default function OverviewPage({ activeTab, overview, displayRows, setSelectedItem, activeNav }) {
+  return <>
+    <header className="admin-page-heading"><div><small>{activeNav} · {activeTab}</small><h2>{overview.title}</h2><p>{overview.subtitle}</p></div><button onClick={() => setSelectedItem({ title: `${activeNav} updates`, status: activeTab, detail: 'Recent activity and notes for this workspace.' })}>View updates</button></header>
+    <section className="overview-strip"><article><small>Paid revenue</small><strong>GHS {overview.revenue.toLocaleString()}</strong><span>{overview.note}</span></article><article><small>{activeTab === 'Activity' ? 'Recorded updates' : 'Orders'}</small><strong>{overview.orders}</strong><span>{activeTab.toLowerCase()} view</span></article><article><small>Delivery queue</small><strong>{overview.queue}</strong><span>Ready for action</span></article><div className="overview-chart" aria-label={`${activeTab} order activity`}>{overview.bars.map((height, index) => <i key={`${activeTab}-${index}`} style={{ '--bar-height': `${height}%` }}><span>{overview.labels[index]}</span></i>)}</div></section>
+    {displayRows.length > 0 && <div className="admin-page-list">{displayRows.map(([title, status, detail], index) => <button key={`${title}-${index}`} onClick={() => setSelectedItem({ title, status, detail })}><span>{String(index + 1).padStart(2, '0')}</span><strong>{title}</strong><em>{detail}</em><b>{status}</b><i>→</i></button>)}</div>}
+  </>;
+}

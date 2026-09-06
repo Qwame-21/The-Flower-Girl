@@ -1,0 +1,9 @@
+project_id = "lvciyxnafwhrtrgmmjxw"
+
+# Public entry points validate their own input. The webhook additionally checks
+# Paystack's signature and verifies the transaction before creating an order.
+[functions.paystack-init]
+verify_jwt = false
+
+[functions.paystack-webhook]
+verify_jwt = false

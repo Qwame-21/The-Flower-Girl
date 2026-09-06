@@ -41,7 +41,7 @@ export default function SearchModal({ isOpen, onClose, onSelectSlide, onNavigate
             style={styles.input}
             autoFocus
           />
-          <button onClick={onClose} style={styles.closeBtn} aria-label="Close search"><X size={20} /></button>
+          <button className="round-icon" onClick={onClose} style={styles.closeBtn} aria-label="Close search"><X size={20} /></button>
         </div>
 
         <div style={styles.resultsBody}>
@@ -159,9 +159,9 @@ const styles = {
     width: '42px',
     height: '42px',
     padding: '0',
-    borderRadius: '999px',
-    border: '1px solid rgba(0,0,0,0.18)',
-    backgroundColor: 'transparent'
+    borderRadius: '50%',
+    border: '0',
+    backgroundColor: 'rgba(17,17,17,0.06)'
   },
   resultsBody: {
     maxHeight: 'calc(100dvh - 110px)',

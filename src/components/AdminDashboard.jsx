@@ -1,7 +1,30 @@
 import { useEffect, useState } from 'react';
-import { Bell, BriefcaseBusiness, ChartNoAxesColumnIncreasing, ChevronDown, CircleHelp, ClipboardCheck, Clock3, FileImage, House, Images, Menu, MessageSquareText, Package, Search, Settings, ShoppingBag, Tag, Truck, UserRound, Users, X } from 'lucide-react';
-import { PRODUCTS as STOREFRONT_PRODUCTS } from '../data/products';
-import { addAdminRecord, readAdminData, subscribeAdminData, updateAdminCollection, writeAdminData } from '../data/adminStore';
+import { BriefcaseBusiness, ChartNoAxesColumnIncreasing, ClipboardCheck, Clock3, FileImage, House, Images, MessageSquareText, Package, Settings, ShoppingBag, Tag, Truck, UserRound, Users, X } from 'lucide-react';
+import { addAdminRecord, readAdminData, updateAdminCollection } from '../admin/api/adminStore';
+import { useAdminData } from '../admin/hooks/useAdminData';
+import { useNotificationAudio } from '../admin/hooks/useNotificationAudio';
+import AdminRail from '../admin/components/AdminRail';
+import AdminTopbar from '../admin/components/AdminTopbar';
+import DetailFlyoutPanel from '../admin/components/DetailFlyoutPanel';
+import CareersPage from '../admin/pages/CareersPage';
+import ContentPage from '../admin/pages/ContentPage';
+import OrdersPage from '../admin/pages/OrdersPage';
+import OverviewPage from '../admin/pages/OverviewPage';
+import RequestsPage from '../admin/pages/RequestsPage';
+import CustomersPage from '../admin/pages/CustomersPage';
+import ReviewsPage from '../admin/pages/ReviewsPage';
+import DeliveryPage from '../admin/pages/DeliveryPage';
+import ProductsPage from '../admin/pages/ProductsPage';
+import ShopControlPage from '../admin/pages/ShopControlPage';
+import InsightsPage from '../admin/pages/InsightsPage';
+import SettingsPage from '../admin/pages/SettingsPage';
+import ReviewModal from '../admin/modals/ReviewModal';
+import CareerModal from '../admin/modals/CareerModal';
+import ConfirmDeleteModal from '../admin/modals/ConfirmDeleteModal';
+import ProductModal from '../admin/modals/ProductModal';
+import CollectionModal from '../admin/modals/CollectionModal';
+import { ORDER_LABELS, cataloguePrice, mapDatabaseOrder } from '../admin/utils/adminMappers';
+import { supabase } from '../config/supabase';
 
 const NAV_ITEMS = [
   { label: 'Overview', icon: House }, { label: 'Orders', icon: ShoppingBag },
@@ -34,9 +57,6 @@ const OVERVIEW_VIEWS = {
   Activity: { title: 'Team activity', subtitle: 'The latest payment, catalogue, delivery and customer-service updates.', revenue: 12640, orders: 11, queue: 4, note: '16 updates across the team', bars: [66, 35, 82, 44, 73, 52, 91], labels: ['Paid', 'Packed', 'Ready', 'Sent', 'Delivered', 'Quotes', 'Replies'], rows: [['Payment confirmed', '12 min ago', 'GF-1052 · Mobile Money'], ['Product visibility changed', '48 min ago', 'Embroidery service hidden'], ['Delivery assigned', '1 hr ago', 'GF-1049 · Tema Community 12'], ['Gallery updated', '2 hrs ago', 'Signature gift presentation published']] },
 };
 
-const ORDER_STAGES = ['pending_payment', 'paid', 'packaging', 'ready', 'delivery', 'completed'];
-const ORDER_LABELS = { pending_payment: 'Awaiting payment', paid: 'Paid', packaging: 'Processing', ready: 'Packed', delivery: 'Dispatched', completed: 'Delivered' };
-const cataloguePrice = value => Number(String(value || '').match(/[\d,.]+/)?.[0]?.replace(/,/g, '') || 0);
 export default function AdminDashboard() {
   const [activeNav, setActiveNav] = useState('Overview');
   const [activeTabs, setActiveTabs] = useState({});
@@ -60,6 +80,7 @@ export default function AdminDashboard() {
   const [settingsMessage, setSettingsMessage] = useState('');
   const [galleryMessage, setGalleryMessage] = useState('');
   const [readNotificationIds, setReadNotificationIds] = useState(() => { try { return JSON.parse(window.localStorage.getItem('gifting-factory-read-notifications') || '[]'); } catch { return []; } });
+  const [notificationSound, setNotificationSound] = useState(() => window.localStorage.getItem('gifting-factory-notification-sound') !== 'off');
   const [utilityPanel, setUtilityPanel] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [productQuery, setProductQuery] = useState('');
@@ -67,9 +88,24 @@ export default function AdminDashboard() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [secondaryImagePreview, setSecondaryImagePreview] = useState('');
-  const [adminData, setAdminData] = useState(readAdminData);
-  const [products, setProducts] = useState(() => readAdminData().products);
-  useEffect(() => subscribeAdminData(data => { setAdminData(data); setProducts(data.products || []); }), []);
+  const { adminData, setAdminData, products } = useAdminData();
+  useEffect(() => {
+    if (!supabase) return undefined;
+    let active = true;
+    const loadVerifiedOrders = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || !active) return;
+      const { data, error } = await supabase.from('orders').select('*, order_items(*), order_events(*)').order('created_at', { ascending: false });
+      if (!error && active) setAdminData(current => ({ ...current, orders: (data || []).map(mapDatabaseOrder) }));
+    };
+    loadVerifiedOrders();
+    const channel = supabase.channel('admin-paid-orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, loadVerifiedOrders)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, loadVerifiedOrders)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_events' }, loadVerifiedOrders)
+      .subscribe();
+    return () => { active = false; supabase.removeChannel(channel); };
+  }, []);
   useEffect(() => window.localStorage.setItem('gifting-factory-staff-cart', JSON.stringify(staffCart)), [staffCart]);
   useEffect(() => {
     if (!utilityPanel) return undefined;
@@ -135,24 +171,12 @@ export default function AdminDashboard() {
   const displayRows = activeNav === 'Overview' ? overview.rows : liveRows;
   const notifications = [...adminData.orders.map(order => ({ id: `order-${order.id}-${order.status}-${order.updatedAt || order.createdAt}`, type: order.updatedAt ? 'Order updated' : 'Order received', title: `${order.tracking} · ${order.customer}`, status: ORDER_LABELS[order.status], route: 'Orders', record: order })), ...adminData.requests.map(request => ({ id: `request-${request.id}-${request.status}-${request.updatedAt || request.createdAt}`, type: request.updatedAt ? 'Request updated' : 'Request received', title: `${request.reference || 'Request'} · ${request.name || 'Customer'}`, status: request.status === 'quote_needed' ? 'Quote needed' : request.status, route: 'Requests', record: request })), ...adminData.applications.map(application => ({ id: `application-${application.id}-${application.status}-${application.updatedAt || application.createdAt}`, type: 'Application', title: application.name || 'New applicant', status: application.status || application.role, route: 'Careers', record: application }))].sort((a, b) => new Date(b.record.updatedAt || b.record.createdAt || 0) - new Date(a.record.updatedAt || a.record.createdAt || 0));
   const notificationCount = notifications.filter(item => !readNotificationIds.includes(item.id)).length;
+  useNotificationAudio(notificationCount, notificationSound);
   const selectNav = (label) => { setActiveNav(label); setMobileOpen(false); if (window.matchMedia('(max-width: 760px)').matches) setRailExpanded(false); setUtilityPanel(null); setSelectedItem(null); };
   const openOrder = id => { setActiveTabs(current => ({ ...current, Orders: 'All orders' })); selectNav('Orders'); window.setTimeout(() => setExpandedOrderIds([id]), 0); };
   const selectTab = (label) => { setActiveTabs(current => ({ ...current, [activeNav]: label })); setUtilityPanel(null); setSelectedItem(null); };
   const toggleUtility = (panel) => setUtilityPanel(current => current === panel ? null : panel);
   const markNotificationsRead = ids => setReadNotificationIds(current => { const next = [...new Set([...current, ...ids])]; window.localStorage.setItem('gifting-factory-read-notifications', JSON.stringify(next)); return next; });
-  const saveSetting = (key, value) => writeAdminData({ ...readAdminData(), settings: { ...readAdminData().settings, [key]: value } });
-  const addProduct = (event) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const rawPrice = String(form.get('price')).replace(/[^0-9.]/g, '');
-    const product = { name: form.get('name'), brand: form.get('brand'), category: form.get('category'), subcategory: form.get('subcategory'), audience: form.get('audience'), description: form.get('description'), benefits: form.get('benefits'), size: form.get('size'), lowStockAt: Number(form.get('lowStockAt')), bestseller: form.get('bestseller') === 'on', trending: form.get('trending') === 'on', price: `GHS ${Number(rawPrice).toLocaleString()}`, stock: Number(form.get('stock')), visible: editingProduct?.visible ?? true, image: imagePreview || editingProduct?.image || '/assets/gifting-factory-logo-transparent-v2.png', secondaryImage: secondaryImagePreview || editingProduct?.secondaryImage || '' };
-    if (editingProduct) updateAdminCollection('products', items => items.map(item => item.id === editingProduct.id ? { ...item, ...product } : item));
-    else addAdminRecord('products', product);
-    setProductFormOpen(false);
-    setEditingProduct(null);
-    setImagePreview('');
-    setSecondaryImagePreview('');
-  };
   const saveOrderNotes = (order) => {
     const draft = orderDrafts[order.id] || {};
     updateAdminCollection('orders', orders => orders.map(item => item.id === order.id ? { ...item, estimatedDelivery: draft.estimatedDelivery ?? item.estimatedDelivery ?? '', adminNote: draft.adminNote ?? item.adminNote ?? '' } : item));
@@ -161,139 +185,251 @@ export default function AdminDashboard() {
   };
 
   return <main className={`admin-foundation ${railExpanded ? 'has-expanded-rail' : ''}`}>
-    <aside className={`admin-foundation__rail ${mobileOpen ? 'is-open' : ''} ${railExpanded ? 'is-expanded' : ''}`} aria-label="Admin navigation">
-      <button className="admin-foundation__brand" onClick={() => setRailExpanded(value => !value)} aria-label={`${railExpanded ? 'Collapse' : 'Expand'} navigation`} aria-expanded={railExpanded}><img src="/gifting-factory-mark.svg" alt="" /><span>{railExpanded ? 'Collapse menu' : 'Expand menu'}</span></button>
-      <button className="admin-foundation__mobile-close" onClick={() => { setMobileOpen(false); setRailExpanded(false); }} aria-label="Close navigation"><X size={18} /></button>
-      <nav>{NAV_ITEMS.map(({ label, icon: Icon }) => <button key={label} className={activeNav === label ? 'is-active' : ''} onClick={() => selectNav(label)} aria-label={label}><Icon size={18} strokeWidth={1.7} /><span>{label}</span></button>)}</nav>
-      <div className="admin-foundation__rail-footer"><button className={activeNav === 'Settings' ? 'is-active' : ''} aria-label="Settings" onClick={() => selectNav('Settings')}><Settings size={18} strokeWidth={1.7} /><span>Settings</span></button></div>
-    </aside>
-    {mobileOpen && <button className="admin-foundation__scrim" onClick={() => { setMobileOpen(false); setRailExpanded(false); }} aria-label="Close navigation" />}
+    <AdminRail
+      railExpanded={railExpanded}
+      setRailExpanded={setRailExpanded}
+      mobileOpen={mobileOpen}
+      setMobileOpen={setMobileOpen}
+      activeNav={activeNav}
+      selectNav={selectNav}
+      navItems={NAV_ITEMS}
+    />
 
     <section className="admin-foundation__workspace">
-      <header className="admin-foundation__topbar">
-        <div className="admin-foundation__title"><button className="admin-foundation__menu" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={19} /></button><h1>{activeNav}</h1></div>
-        <div className="admin-foundation__utilities">
-          <button className={utilityPanel === 'help' ? 'is-active' : ''} aria-label="Help" aria-expanded={utilityPanel === 'help'} onClick={() => toggleUtility('help')}><CircleHelp size={18} strokeWidth={1.6} /></button>
-          <button className={utilityPanel === 'notifications' ? 'is-active admin-notification-button' : 'admin-notification-button'} aria-label="Notifications" aria-expanded={utilityPanel === 'notifications'} onClick={() => toggleUtility('notifications')}><Bell size={18} strokeWidth={1.6} />{notificationCount > 0 && <b>{notificationCount}</b>}</button>
-          <button className={`admin-foundation__account ${utilityPanel === 'account' ? 'is-active' : ''}`} aria-label="Account menu" aria-expanded={utilityPanel === 'account'} onClick={() => toggleUtility('account')}><span><UserRound size={17} strokeWidth={1.6} /></span><strong>{adminData.settings.adminName || 'Admin'}</strong><ChevronDown size={15} /></button>
-        </div>
-        {utilityPanel && <aside className={`admin-foundation__popover is-${utilityPanel}`} aria-live="polite">
-          <button className="admin-foundation__popover-close" onClick={() => setUtilityPanel(null)} aria-label="Close panel"><X size={14} /></button>
-          {utilityPanel === 'help' && <><small>Admin manual</small><strong>How to run the store</strong><div className="admin-help-list">{[
-            ['Orders', 'Confirm payment, update fulfilment and save customer-visible delivery notes.', 'Open an order, verify its customer and payment reference, then advance one stage at a time. Add the delivery estimate and customer note before dispatch.'],
-            ['Requests', 'Review briefs, flag quotes and approve custom work.', 'Open the brief, check its selections and estimate, mark Quote needed when pricing is incomplete, then approve or convert it to an order.'],
-            ['Products', 'Add, edit, delete, price and publish catalogue items.', 'Use Add product for images, inventory, price and description. Keep incomplete items hidden; publish only after checking both images and stock.'],
-            ['Shop', 'Curate storefront products and create staff-assisted orders.', 'Open All products, add items to Staff cart, enter the customer and recipient details, then create a pending order for payment follow-up.'],
-            ['Gallery', 'Upload, order, publish, hide or remove storefront images.', 'Upload an image with a descriptive label, review its crop, then publish it. Use the arrows to control storefront order.'],
-            ['Customers', 'Open a customer profile and jump into their order history.', 'Choose a customer to view spend and order history. Open an order from the profile when a delivery or payment needs attention.'],
-            ['Delivery', 'Review recipients and move consignments through dispatch.', 'Assign a rider, confirm the destination and estimate, then mark dispatched. Mark delivered only after hand-off is confirmed.'],
-            ['Careers', 'Create openings, pause applications and inspect candidates.', 'Publish only active roles. Review each application, use shortlist for interview candidates and archive records that need no further action.'],
-            ['Settings', 'Manage store, team and security controls.', 'Store and team edits are saved to this browser preview. Password and production access changes require the authentication service.'],
-          ].map(([label, text, steps]) => <details key={label}><summary><b>{label}</b><span>{text}</span></summary><p>{steps}</p><button onClick={() => selectNav(label)}>Open {label}</button></details>)}</div></>}
-          {utilityPanel === 'notifications' && <><small>Notifications</small><strong>{notificationCount ? 'Recent store activity' : 'You’re all caught up'}</strong>{notificationCount > 0 && <button className="admin-notification-clear" onClick={() => markNotificationsRead(notifications.map(item => item.id))}>Clear notifications</button>}<div className="admin-notification-list">{notifications.filter(item => !readNotificationIds.includes(item.id)).slice(0, 8).map(item => <button key={item.id} onClick={() => { markNotificationsRead([item.id]); if (item.route === 'Orders') openOrder(item.record.id); else if (item.route === 'Requests') { selectNav('Requests'); setSelectedItem({ type: 'request', title: item.title, status: item.status, detail: item.record.note || item.status, request: item.record }); } else if (item.route === 'Careers') { selectNav('Careers'); setSelectedItem({ type: 'application', title: item.title, status: item.status, detail: item.record.motivation || item.record.role, application: item.record }); } }}><span>{item.type}</span><b>{item.title}</b><em>{item.status}</em></button>)}</div></>}
-          {utilityPanel === 'account' && <><small>Signed in</small><strong>{adminData.settings.adminName || 'Administrator'}</strong><p>{adminData.settings.adminEmail} · Full access to catalogue, operations, content and hiring controls.</p><button className="admin-foundation__profile-action" onClick={() => { selectNav('Settings'); setActiveTabs(current => ({ ...current, Settings: 'Team' })); }}>Profile settings</button><button className="admin-foundation__profile-action" onClick={() => { selectNav('Settings'); setActiveTabs(current => ({ ...current, Settings: 'Security' })); }}>Change password</button><button className="admin-foundation__profile-action is-logout" onClick={() => window.location.assign('/')}>Log out</button></>}
-        </aside>}
-      </header>
+      <AdminTopbar
+        activeNav={activeNav}
+        setMobileOpen={setMobileOpen}
+        utilityPanel={utilityPanel}
+        toggleUtility={toggleUtility}
+        setUtilityPanel={setUtilityPanel}
+        notificationCount={notificationCount}
+        notificationSound={notificationSound}
+        setNotificationSound={setNotificationSound}
+        notifications={notifications}
+        readNotificationIds={readNotificationIds}
+        markNotificationsRead={markNotificationsRead}
+        openOrder={openOrder}
+        selectNav={selectNav}
+        setSelectedItem={setSelectedItem}
+        adminData={adminData}
+        setActiveTabs={setActiveTabs}
+      />
 
       <section className="admin-file" style={{ '--active-tab': tabIndex }}>
         <nav className="admin-foundation__tabs" role="tablist" aria-label={`${activeNav} sections`}>
           {tabs.map(([label, count, Icon], index) => <button role="tab" id={`admin-tab-${activeNav}-${index}`} aria-controls="admin-active-panel" tabIndex={activeTab === label ? 0 : -1} key={label} className={activeTab === label ? 'is-active' : ''} aria-selected={activeTab === label} onKeyDown={event => { if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return; event.preventDefault(); const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length; selectTab(tabs[nextIndex][0]); event.currentTarget.parentElement.children[nextIndex]?.focus(); }} onClick={() => selectTab(label)}><span className="admin-foundation__tab-icon"><Icon size={16} strokeWidth={1.7} /></span><span>{label}</span><b>{count}</b></button>)}
         </nav>
         <section id="admin-active-panel" role="tabpanel" aria-labelledby={`admin-tab-${activeNav}-${Math.max(0, tabIndex)}`} key={`${activeNav}-${activeTab}`} className="admin-foundation__canvas" aria-label={`${activeTab} workspace`}>
-          {activeNav === 'Products' ? <>
-            <header className="admin-page-heading product-heading"><div><small>Catalogue · {activeTab}</small><h2>Products</h2><p>Manage product imagery, pricing, inventory and storefront visibility.</p></div><button className="admin-primary-action" onClick={() => { setEditingProduct(null); setImagePreview(''); setSecondaryImagePreview(''); setProductFormOpen(true); }}>Add new product</button></header>
-            <div className="product-toolbar"><label><Search size={16} /><input value={productQuery} onChange={event => setProductQuery(event.target.value)} placeholder="Search products or categories" />{productQuery && <button onClick={() => setProductQuery('')} aria-label="Clear search"><X size={14} /></button>}</label><span>{filteredProducts.length} products</span></div>
-            <div className="product-table" role="table" aria-label="Products">
-              <div className="product-table__head" role="row"><span>Product</span><span>Price</span><span>Inventory</span><span>Storefront</span><span /></div>
-              {filteredProducts.map(product => <article key={product.id} role="row"><button className="product-identity" onClick={() => setSelectedItem({ title: product.name, status: product.visible ? 'Visible' : 'Hidden', detail: `${product.category} · ${product.price}` })}><img src={product.image} alt={product.name} /><span><strong>{product.name}</strong><small>{product.category}</small></span></button><span>{product.price}</span><span className={product.stock < 10 ? 'is-low' : ''}>{product.stock} available</span><button className={`visibility-switch ${product.visible ? 'is-on' : ''}`} onClick={() => updateAdminCollection('products', items => items.map(item => item.id === product.id ? { ...item, visible: !item.visible } : item))} aria-label={`${product.visible ? 'Hide' : 'Show'} ${product.name}`} aria-pressed={product.visible}><i /></button><div className="product-row-actions"><button onClick={() => { setEditingProduct(product); setImagePreview(product.image); setSecondaryImagePreview(product.secondaryImage || ''); setProductFormOpen(true); }}>Edit</button><button className="is-danger" onClick={() => setPendingDelete({ collection: 'products', id: product.id, title: product.name, detail: 'This removes the product from Admin, storefront collections, carts after refresh, and future ordering.' })}>Delete</button></div></article>)}
-            </div>
-            <section className="product-promotion-editor" aria-label="Product percentage offers">
-              <header><div><small>Storefront offers</small><h3>Product promotions</h3></div><p>Set the percentage, pause an offer without deleting it, or remove it completely.</p></header>
-              {STOREFRONT_PRODUCTS.map(product => { const promotion = (adminData.promotions || []).find(item => item.productId === product.id); return <label key={`discount-${product.id}`}><span><strong>{product.name}</strong><small>{product.priceLabel}{promotion ? ` · ${promotion.status}` : ' · no promotion'}</small></span><input type="number" min="0" max="90" step="1" defaultValue={promotion?.percent || 0} aria-label={`${product.name} discount percentage`} onBlur={event => { const percent = Math.min(90, Math.max(0, Number(event.target.value) || 0)); updateAdminCollection('promotions', items => percent ? items.some(item => item.productId === product.id) ? items.map(item => item.productId === product.id ? { ...item, percent } : item) : [...items, { id: `promo-${product.id}`, productId: product.id, percent, status: 'active' }] : items.filter(item => item.productId !== product.id)); }} /><b>% OFF</b><button type="button" disabled={!promotion} onClick={() => updateAdminCollection('promotions', items => items.map(item => item.productId === product.id ? { ...item, status: item.status === 'active' ? 'paused' : 'active' } : item))}>{promotion?.status === 'active' ? 'Pause' : 'Activate'}</button><button type="button" disabled={!promotion} onClick={() => updateAdminCollection('promotions', items => items.filter(item => item.productId !== product.id))}>Remove</button></label>; })}
-            </section>
-          </> : activeNav === 'Orders' ? <>
-            <header className="admin-page-heading"><div><small>Fulfilment · {activeTab}</small><h2>Orders</h2><p>Confirm payment, prepare each gift and keep delivery progress current.</p></div><button onClick={() => setManualOrderOpen(true)}>Add manual order</button></header>
-            <section className="order-summary"><article><small>Paid revenue</small><strong>GHS {orderRevenue.toLocaleString()}</strong><span>{paidOrders.length} verified payments</span></article><article><small>Active orders</small><strong>{activeOrders.length}</strong><span>{adminData.orders.filter(order => order.status === 'packaging').length} being prepared</span></article><article><small>Delivery queue</small><strong>{adminData.orders.filter(order => order.status === 'ready' || order.status === 'delivery').length}</strong><span>Ready or dispatched</span></article></section>
-            <div className="order-search"><Search size={16} /><input value={orderQuery} onChange={event => setOrderQuery(event.target.value)} placeholder="Search order ID, code, customer, phone or location" />{orderQuery && <button onClick={() => setOrderQuery('')} aria-label="Clear order search"><X size={14} /></button>}</div>
-            <div className="order-selection-bar"><label><input type="checkbox" checked={filteredOrders.length > 0 && filteredOrders.every(order => selectedOrderIds.includes(order.id))} onChange={event => setSelectedOrderIds(event.target.checked ? filteredOrders.map(order => order.id) : [])} /><span>{selectedOrderIds.length ? `${selectedOrderIds.length} selected` : 'Select orders'}</span></label>{selectedOrderIds.length > 0 && <><button onClick={() => setSelectedOrderIds([])}>Clear</button><button className="is-danger" onClick={() => setDeleteOrderIds(selectedOrderIds)}>Delete selected</button></>}</div>
-            <div className="order-workbench" role="table" aria-label={`${activeTab} orders`}>
-              <div className="order-workbench__head" role="row"><span /><span>Order and customer</span><span>Progress</span><span>Total</span><span /></div>
-              {filteredOrders.map(order => { const stageIndex = ORDER_STAGES.indexOf(order.status); const expanded = expandedOrderIds.includes(order.id); const setStage = (status) => updateAdminCollection('orders', orders => orders.map(item => item.id === order.id ? { ...item, status, ...(status === 'pending_payment' ? { paymentStatus: 'pending' } : stageIndex < 1 && status === 'paid' ? { paymentStatus: 'paid' } : {}), [`${status}At`]: new Date().toISOString(), updatedAt: new Date().toISOString() } : item)); return <article key={order.id} role="row" className={expanded ? 'is-expanded' : ''}>
-                <label className="order-select"><input type="checkbox" checked={selectedOrderIds.includes(order.id)} onChange={event => setSelectedOrderIds(ids => event.target.checked ? [...ids, order.id] : ids.filter(id => id !== order.id))} /><span /></label>
-                <div className="order-identity"><div><strong>{order.tracking}</strong><b>{order.code || `BOOK-${order.tracking.replace(/\D/g, '')}`}</b><em className={order.paymentStatus === 'paid' ? 'is-verified' : ''}>{order.paymentStatus === 'paid' ? 'Payment confirmed' : 'Payment pending'}</em></div><h3>{order.customer}</h3><p>{order.phone} · {new Date(order.createdAt).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' })}</p>{order.staffOrder && <em>Staff order</em>}</div>
-                <div className="order-checkpoints" aria-label={`${order.tracking} fulfilment progress`}>
-                  <label><input type="checkbox" checked={order.paymentStatus === 'paid'} onChange={event => setStage(event.target.checked ? 'paid' : 'pending_payment')} /><i /><span>Paid</span></label>
-                  <label><input type="checkbox" checked={stageIndex >= 3} disabled={stageIndex < 1} onChange={event => setStage(event.target.checked ? 'ready' : 'packaging')} /><i /><span>Packed</span></label>
-                  <label><input type="checkbox" checked={stageIndex >= 4} disabled={stageIndex < 3} onChange={event => setStage(event.target.checked ? 'delivery' : 'ready')} /><i /><span>Dispatched</span></label>
-                  <label><input type="checkbox" checked={stageIndex >= 5} disabled={stageIndex < 4} onChange={event => setStage(event.target.checked ? 'completed' : 'delivery')} /><i /><span>Delivered</span></label>
-                </div>
-                <div className="order-total"><strong>GHS {Number(order.total).toLocaleString()}</strong><span className={`order-stage is-${order.status}`}>{ORDER_LABELS[order.status]}</span></div>
-                <button className="order-expand" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${order.tracking}`} aria-expanded={expanded} onClick={() => setExpandedOrderIds(ids => expanded ? ids.filter(id => id !== order.id) : [...ids, order.id])}><ChevronDown size={17} /></button>
-                {expanded && <section className="order-expanded-detail"><article><small>Customer</small><strong>{order.customer}</strong><p>{order.phone}</p><p>{order.delivery}</p><p>{order.customerEmail || 'No email supplied'}</p><blockquote>{order.customerNote || 'No customer delivery note was supplied.'}</blockquote><button onClick={() => window.print()}>Print order</button></article><article><small>Items</small>{order.items.map((item, index) => <div className="order-line-item" key={`${item.name}-${index}`}><p><strong>{item.qty}×</strong> {item.name}</p><b>GHS {Number(item.price || order.total / Math.max(order.items.length, 1)).toLocaleString()}</b></div>)}<div className="order-items-total"><span>Total</span><strong>GHS {Number(order.total).toLocaleString()}</strong></div><p>{order.paymentMethod || 'Payment method pending'} · {order.paymentStatus === 'paid' ? 'Payment confirmed' : 'Awaiting payment confirmation'}</p></article><article><small>Admin note and delivery information</small><label>Estimated delivery<input type="datetime-local" value={orderDrafts[order.id]?.estimatedDelivery ?? order.estimatedDelivery ?? ''} onChange={event => setOrderDrafts(drafts => ({ ...drafts, [order.id]: { ...drafts[order.id], estimatedDelivery: event.target.value } }))} /></label><label>Admin note visible to customer<textarea value={orderDrafts[order.id]?.adminNote ?? order.adminNote ?? ''} placeholder="Call when nearby, recipient instructions…" onChange={event => setOrderDrafts(drafts => ({ ...drafts, [order.id]: { ...drafts[order.id], adminNote: event.target.value } }))} /></label><div><button className="order-save-note" onClick={() => saveOrderNotes(order)}>{savedOrderId === order.id ? 'Saved' : 'Save information'}</button>{order.paymentStatus === 'paid' && <button onClick={() => setStage('packaging')}>Start processing</button>}<button className="is-danger" onClick={() => setDeleteOrderIds([order.id])}>Delete order</button></div></article></section>}
-              </article>; })}
-              {!filteredOrders.length && <div className="admin-empty-state"><Package size={22} /><strong>No orders in {activeTab.toLowerCase()}</strong><p>New orders will appear here automatically.</p></div>}
-            </div>
-          </> : activeNav === 'Requests' ? <>
-            <header className="admin-page-heading"><div><small>Enquiries · {activeTab}</small><h2>Custom requests</h2><p>Review the brief, prepare a quote and move approved work into fulfilment.</p></div></header>
-            <div className="request-workbench">
-              {filteredRequests.map(request => <article key={request.id}>
-                <button className="request-summary" onClick={() => setSelectedItem({ type: 'request', title: request.name || 'Custom request', status: request.status, detail: request.note || request.service || 'No brief supplied.', request })}>
-                  <span className="customer-avatar"><MessageSquareText size={19} /></span><span><strong>{request.name || 'Unnamed customer'}</strong><small>{request.phone || 'No phone'} · {request.preferredDate || 'Date to confirm'}</small></span><span><small>Request</small><b>{request.service || request.selections?.join(', ') || 'Bespoke gift'}</b></span><em>{request.status === 'approved' ? 'Approved' : request.status === 'quote_needed' ? 'Quote needed' : 'New'}</em><i>→</i>
-                </button>
-                <div className="request-actions"><label>Confirmed quote (GHS)<input type="number" min="1" step="0.01" defaultValue={request.quoteTotal || request.estimateHigh || ''} placeholder="Enter final amount" disabled={request.status === 'converted'} onBlur={event => updateAdminCollection('requests', items => items.map(item => item.id === request.id ? { ...item, quoteTotal: Number(event.target.value || 0) } : item))} /></label><button disabled={request.status === 'converted'} onClick={() => updateAdminCollection('requests', items => items.map(item => item.id === request.id ? { ...item, status: 'quote_needed' } : item))}>Needs quote</button><button disabled={request.status === 'converted' || !Number(request.quoteTotal || request.estimateHigh)} onClick={() => updateAdminCollection('requests', items => items.map(item => item.id === request.id ? { ...item, status: 'approved', approvedAt: new Date().toISOString() } : item))}>Approve</button>{request.status === 'approved' && <button disabled={!Number(request.quoteTotal || request.estimateHigh)} onClick={() => { const seed = Date.now().toString().slice(-6); const total = Number(request.quoteTotal || request.estimateHigh); const qty = Number(request.quantity || 1); addAdminRecord('orders', { tracking: `GF-${seed}`, code: `REQ-${seed}`, customer: request.name, phone: request.phone, recipient: request.name, delivery: 'To confirm', customerNote: request.note, requestedDeliveryDate: request.preferredDate, paymentMethod: 'To confirm', paymentStatus: 'pending', items: [{ name: request.service || request.selections?.join(', ') || 'Custom gift request', qty, price: qty ? total / qty : total }], total, status: 'pending_payment' }); updateAdminCollection('requests', items => items.map(item => item.id === request.id ? { ...item, status: 'converted', convertedAt: new Date().toISOString() } : item)); }}>Create order</button>}<button className="is-danger" onClick={() => updateAdminCollection('requests', items => items.filter(item => item.id !== request.id))}>Delete</button></div>
-              </article>)}
-              {!filteredRequests.length && <div className="admin-empty-state"><MessageSquareText size={22} /><strong>No requests in {activeTab.toLowerCase()}</strong><p>New storefront enquiries will appear here automatically.</p></div>}
-            </div>
-          </> : activeNav === 'Customers' ? <>
-            <header className="admin-page-heading"><div><small>Relationships · {activeTab}</small><h2>Customers</h2><p>Customer profiles are built from their real order history and recipient information.</p></div><button onClick={() => setSelectedItem({ type: 'customer-help', title: 'Customer profiles', status: 'Guide', detail: 'Profiles are created automatically when an order is placed.' })}>Customer guide</button></header>
-            <div className="customer-directory">{activeTab === 'Recipients' ? adminData.orders.map(order => <button key={`recipient-${order.id}`} onClick={() => openOrder(order.id)}><span className="customer-avatar"><UserRound size={20} /></span><span><strong>{order.recipient || order.customer}</strong><small>{order.phone} · {order.delivery || 'Location pending'}</small></span><span><small>Ordered by</small><b>{order.customer}</b></span><span><small>Order</small><b>{order.tracking}</b></span><i>→</i></button>) : customers.filter(customer => activeTab !== 'Returning' || customer.orders.length > 1).map(customer => <button key={customer.phone} onClick={() => setSelectedItem({ type: 'customer', title: customer.name, status: `${customer.orders.length} orders`, detail: customer.location, customer })}><span className="customer-avatar"><UserRound size={20} /></span><span><strong>{customer.name}</strong><small>{customer.phone} · {customer.location}</small></span><span><small>Orders</small><b>{customer.orders.length}</b></span><span><small>Total spent</small><b>GHS {customer.spent.toLocaleString()}</b></span><i>→</i></button>)}</div>
-          </> : activeNav === 'Reviews' ? <>
-            <header className="admin-page-heading"><div><small>Moderation · {activeTab}</small><h2>Customer reviews</h2><p>Read the complete review and control whether it appears publicly.</p></div><button onClick={() => { setEditingReview(null); setReviewFormOpen(true); }}>Add testimonial</button></header>
-            <div className="review-manager">{reviews.filter(review => activeTab === 'Pending' ? review.status === 'Pending' : activeTab === 'Published' ? review.status === 'Published' : activeTab === 'Flagged' ? review.status === 'Flagged' : true).map(review => <article key={review.id}><button onClick={() => setSelectedItem({ type: 'review', title: review.product, status: `${review.rating}.0 review`, detail: review.text, review })}><span className="customer-avatar"><UserRound size={19} /></span><span><strong>{review.customer}</strong><small>{review.product} · {review.date}</small></span><b>{'★'.repeat(review.rating)}</b><i>→</i></button><div><button onClick={() => { setEditingReview(review); setReviewFormOpen(true); }}>Edit</button><button onClick={() => updateAdminCollection('reviews', items => items.map(item => item.id === review.id ? { ...item, status: item.status === 'Published' ? 'Pending' : 'Published' } : item))}>{review.status === 'Published' ? 'Unpublish' : 'Publish review'}</button><button onClick={() => updateAdminCollection('reviews', items => items.map(item => item.id === review.id ? { ...item, status: 'Flagged' } : item))}>Flag</button><button className="is-danger" onClick={() => updateAdminCollection('reviews', items => items.filter(item => item.id !== review.id))}>Remove</button></div></article>)}</div>
-          </> : activeNav === 'Delivery' ? <>
-            <header className="admin-page-heading"><div><small>Fulfilment · {activeTab}</small><h2>Delivery desk</h2><p>See the recipient, rider, timing and destination before updating delivery progress.</p></div></header>
-            <div className="delivery-board">{deliveries.filter(delivery => activeTab === 'Out today' ? delivery.status === 'In transit' : activeTab === 'Completed' ? delivery.status === 'Delivered' : delivery.status !== 'Delivered').map(delivery => <article key={delivery.id}><button onClick={() => setSelectedItem({ type: 'delivery', title: delivery.id, status: delivery.status, detail: `${delivery.recipient} · ${delivery.location}`, delivery })}><Truck size={19} /><span><strong>{delivery.id} · {delivery.location}</strong><small>Recipient: {delivery.recipient} · {delivery.phone}</small></span><span><small>Rider</small><b>{delivery.rider}</b></span><span><small>Estimate</small><b>{delivery.estimate}</b></span><em>{delivery.status}</em><i>→</i></button><div><label>Rider<input defaultValue={delivery.rider === 'Unassigned' ? '' : delivery.rider} placeholder="Assign rider" onBlur={event => updateAdminCollection('orders', orders => orders.map(order => order.id === delivery.orderId ? { ...order, rider: event.target.value.trim() } : order))} /></label><label>Estimate<input type="datetime-local" defaultValue={adminData.orders.find(order => order.id === delivery.orderId)?.estimatedDelivery || ''} onBlur={event => updateAdminCollection('orders', orders => orders.map(order => order.id === delivery.orderId ? { ...order, estimatedDelivery: event.target.value } : order))} /></label>{delivery.status === 'Ready' && <button onClick={() => updateAdminCollection('orders', orders => orders.map(order => order.id === delivery.orderId ? { ...order, status: 'delivery', deliveryAt: new Date().toISOString() } : order))}>Mark dispatched</button>}{delivery.status === 'In transit' && <><label>Received by<input placeholder="Recipient name" defaultValue={delivery.receivedBy} onBlur={event => updateAdminCollection('orders', orders => orders.map(order => order.id === delivery.orderId ? { ...order, receivedBy: event.target.value.trim() } : order))} /></label><label>Delivery proof note<input placeholder="Hand-off or rider note" defaultValue={delivery.proofNote} onBlur={event => updateAdminCollection('orders', orders => orders.map(order => order.id === delivery.orderId ? { ...order, proofNote: event.target.value.trim() } : order))} /></label><button disabled={!delivery.receivedBy} onClick={() => updateAdminCollection('orders', orders => orders.map(order => order.id === delivery.orderId ? { ...order, status: 'completed', completedAt: new Date().toISOString() } : order))}>Mark delivered</button></>}</div></article>)}</div>
-          </> : activeNav === 'Careers' ? <>
-            <header className="admin-page-heading"><div><small>Hiring · {activeTab}</small><h2>Careers</h2><p>Create openings, control availability and review incoming applications.</p></div><button onClick={() => setCareerFormOpen(true)}>Create career</button></header>
-            <section className="career-admin-controls"><button onClick={() => { const careersOpen = adminData.careers.some(role => role.status === 'open'); updateAdminCollection('careers', roles => roles.map(role => role.status === 'draft' ? role : { ...role, status: careersOpen ? 'paused' : 'open' })); }}>{adminData.careers.some(role => role.status === 'open') ? 'Pause storefront applications' : 'Reopen storefront applications'}</button></section>
-            {['Applications', 'Shortlist', 'Archived'].includes(activeTab) ? <div className="application-manager">{adminData.applications.filter(application => activeTab === 'Shortlist' ? application.status === 'shortlisted' : activeTab === 'Archived' ? application.status === 'archived' : !['shortlisted', 'archived'].includes(application.status)).map(application => <article key={application.id}><button onClick={() => setSelectedItem({ type: 'application', title: application.name, status: application.status, detail: application.motivation || application.experience || 'No application note supplied.', application })}><span className="customer-avatar"><BriefcaseBusiness size={19} /></span><span><strong>{application.name}</strong><small>{application.email} · {application.phone || 'No phone'}</small></span><span><small>Applied for</small><b>{application.role}</b></span><em>{application.status}</em><i>→</i></button><div>{application.status !== 'shortlisted' && <button onClick={() => updateAdminCollection('applications', items => items.map(item => item.id === application.id ? { ...item, status: 'shortlisted' } : item))}>Shortlist</button>}{application.status !== 'archived' && <button onClick={() => updateAdminCollection('applications', items => items.map(item => item.id === application.id ? { ...item, status: 'archived' } : item))}>Archive</button>}{['shortlisted', 'archived'].includes(application.status) && <button onClick={() => updateAdminCollection('applications', items => items.map(item => item.id === application.id ? { ...item, status: 'new' } : item))}>Restore</button>}</div></article>)}{!adminData.applications.some(application => activeTab === 'Shortlist' ? application.status === 'shortlisted' : activeTab === 'Archived' ? application.status === 'archived' : !['shortlisted', 'archived'].includes(application.status)) && <div className="admin-empty-state"><BriefcaseBusiness size={22} /><strong>No {activeTab.toLowerCase()} yet</strong><p>Application status changes will appear here.</p></div>}</div> : <div className="career-list">{adminData.careers.filter(role => activeTab === 'Drafts' ? role.status === 'draft' : role.status === 'open').map(role => <article key={role.id}><div><small>{role.status}</small><h3>{role.title}</h3><p>{role.location || 'Accra, Ghana'} · {role.type || 'Full-time'}</p></div><div><button onClick={() => updateAdminCollection('careers', roles => roles.map(item => item.id === role.id ? { ...item, status: item.status === 'open' ? 'paused' : 'open' } : item))}>{role.status === 'open' ? 'Pause' : 'Publish'}</button><button className="is-danger" onClick={() => updateAdminCollection('careers', roles => roles.filter(item => item.id !== role.id))}>Delete</button></div></article>)}</div>}
-          </> : activeNav === 'Content' ? <>
-            <header className="admin-page-heading"><div><small>Storefront · {activeTab}</small><h2>Content</h2><p>Edit the customer-facing message for this section and keep changes in the shared storefront store.</p></div></header>
-            <form className="content-editor" key={activeTab} onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); const field = activeTab === 'Homepage' ? 'homepageFeature' : activeTab === 'Policies' ? 'orderPolicy' : 'announcement'; writeAdminData({ ...readAdminData(), content: { ...readAdminData().content, [field]: form.get('content') } }); setSettingsMessage(`${activeTab} content published to the storefront.`); }}><small>{activeTab} editor</small><h3>{activeTab === 'Homepage' ? 'Featured collection message' : activeTab === 'Policies' ? 'Customer order policy' : 'Store announcement'}</h3><textarea name="content" required defaultValue={activeTab === 'Homepage' ? adminData.content.homepageFeature : activeTab === 'Policies' ? adminData.content.orderPolicy : adminData.content.announcement} /><div><button type="submit">Save and publish</button><button type="button" onClick={event => { const value = event.currentTarget.form.elements.content.value; setSelectedItem({ type: 'content-preview', title: `${activeTab} preview`, status: 'Unpublished preview', detail: value }); }}>Preview</button></div>{settingsMessage && <p>{settingsMessage}</p>}</form>
-          </> : activeNav === 'Settings' ? <>
-            <header className="admin-page-heading"><div><small>Administration · {activeTab}</small><h2>Settings</h2><p>Manage the administrator profile, account security and store preferences.</p></div></header>
-            <div className="settings-workspace">
-              {activeTab === 'Store' && <><section><small>Store profile</small><h3>Customer-facing information</h3><label>Business name<input defaultValue={adminData.settings.businessName} onBlur={event => saveSetting('businessName', event.target.value)} /></label><label>Support phone<input defaultValue={adminData.settings.supportPhone} onBlur={event => saveSetting('supportPhone', event.target.value)} /></label><label>Support email<input type="email" defaultValue={adminData.settings.supportEmail} onBlur={event => saveSetting('supportEmail', event.target.value)} /></label><button onClick={() => setSettingsMessage('Store information is saved in this browser preview.')}>Confirm store details</button></section><section><small>Operations</small><h3>Delivery defaults</h3><label>Dispatch city<input defaultValue={adminData.settings.dispatchCity} onBlur={event => saveSetting('dispatchCity', event.target.value)} /></label><label>Standard lead time<input defaultValue={adminData.settings.leadTime} onBlur={event => saveSetting('leadTime', event.target.value)} /></label><label>Customer delivery note<textarea defaultValue={adminData.settings.deliveryNote} onBlur={event => saveSetting('deliveryNote', event.target.value)} /></label><button onClick={() => setSettingsMessage('Delivery defaults are saved in this browser preview.')}>Confirm delivery defaults</button></section></>}
-              {activeTab === 'Team' && <><section><small>Team access</small><h3>Administrator</h3><label>Display name<input defaultValue={adminData.settings.adminName} onBlur={event => saveSetting('adminName', event.target.value)} /></label><label>Email address<input type="email" defaultValue={adminData.settings.adminEmail} onBlur={event => saveSetting('adminEmail', event.target.value)} /></label><button onClick={() => setSettingsMessage('Administrator profile is saved in this browser preview.')}>Confirm profile</button></section><section><small>Roles and permissions</small><h3>Current access</h3><div className="team-role"><UserRound size={18} /><span><strong>{adminData.settings.adminName}</strong><small>Full catalogue, orders, content and hiring access</small></span><b>Owner</b></div><p>Additional team accounts require an authentication service before invitations can be sent safely.</p></section></>}
-              {activeTab === 'Security' && <><form onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); const next = form.get('newPassword'); const confirm = form.get('confirmPassword'); setSettingsMessage(next.length < 8 ? 'Password must contain at least 8 characters.' : next !== confirm ? 'The new passwords do not match.' : 'Password validation passed. Connect authentication before enabling password changes.'); }}><small>Security</small><h3>Change password</h3><label>Current password<input name="currentPassword" type="password" required /></label><label>New password<input name="newPassword" type="password" minLength="8" required /></label><label>Confirm new password<input name="confirmPassword" type="password" minLength="8" required /></label><button type="submit">Validate password change</button></form><section><small>Session</small><h3>Account protection</h3><p>This preview stores operational records in this browser. Production login, session revocation and password changes require the authentication backend.</p><button onClick={() => window.location.assign('/')}>Sign out of preview</button></section></>}
-              {settingsMessage && <p className="settings-message">{settingsMessage}</p>}
-            </div>
-          </> : <>
-            <header className="admin-page-heading"><div><small>{activeNav} · {activeTab}</small><h2>{activeNav === 'Overview' ? overview.title : page.title}</h2><p>{activeNav === 'Overview' ? overview.subtitle : page.subtitle}</p></div><button onClick={() => setSelectedItem({ title: `${activeNav} updates`, status: activeTab, detail: 'Recent activity and notes for this workspace.' })}>View updates</button></header>
-            {activeNav === 'Overview' && <section className="overview-strip"><article><small>Paid revenue</small><strong>GHS {overview.revenue.toLocaleString()}</strong><span>{overview.note}</span></article><article><small>{activeTab === 'Activity' ? 'Recorded updates' : 'Orders'}</small><strong>{overview.orders}</strong><span>{activeTab.toLowerCase()} view</span></article><article><small>Delivery queue</small><strong>{overview.queue}</strong><span>Ready for action</span></article><div className="overview-chart" aria-label={`${activeTab} order activity`}>{overview.bars.map((height, index) => <i key={`${activeTab}-${index}`} style={{ '--bar-height': `${height}%` }}><span>{overview.labels[index]}</span></i>)}</div></section>}
-            {activeNav === 'Shop' && <section className="shop-manager"><header><div><small>Shop management</small><h3>{activeTab === 'Collections' ? 'Storefront collections.' : 'Your storefront catalogue.'}</h3><p>{activeTab === 'Collections' ? 'Create, order and assign products to customer-facing groups.' : 'Browse the catalogue and place an assisted order for a customer.'}</p></div><div>{activeTab === 'Collections' ? <button onClick={() => setCollectionFormOpen(true)}>New collection</button> : <button onClick={() => { setEditingProduct(null); setImagePreview(''); setSecondaryImagePreview(''); setProductFormOpen(true); }}>Add product</button>}<button onClick={() => setStaffCartOpen(true)}>Staff cart ({staffCart.reduce((sum, item) => sum + item.qty, 0)})</button></div></header>{activeTab === 'Collections' ? <div className="collection-manager">{adminData.collections.map((collection, collectionIndex) => <article key={collection.id}><span><strong>{collection.title}</strong><small>{collection.description || 'No description'} · {collection.productIds.length} products</small></span><div className="collection-products">{products.map(product => <label key={product.id}><input type="checkbox" checked={collection.productIds.includes(product.id)} onChange={event => updateAdminCollection('collections', items => items.map(item => item.id === collection.id ? { ...item, productIds: event.target.checked ? [...new Set([...item.productIds, product.id])] : item.productIds.filter(id => id !== product.id) } : item))} />{product.name}</label>)}</div><button disabled={collectionIndex === 0} aria-label={`Move ${collection.title} earlier`} onClick={() => updateAdminCollection('collections', items => { const next = [...items]; [next[collectionIndex - 1], next[collectionIndex]] = [next[collectionIndex], next[collectionIndex - 1]]; return next; })}>↑</button><button disabled={collectionIndex === adminData.collections.length - 1} aria-label={`Move ${collection.title} later`} onClick={() => updateAdminCollection('collections', items => { const next = [...items]; [next[collectionIndex], next[collectionIndex + 1]] = [next[collectionIndex + 1], next[collectionIndex]]; return next; })}>↓</button><button onClick={() => updateAdminCollection('collections', items => items.map(item => item.id === collection.id ? { ...item, status: item.status === 'live' ? 'draft' : 'live' } : item))}>{collection.status === 'live' ? 'Live' : 'Draft'}</button><button className="is-danger" onClick={() => setSelectedItem({ type: 'delete-collection', title: `Delete ${collection.title}?`, status: 'Permanent action', detail: 'The products stay in the catalogue; only this collection will be removed.', collection })}>Delete</button></article>)}</div> : <div>{products.filter(product => activeTab === 'Featured' ? product.featured && product.visible : activeTab === 'Drafts' ? !product.visible : true).map(product => <article key={product.id}><img src={product.image} alt={product.name} /><span><strong>{product.name}</strong><small>{product.category} · {product.price} · {product.stock} available</small></span><button className={product.featured ? 'is-on' : ''} onClick={() => updateAdminCollection('products', items => items.map(item => item.id === product.id ? { ...item, featured: !item.featured } : item))}>{product.featured ? 'Featured' : 'Feature'}</button><button onClick={() => updateAdminCollection('products', items => items.map(item => item.id === product.id ? { ...item, visible: !item.visible } : item))}>{product.visible ? 'Live' : 'Draft'}</button><button disabled={!product.visible || Number(product.stock) < 1} onClick={() => setStaffCart(items => items.some(item => item.id === product.id) ? items.map(item => item.id === product.id ? { ...item, qty: Math.min(Number(product.stock), item.qty + 1) } : item) : [...items, { ...product, qty: 1 }])}>{!product.visible ? 'Draft item' : Number(product.stock) < 1 ? 'Out of stock' : 'Add to cart'}</button><button onClick={() => { setEditingProduct(product); setImagePreview(product.image || ''); setSecondaryImagePreview(product.secondaryImage || ''); setProductFormOpen(true); }}>Edit</button></article>)}</div>}</section>}
+          {activeNav === 'Products' ? (
+            <ProductsPage
+              activeTab={activeTab}
+              productQuery={productQuery}
+              setProductQuery={setProductQuery}
+              filteredProducts={filteredProducts}
+              setSelectedItem={setSelectedItem}
+              setEditingProduct={setEditingProduct}
+              setImagePreview={setImagePreview}
+              setSecondaryImagePreview={setSecondaryImagePreview}
+              setProductFormOpen={setProductFormOpen}
+              setPendingDelete={setPendingDelete}
+              adminData={adminData}
+            />
+          ) : activeNav === 'Orders' ? (
+            <OrdersPage
+              activeTab={activeTab}
+              filteredOrders={filteredOrders}
+              orderQuery={orderQuery}
+              setOrderQuery={setOrderQuery}
+              selectedOrderIds={selectedOrderIds}
+              setSelectedOrderIds={setSelectedOrderIds}
+              expandedOrderIds={expandedOrderIds}
+              setExpandedOrderIds={setExpandedOrderIds}
+              deleteOrderIds={deleteOrderIds}
+              setDeleteOrderIds={setDeleteOrderIds}
+              orderDrafts={orderDrafts}
+              setOrderDrafts={setOrderDrafts}
+              savedOrderId={savedOrderId}
+              saveOrderNotes={saveOrderNotes}
+              paidOrders={paidOrders}
+              activeOrders={activeOrders}
+              adminData={adminData}
+              setManualOrderOpen={setManualOrderOpen}
+            />
+          ) : activeNav === 'Requests' ? (
+            <RequestsPage
+              activeTab={activeTab}
+              filteredRequests={filteredRequests}
+              setSelectedItem={setSelectedItem}
+            />
+          ) : activeNav === 'Customers' ? (
+            <CustomersPage
+              activeTab={activeTab}
+              customers={customers}
+              adminData={adminData}
+              openOrder={openOrder}
+              setSelectedItem={setSelectedItem}
+            />
+          ) : activeNav === 'Reviews' ? (
+            <ReviewsPage
+              activeTab={activeTab}
+              reviews={reviews}
+              setSelectedItem={setSelectedItem}
+              setEditingReview={setEditingReview}
+              setReviewFormOpen={setReviewFormOpen}
+            />
+          ) : activeNav === 'Delivery' ? (
+            <DeliveryPage
+              activeTab={activeTab}
+              deliveries={deliveries}
+              adminData={adminData}
+              setSelectedItem={setSelectedItem}
+            />
+          ) : activeNav === 'Careers' ? (
+            <CareersPage
+              activeTab={activeTab}
+              adminData={adminData}
+              setCareerFormOpen={setCareerFormOpen}
+              setSelectedItem={setSelectedItem}
+            />
+          ) : activeNav === 'Content' ? (
+            <ContentPage
+              activeTab={activeTab}
+              adminData={adminData}
+              settingsMessage={settingsMessage}
+              setSettingsMessage={setSettingsMessage}
+              setSelectedItem={setSelectedItem}
+            />
+          ) : activeNav === 'Settings' ? (
+            <SettingsPage
+              activeTab={activeTab}
+              adminData={adminData}
+              settingsMessage={settingsMessage}
+              setSettingsMessage={setSettingsMessage}
+            />
+          ) : activeNav === 'Overview' ? (
+            <OverviewPage
+              activeNav={activeNav}
+              activeTab={activeTab}
+              overview={overview}
+              displayRows={displayRows}
+              setSelectedItem={setSelectedItem}
+            />
+          ) : <>
+            <header className="admin-page-heading"><div><small>{activeNav} · {activeTab}</small><h2>{page.title}</h2><p>{page.subtitle}</p></div><button onClick={() => setSelectedItem({ title: `${activeNav} updates`, status: activeTab, detail: 'Recent activity and notes for this workspace.' })}>View updates</button></header>
+            {activeNav === 'Shop' && (
+              <ShopControlPage
+                activeTab={activeTab}
+                adminData={adminData}
+                products={products}
+                setCollectionFormOpen={setCollectionFormOpen}
+                setEditingProduct={setEditingProduct}
+                setImagePreview={setImagePreview}
+                setSecondaryImagePreview={setSecondaryImagePreview}
+                setProductFormOpen={setProductFormOpen}
+                setSelectedItem={setSelectedItem}
+                staffCart={staffCart}
+                setStaffCart={setStaffCart}
+                setStaffCartOpen={setStaffCartOpen}
+              />
+            )}
             {activeNav === 'Gallery' && <section className="admin-gallery-manager"><label><input type="file" accept="image/png,image/jpeg,image/webp" onChange={event => { const file = event.target.files?.[0]; if (!file) return; if (!file.type.startsWith('image/')) { setGalleryMessage('Choose a PNG, JPG or WebP image.'); return; } if (file.size > 2 * 1024 * 1024) { setGalleryMessage('Image is too large. Choose a file under 2 MB for this browser preview.'); return; } const reader = new FileReader(); reader.onerror = () => setGalleryMessage('The image could not be read.'); reader.onload = () => { addAdminRecord('gallery', { src: reader.result, label: file.name.replace(/\.[^.]+$/, ''), visible: true }); setGalleryMessage('Image uploaded and published.'); }; reader.readAsDataURL(file); }} /><FileImage size={18} /><span>Upload gallery image</span></label>{galleryMessage && <p className="gallery-message" role="status">{galleryMessage}</p>}{adminData.gallery.filter(image => activeTab === 'Published' ? image.visible : activeTab === 'Hidden' ? !image.visible : Boolean(image.createdAt)).map(image => <article key={image.id}><img src={image.src} alt={image.label} /><label>Image label<input aria-label={`Label for ${image.label}`} defaultValue={image.label} onBlur={event => { const label = event.target.value.trim(); if (label) updateAdminCollection('gallery', items => items.map(item => item.id === image.id ? { ...item, label } : item)); }} /></label><div><button aria-label={`Move ${image.label} earlier`} onClick={() => updateAdminCollection('gallery', items => { const index = items.findIndex(item => item.id === image.id); if (index < 1) return items; const next = [...items]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}>↑</button><button aria-label={`Move ${image.label} later`} onClick={() => updateAdminCollection('gallery', items => { const index = items.findIndex(item => item.id === image.id); if (index < 0 || index === items.length - 1) return items; const next = [...items]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; return next; })}>↓</button><button onClick={() => updateAdminCollection('gallery', items => items.map(item => item.id === image.id ? { ...item, visible: !item.visible } : item))}>{image.visible ? 'Hide' : 'Publish'}</button><button className="is-danger" onClick={() => setPendingDelete({ collection: 'gallery', id: image.id, title: image.label, detail: 'This removes the image from Admin and the public gallery.' })}>Delete</button></div></article>)}</section>}
-            {activeNav === 'Insights' && (() => {
-              const completed = adminData.orders.filter(order => order.status === 'completed').length;
-              const completion = adminData.orders.length ? Math.round(completed / adminData.orders.length * 100) : 0;
-              const insight = activeTab === 'Products' ? { percent: products.length ? Math.round(products.filter(product => product.visible).length / products.length * 100) : 0, unit: 'visible', title: 'Catalogue availability', description: `${products.filter(product => product.visible).length} of ${products.length} products are visible.`, metric: `${products.reduce((sum, product) => sum + Number(product.stock || 0), 0)} units`, bars: products.slice(0, 7).map(product => Math.max(12, Math.min(92, Number(product.stock || 0) * 5))), lines: products.slice(0, 4).map(product => [product.name, product.stock]) } : activeTab === 'Delivery' ? { percent: completion, unit: 'delivered', title: 'Delivery completion', description: `${completed} of ${adminData.orders.length} orders are delivered.`, metric: `${adminData.orders.filter(order => order.status === 'delivery').length} in transit`, bars: ORDER_STAGES.slice(1).map(stage => Math.max(12, adminData.orders.filter(order => order.status === stage).length * 22)), lines: [['Packed', adminData.orders.filter(order => order.status === 'ready').length], ['Dispatched', adminData.orders.filter(order => order.status === 'delivery').length], ['Delivered', completed], ['Pending', adminData.orders.filter(order => order.status === 'pending_payment').length]] } : { percent: completion, unit: 'fulfilled', title: 'Order completion', description: `${completed} of ${adminData.orders.length} orders are complete.`, metric: `GHS ${orderRevenue.toLocaleString()}`, bars: overview.bars, lines: [['Paid', paidOrders.length], ['Processing', adminData.orders.filter(order => order.status === 'packaging').length], ['Packed', adminData.orders.filter(order => order.status === 'ready').length], ['Delivered', completed]] };
-              return <section className="insights-board"><article className="insights-donut" style={{ '--insight-percent': `${insight.percent}%` }}><div><strong>{insight.percent}%</strong><span>{insight.unit}</span></div><h3>{insight.title}</h3><p>{insight.description}</p></article><article><small>{activeTab} metric</small><strong>{insight.metric}</strong><div className="insights-bars">{insight.bars.map((height, index) => <i key={index} style={{ '--bar-height': `${height}%` }} />)}</div></article><article><small>{activeTab} breakdown</small>{insight.lines.map(([label, value]) => <div className="insight-line" key={label}><span>{label}</span><b>{value}</b><i><em style={{ width: `${Math.min(100, Number(value || 0) * 12)}%` }} /></i></div>)}</article></section>;
-            })()}
+            {activeNav === 'Insights' && (
+              <InsightsPage
+                activeTab={activeTab}
+                adminData={adminData}
+                products={products}
+                paidOrders={paidOrders}
+                orderRevenue={orderRevenue}
+                overview={overview}
+              />
+            )}
             {activeNav === 'Careers' && <section className="career-admin-controls"><button onClick={() => { const careersOpen = adminData.careers.some(role => role.status === 'open'); updateAdminCollection('careers', roles => roles.map(role => role.status === 'draft' ? role : { ...role, status: careersOpen ? 'paused' : 'open' })); }}>{adminData.careers.some(role => role.status === 'open') ? 'Pause storefront applications' : 'Reopen storefront applications'}</button><button onClick={() => addAdminRecord('careers', { title: `New role ${adminData.careers.length + 1}`, status: 'draft' })}>Create career draft</button></section>}
             {activeNav !== 'Shop' && displayRows.length > 0 && <div className="admin-page-list">{displayRows.map(([title, status, detail], index) => <button key={`${title}-${index}`} onClick={() => { const order = activeNav === 'Orders' ? adminData.orders.find(item => title.includes(item.tracking)) : null; setSelectedItem({ title, status, detail, recordId: order?.id }); }}><span>{String(index + 1).padStart(2, '0')}</span><strong>{title}</strong><em>{detail}</em><b>{status}</b><i>→</i></button>)}</div>}
           </>}
         </section>
       </section>
     </section>
-    {selectedItem && <><button className="admin-detail-scrim" onClick={() => setSelectedItem(null)} aria-label="Close details" /><aside className="admin-detail-panel contextual-panel" aria-label={`${selectedItem.title} details`}><button onClick={() => setSelectedItem(null)} aria-label="Close details"><X size={17} /></button><small>{activeNav}</small><h2>{selectedItem.title}</h2><span>{selectedItem.status}</span><p>{selectedItem.detail}</p>{selectedItem.type === 'customer' && <section className="panel-records"><small>Order history</small>{selectedItem.customer.orders.map(order => <button key={order.id} onClick={() => { setSelectedItem(null); openOrder(order.id); }}><strong>{order.tracking}</strong><span>{ORDER_LABELS[order.status]}</span><b>GHS {Number(order.total).toLocaleString()}</b></button>)}</section>}{selectedItem.type === 'request' && <section className="panel-detail-grid"><div><small>Contact</small><strong>{selectedItem.request.name}</strong><p>{selectedItem.request.phone || 'No phone supplied'}</p></div><div><small>Preferred date</small><strong>{selectedItem.request.preferredDate || 'To confirm'}</strong><p>{selectedItem.request.occasion || 'No occasion specified'}</p></div><div><small>Selection</small><strong>{selectedItem.request.service || selectedItem.request.selections?.join(', ') || 'Bespoke gift'}</strong><p>Quantity: {selectedItem.request.quantity || 1}</p></div><div><small>Estimate</small><strong>{selectedItem.request.estimateHigh ? `GHS ${Number(selectedItem.request.estimateLow).toLocaleString()}–${Number(selectedItem.request.estimateHigh).toLocaleString()}` : 'Quote required'}</strong><p>{selectedItem.request.inspirationName || 'No inspiration file'}</p></div></section>}{selectedItem.type === 'application' && <section className="panel-detail-grid"><div><small>Contact</small><strong>{selectedItem.application.email}</strong><p>{selectedItem.application.phone || 'No phone'} · {selectedItem.application.location || 'No location'}</p></div><div><small>Role</small><strong>{selectedItem.application.role}</strong><p>Available: {selectedItem.application.earliestStart || 'To confirm'}</p></div><div><small>Portfolio</small><strong>{selectedItem.application.portfolio || 'Not supplied'}</strong><p>CV: {selectedItem.application.cvName || 'No filename'}</p></div><div><small>Experience</small><p>{selectedItem.application.experience || 'Not supplied'}</p></div></section>}{selectedItem.type === 'review' && <section className="panel-review"><b>{'★'.repeat(selectedItem.review.rating)}</b><blockquote>{selectedItem.review.text}</blockquote><p>{selectedItem.review.customer} · {selectedItem.review.date}</p><button onClick={() => { setReviews(items => items.map(item => item.id === selectedItem.review.id ? { ...item, status: selectedItem.review.status === 'Published' ? 'Pending' : 'Published' } : item)); setSelectedItem(null); }}>{selectedItem.review.status === 'Published' ? 'Unpublish review' : 'Publish review'}</button></section>}{selectedItem.type === 'delivery' && <section className="panel-delivery"><div><small>Recipient</small><strong>{selectedItem.delivery.recipient}</strong><p>{selectedItem.delivery.phone} · {selectedItem.delivery.location}</p></div><div><small>Rider</small><strong>{selectedItem.delivery.rider}</strong><p>Sent: {selectedItem.delivery.sentAt}</p></div><div><small>Estimated delivery</small><strong>{selectedItem.delivery.estimate}</strong></div><button onClick={() => { const next = selectedItem.delivery.status === 'Ready' ? 'In transit' : 'Delivered'; setDeliveries(items => items.map(item => item.id === selectedItem.delivery.id ? { ...item, status: next } : item)); setSelectedItem(current => ({ ...current, status: next, delivery: { ...current.delivery, status: next } })); }}>{selectedItem.delivery.status === 'Ready' ? 'Mark dispatched' : 'Mark delivered'}</button></section>}{!['customer', 'request', 'application', 'review', 'delivery'].includes(selectedItem.type) && <div className="contextual-panel__actions"><button onClick={() => setSelectedItem(null)}>Close</button></div>}</aside></>}
-    {productFormOpen && <><button className="admin-detail-scrim" onClick={() => { setProductFormOpen(false); setEditingProduct(null); }} aria-label="Close product form" /><aside className="admin-detail-panel product-form-panel" aria-label={editingProduct ? 'Edit product' : 'Add new product'}><button onClick={() => { setProductFormOpen(false); setEditingProduct(null); }} aria-label="Close product form"><X size={17} /></button><small>Catalogue</small><h2>{editingProduct ? 'Edit product' : 'Add new product'}</h2><form key={editingProduct?.id || 'new-product'} onSubmit={addProduct}><div className="product-image-pair"><label className="product-image-upload"><input type="file" accept="image/*" onChange={event => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setImagePreview(reader.result); reader.readAsDataURL(file); }} /><span>{imagePreview ? <img src={imagePreview} alt="Primary product preview" /> : <><FileImage size={22} /><strong>Primary image</strong><small>PNG or JPG</small></>}</span></label><label className="product-image-upload"><input type="file" accept="image/*" onChange={event => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setSecondaryImagePreview(reader.result); reader.readAsDataURL(file); }} /><span>{secondaryImagePreview ? <img src={secondaryImagePreview} alt="Detail product preview" /> : <><FileImage size={22} /><strong>Detail image</strong><small>Back, ingredients or in-use</small></>}</span></label></div><label>Product name<input name="name" required defaultValue={editingProduct?.name || ''} placeholder="e.g. Celebration hamper" /></label><div><label>Brand<input name="brand" defaultValue={editingProduct?.brand || ''} /></label><label>Audience<input name="audience" defaultValue={editingProduct?.audience || ''} placeholder="Everyone" /></label></div><div><label>Category<input name="category" required defaultValue={editingProduct?.category || ''} placeholder="Hampers" /></label><label>Subcategory<input name="subcategory" defaultValue={editingProduct?.subcategory || ''} /></label></div><div><label>Price<input name="price" required inputMode="decimal" defaultValue={editingProduct?.price?.replace(/[^0-9.]/g, '') || ''} placeholder="1250" /></label><label>Size / volume / type<input name="size" defaultValue={editingProduct?.size || ''} /></label></div><div><label>Inventory<input name="stock" required type="number" min="0" defaultValue={editingProduct?.stock ?? 1} /></label><label>Low-stock alert at<input name="lowStockAt" required type="number" min="0" defaultValue={editingProduct?.lowStockAt ?? 3} /></label></div><label>Description<textarea name="description" defaultValue={editingProduct?.description || ''} placeholder="What the customer receives…" /></label><label>Ingredients / benefits / included items<textarea name="benefits" defaultValue={editingProduct?.benefits || ''} placeholder="Use a new line for each item" /></label><div className="product-flags"><label className="form-check"><input name="bestseller" type="checkbox" defaultChecked={editingProduct?.bestseller} /> Bestseller</label><label className="form-check"><input name="trending" type="checkbox" defaultChecked={editingProduct?.trending} /> Trending</label></div><button type="submit">{editingProduct ? 'Save product changes' : 'Create product'}</button></form></aside></>}
-    {careerFormOpen && <><button className="admin-detail-scrim" onClick={() => setCareerFormOpen(false)} aria-label="Close career form" /><aside className="admin-detail-panel product-form-panel" aria-label="Create career"><button onClick={() => setCareerFormOpen(false)} aria-label="Close career form"><X size={17} /></button><small>Hiring</small><h2>Create a career</h2><form onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); addAdminRecord('careers', { title: form.get('title'), location: form.get('location'), type: form.get('type'), description: form.get('description'), status: form.get('status') }); setCareerFormOpen(false); }}><label>Role title<input name="title" required placeholder="e.g. Gift production assistant" /></label><div><label>Location<input name="location" required placeholder="Accra" /></label><label>Employment type<input name="type" required placeholder="Full-time" /></label></div><label>Description<textarea name="description" required placeholder="Responsibilities, experience and application guidance…" /></label><label>Initial status<select name="status" defaultValue="draft"><option value="draft">Draft</option><option value="open">Open for applications</option><option value="paused">Paused</option></select></label><button type="submit">Create career</button></form></aside></>}
-    {deleteOrderIds.length > 0 && <><button className="admin-detail-scrim" onClick={() => setDeleteOrderIds([])} aria-label="Cancel deletion" /><aside className="admin-confirm-dialog" role="alertdialog" aria-labelledby="delete-order-title"><small>Permanent action</small><h2 id="delete-order-title">Delete {deleteOrderIds.length === 1 ? 'this order' : `${deleteOrderIds.length} orders`}?</h2><p>The selected order records and their tracking history will be removed from this browser.</p><code>{deleteOrderIds.map(id => adminData.orders.find(order => order.id === id)?.tracking).filter(Boolean).join(', ')}</code><div><button onClick={() => setDeleteOrderIds([])}>Cancel</button><button className="is-danger" onClick={() => { updateAdminCollection('orders', orders => orders.filter(order => !deleteOrderIds.includes(order.id))); setSelectedOrderIds([]); setExpandedOrderIds([]); setDeleteOrderIds([]); }}>Delete permanently</button></div></aside></>}
+    <DetailFlyoutPanel
+      selectedItem={selectedItem}
+      setSelectedItem={setSelectedItem}
+      activeNav={activeNav}
+      openOrder={openOrder}
+      setReviews={setReviews}
+      setDeliveries={setDeliveries}
+    />
+    <ProductModal
+      productFormOpen={productFormOpen}
+      setProductFormOpen={setProductFormOpen}
+      editingProduct={editingProduct}
+      setEditingProduct={setEditingProduct}
+      imagePreview={imagePreview}
+      setImagePreview={setImagePreview}
+      secondaryImagePreview={secondaryImagePreview}
+      setSecondaryImagePreview={setSecondaryImagePreview}
+    />
+    <CareerModal
+      careerFormOpen={careerFormOpen}
+      setCareerFormOpen={setCareerFormOpen}
+    />
+    <ConfirmDeleteModal
+      isOpen={deleteOrderIds.length > 0}
+      title={`Delete ${deleteOrderIds.length === 1 ? 'this order' : `${deleteOrderIds.length} orders`}?`}
+      badgeText="Permanent action"
+      detail="The selected order records and their tracking history will be removed from this browser."
+      codeText={deleteOrderIds.map(id => adminData.orders.find(order => order.id === id)?.tracking).filter(Boolean).join(', ')}
+      onCancel={() => setDeleteOrderIds([])}
+      onConfirm={() => {
+        updateAdminCollection('orders', orders => orders.filter(order => !deleteOrderIds.includes(order.id)));
+        setSelectedOrderIds([]);
+        setExpandedOrderIds([]);
+        setDeleteOrderIds([]);
+      }}
+    />
     {manualOrderOpen && <><button className="admin-detail-scrim" onClick={() => setManualOrderOpen(false)} aria-label="Close manual order" /><aside className="admin-detail-panel product-form-panel" aria-label="Add manual order"><button onClick={() => setManualOrderOpen(false)} aria-label="Close manual order"><X size={17} /></button><small>Orders</small><h2>Add manual order</h2><form onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); const seed = Date.now().toString().slice(-6); const paid = form.get('paid') === 'on'; addAdminRecord('orders', { tracking: `GF-${seed}`, code: `STAFF-${seed}`, customer: form.get('customer'), phone: form.get('phone'), recipient: form.get('recipient') || form.get('customer'), delivery: form.get('delivery'), customerNote: form.get('note'), paymentMethod: form.get('paymentMethod'), paymentStatus: paid ? 'paid' : 'pending', items: [{ name: form.get('item'), qty: Number(form.get('quantity')), price: Number(form.get('total')) / Number(form.get('quantity')) }], total: Number(form.get('total')), status: paid ? 'paid' : 'pending_payment', staffOrder: true }); setManualOrderOpen(false); }}><label>Customer name<input name="customer" required /></label><div><label>Phone<input name="phone" required /></label><label>Recipient<input name="recipient" /></label></div><label>Delivery location<input name="delivery" required /></label><label>Item or service<input name="item" required /></label><div><label>Quantity<input name="quantity" type="number" min="1" defaultValue="1" required /></label><label>Total (GHS)<input name="total" inputMode="decimal" required /></label></div><label>Payment method<select name="paymentMethod"><option>Mobile Money</option><option>Card</option><option>Bank transfer</option><option>Pay on delivery</option></select></label><label className="form-check"><input name="paid" type="checkbox" /> Payment already confirmed</label><label>Customer-visible note<textarea name="note" /></label><button type="submit">Create manual order</button></form></aside></>}
     {staffCartOpen && <><button className="admin-detail-scrim" onClick={() => setStaffCartOpen(false)} aria-label="Close staff cart" /><aside className="admin-detail-panel product-form-panel" aria-label="Staff cart"><button onClick={() => setStaffCartOpen(false)} aria-label="Close staff cart"><X size={17} /></button><small>Assisted ordering</small><h2>Staff cart</h2>{staffCart.length ? <form onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); const currentProducts = readAdminData().products; const invalid = staffCart.find(item => !cataloguePrice(item.price) || item.qty > Number(currentProducts.find(product => product.id === item.id)?.stock || 0)); if (invalid) { setStaffCartMessage(`${invalid.name} has an invalid price or insufficient stock. Refresh its catalogue record before ordering.`); return; } const seed = Date.now().toString().slice(-6); const items = staffCart.map(item => ({ id: item.id, name: item.name, qty: item.qty, price: cataloguePrice(item.price) })); const total = items.reduce((sum, item) => sum + item.price * item.qty, 0); addAdminRecord('orders', { tracking: `GF-${seed}`, code: `STAFF-${seed}`, customer: form.get('customer'), phone: form.get('phone'), recipient: form.get('recipient') || form.get('customer'), delivery: form.get('delivery'), customerNote: form.get('note'), paymentMethod: form.get('paymentMethod'), paymentStatus: 'pending', items, total, status: 'pending_payment', staffOrder: true }); updateAdminCollection('products', products => products.map(product => { const ordered = items.find(item => item.id === product.id); return ordered ? { ...product, stock: Math.max(0, Number(product.stock) - ordered.qty) } : product; })); setStaffCart([]); setStaffCartMessage(''); setStaffCartOpen(false); setActiveTabs(current => ({ ...current, Orders: 'All orders' })); selectNav('Orders'); }}><div className="staff-cart-lines">{staffCart.map(item => <article key={item.id}><img src={item.image} alt={item.name} /><span><strong>{item.name}</strong><small>{item.price} · Qty {item.qty} of {item.stock}</small></span><button type="button" aria-label={`Reduce ${item.name}`} onClick={() => setStaffCart(items => items.map(entry => entry.id === item.id ? { ...entry, qty: Math.max(1, entry.qty - 1) } : entry))}>−</button><button type="button" aria-label={`Increase ${item.name}`} disabled={item.qty >= Number(item.stock)} onClick={() => setStaffCart(items => items.map(entry => entry.id === item.id ? { ...entry, qty: Math.min(Number(entry.stock), entry.qty + 1) } : entry))}>+</button><button type="button" className="is-danger" onClick={() => setStaffCart(items => items.filter(entry => entry.id !== item.id))}>Remove</button></article>)}</div><div className="staff-cart-total"><span>Order total</span><strong>GHS {staffCart.reduce((sum, item) => sum + cataloguePrice(item.price) * item.qty, 0).toLocaleString()}</strong></div>{staffCartMessage && <p className="staff-cart-message" role="alert">{staffCartMessage}</p>}<label>Customer name<input name="customer" required /></label><div><label>Phone<input name="phone" required /></label><label>Recipient<input name="recipient" /></label></div><label>Delivery location<input name="delivery" required /></label><label>Payment method<select name="paymentMethod"><option>Mobile Money</option><option>Card</option><option>Bank transfer</option><option>Pay on delivery</option></select></label><label>Order note<textarea name="note" /></label><button type="submit" disabled={staffCart.some(item => !cataloguePrice(item.price))}>Create pending order</button></form> : <div className="admin-empty-state"><ShoppingBag size={22} /><strong>Your staff cart is empty</strong><p>Add products from the shop catalogue.</p></div>}</aside></>}
-    {reviewFormOpen && <><button className="admin-detail-scrim" onClick={() => { setReviewFormOpen(false); setEditingReview(null); }} aria-label="Close review form" /><aside className="admin-detail-panel product-form-panel" aria-label={editingReview ? 'Edit review' : 'Add testimonial'}><button onClick={() => { setReviewFormOpen(false); setEditingReview(null); }} aria-label="Close review form"><X size={17} /></button><small>Reviews</small><h2>{editingReview ? 'Edit review' : 'Add testimonial'}</h2><form key={editingReview?.id || 'new-review'} onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); const record = { customer: form.get('customer'), product: form.get('product'), rating: Number(form.get('rating')), text: form.get('text'), status: form.get('status'), date: editingReview?.date || new Date().toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' }) }; if (editingReview) updateAdminCollection('reviews', items => items.map(item => item.id === editingReview.id ? { ...item, ...record } : item)); else addAdminRecord('reviews', record); setReviewFormOpen(false); setEditingReview(null); }}><label>Customer name<input name="customer" required defaultValue={editingReview?.customer || ''} /></label><label>Product or service<input name="product" required defaultValue={editingReview?.product || ''} /></label><div><label>Rating<select name="rating" defaultValue={editingReview?.rating || 5}><option value="5">5 stars</option><option value="4">4 stars</option><option value="3">3 stars</option><option value="2">2 stars</option><option value="1">1 star</option></select></label><label>Status<select name="status" defaultValue={editingReview?.status || 'Pending'}><option>Pending</option><option>Published</option><option>Flagged</option></select></label></div><label>Review text<textarea name="text" required rows="6" defaultValue={editingReview?.text || ''} /></label><button type="submit">{editingReview ? 'Save review' : 'Add testimonial'}</button></form></aside></>}
-    {collectionFormOpen && <><button className="admin-detail-scrim" onClick={() => setCollectionFormOpen(false)} aria-label="Close collection form" /><aside className="admin-detail-panel product-form-panel" aria-label="Create collection"><button onClick={() => setCollectionFormOpen(false)} aria-label="Close collection form"><X size={17} /></button><small>Shop</small><h2>Create collection</h2><form onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); addAdminRecord('collections', { title: form.get('title'), description: form.get('description'), status: form.get('status'), productIds: form.getAll('products') }); setCollectionFormOpen(false); }}><label>Collection title<input name="title" required placeholder="e.g. Birthday gifts" /></label><label>Description<textarea name="description" required rows="4" /></label><fieldset className="collection-form-products"><legend>Products</legend>{products.map(product => <label key={product.id}><input type="checkbox" name="products" value={product.id} />{product.name}</label>)}</fieldset><label>Status<select name="status" defaultValue="draft"><option value="draft">Draft</option><option value="live">Live on storefront</option></select></label><button type="submit">Create collection</button></form></aside></>}
-    {selectedItem?.type === 'delete-collection' && <aside className="admin-confirm-dialog collection-delete-dialog" role="alertdialog" aria-label={selectedItem.title}><small>{selectedItem.status}</small><h2>{selectedItem.title}</h2><p>{selectedItem.detail}</p><div><button onClick={() => setSelectedItem(null)}>Cancel</button><button className="is-danger" onClick={() => { updateAdminCollection('collections', items => items.filter(item => item.id !== selectedItem.collection.id)); setSelectedItem(null); }}>Delete collection</button></div></aside>}
-    {pendingDelete && <><button className="admin-detail-scrim" onClick={() => setPendingDelete(null)} aria-label="Cancel deletion" /><aside className="admin-confirm-dialog" role="alertdialog" aria-label={`Delete ${pendingDelete.title}`}><small>Permanent action</small><h2>Delete {pendingDelete.title}?</h2><p>{pendingDelete.detail}</p><div><button onClick={() => setPendingDelete(null)}>Cancel</button><button className="is-danger" onClick={() => { updateAdminCollection(pendingDelete.collection, items => items.filter(item => item.id !== pendingDelete.id)); if (pendingDelete.collection === 'products') updateAdminCollection('collections', items => items.map(collection => ({ ...collection, productIds: collection.productIds.filter(id => id !== pendingDelete.id) }))); setPendingDelete(null); }}>Delete permanently</button></div></aside></>}
+    <ReviewModal
+      reviewFormOpen={reviewFormOpen}
+      setReviewFormOpen={setReviewFormOpen}
+      editingReview={editingReview}
+      setEditingReview={setEditingReview}
+    />
+    <CollectionModal
+      collectionFormOpen={collectionFormOpen}
+      setCollectionFormOpen={setCollectionFormOpen}
+      products={products}
+    />
+    <ConfirmDeleteModal
+      isOpen={selectedItem?.type === 'delete-collection'}
+      title={selectedItem?.title || ''}
+      badgeText={selectedItem?.status || 'Permanent action'}
+      detail={selectedItem?.detail || ''}
+      confirmButtonText="Delete collection"
+      dialogClassName="admin-confirm-dialog collection-delete-dialog"
+      ariaLabel={selectedItem?.title || 'Delete collection'}
+      onCancel={() => setSelectedItem(null)}
+      onConfirm={() => {
+        if (selectedItem?.collection?.id) {
+          updateAdminCollection('collections', items => items.filter(item => item.id !== selectedItem.collection.id));
+        }
+        setSelectedItem(null);
+      }}
+    />
+    <ConfirmDeleteModal
+      isOpen={Boolean(pendingDelete)}
+      title={pendingDelete ? `Delete ${pendingDelete.title}?` : ''}
+      badgeText="Permanent action"
+      detail={pendingDelete?.detail}
+      ariaLabel={pendingDelete ? `Delete ${pendingDelete.title}` : ''}
+      onCancel={() => setPendingDelete(null)}
+      onConfirm={() => {
+        if (pendingDelete) {
+          updateAdminCollection(pendingDelete.collection, items => items.filter(item => item.id !== pendingDelete.id));
+          if (pendingDelete.collection === 'products') {
+            updateAdminCollection('collections', items => items.map(collection => ({ ...collection, productIds: collection.productIds.filter(id => id !== pendingDelete.id) })));
+          }
+          setPendingDelete(null);
+        }
+      }}
+    />
   </main>;
 }
