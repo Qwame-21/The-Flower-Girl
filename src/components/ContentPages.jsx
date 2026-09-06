@@ -257,7 +257,11 @@ function CheckoutModal({ cart, onClose, onQuantity }) {
     try {
       const res = await fetch(INIT_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || ''}`,
+        },
         body: JSON.stringify({
           customerName: data.get('customer'),
           customerEmail: data.get('email'),
@@ -277,7 +281,8 @@ function CheckoutModal({ cart, onClose, onQuantity }) {
       const json = await res.json();
 
       if (!res.ok || !json.authorizationUrl) {
-        setSubmitError(json.error || 'Payment initialisation failed. Please try again.');
+        console.error('Paystack init response error:', res.status, json);
+        setSubmitError(json.error || json.message || 'Payment initialisation failed. Please try again.');
         setSubmitting(false);
         return;
       }
