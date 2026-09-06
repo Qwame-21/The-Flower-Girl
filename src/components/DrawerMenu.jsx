@@ -1,94 +1,60 @@
-import { X, ArrowRight, Globe, MessageCircle, MapPin, Phone } from 'lucide-react';
-import { PORTFOLIO_SERIES, ARTIST_INFO } from '../data/portfolioData';
+import { useEffect, useState } from 'react';
+import { X } from 'lucide-react';
+import { readAdminData, subscribeAdminData } from '../data/adminStore';
+import { PRODUCTS } from '../data/products';
 
-export default function DrawerMenu({ isOpen, onClose, currentSlideIndex, onSelectSlide, onNavigate }) {
+export default function DrawerMenu({ isOpen, onClose, onNavigate }) {
+  const [adminData, setAdminData] = useState(readAdminData);
+  useEffect(() => subscribeAdminData(setAdminData), []);
   if (!isOpen) return null;
+  const promotion = (adminData.promotions || []).find(item => item.status === 'active' && Number(item.percent) > 0);
+  const promotedProduct = promotion && [...(adminData.products || []), ...PRODUCTS].find(product => product.id === promotion.productId);
 
   return (
-    <div style={styles.backdrop} onClick={onClose}>
+    <div className="storefront-drawer" style={styles.fullPage} onClick={onClose}>
       <div
-        style={styles.drawer}
+        className="storefront-drawer__inner"
+        style={styles.inner}
         onClick={(e) => e.stopPropagation()}
-        className="animate-drawer"
       >
-        {/* Top Header */}
-        <div style={styles.topHeader}>
-          <div style={styles.artistBrand}>
-            <div style={styles.drawerAvatar} className="brand-modal-mark">FG</div>
-            <div>
-              <h3 style={styles.drawerTitle}>{ARTIST_INFO.name}</h3>
-              <p style={styles.drawerSub}>{ARTIST_INFO.role}</p>
-            </div>
-          </div>
-          <button onClick={onClose} style={styles.closeBtn} aria-label="Close menu">
-            <X size={24} color="#181818" />
-          </button>
-        </div>
+        {/* Close button */}
+        <button onClick={onClose} style={styles.closeBtn} aria-label="Close menu">
+          <X size={24} color="#181818" />
+        </button>
 
-        {/* Navigation Sections */}
-        <div style={styles.contentBody}>
-          <div style={styles.sectionGroup}>
-            <span style={styles.sectionLabel}>FEATURED COLLECTIONS</span>
-            <ul style={styles.seriesList}>
-              {PORTFOLIO_SERIES.map((item, index) => (
-                <li key={item.id} style={styles.seriesItem}>
-                  <button
-                    onClick={() => {
-                      onSelectSlide(index);
-                      onClose();
-                    }}
-                    style={{
-                      ...styles.seriesBtn,
-                      color: currentSlideIndex === index ? '#181818' : '#666666',
-                      fontWeight: currentSlideIndex === index ? '600' : '400'
-                    }}
-                  >
-                    <span style={styles.seriesCode}>{item.code}</span>
-                    <span style={styles.seriesTitle}>{item.title}</span>
-                    {currentSlideIndex === index && <ArrowRight size={16} color="#181818" />}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
+        {/* Page links — vertical, no label */}
+        <nav className="storefront-drawer__pages" style={styles.pageList}>
+          {[
+            ['home',     'HOME'],
+            ['about',    'ABOUT'],
+            ['services', 'SERVICES'],
+            ['gallery',  'GALLERY'],
+            ['shop',     'SHOP'],
+            ['careers',  'CAREERS'],
+            ['track',    'TRACK ORDER'],
+          ].map(([page, label]) => (
+            <button
+              key={page}
+              onClick={() => { onNavigate(page); onClose(); }}
+              style={styles.pageBtn}
+              className="storefront-drawer__page"
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
 
-          <div style={styles.sectionGroup}>
-            <span style={styles.sectionLabel}>PAGES</span>
-            <div style={styles.pagesGrid}>
-              {[
-                ['about', 'Our Story'],
-                ['services', 'Services'],
-                ['gallery', 'Gallery'],
-                ['shop', 'Shop Gifts'],
-                ['customize', 'Build a Custom Gift'],
-                ['careers', 'Careers'],
-                ['delivery', 'Delivery & FAQ'],
-                ['policy', 'Order Policy']
-              ].map(([page, label]) => (
-                <button key={page} onClick={() => { onNavigate(page); onClose(); }} style={styles.pageBtn}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
+        <button className="storefront-drawer__announcement" onClick={() => { onNavigate(promotion ? 'shop' : 'home'); onClose(); }}>
+          <small>{promotion ? 'CURRENT OFFER' : 'FROM THE STUDIO'}</small>
+          <strong>{promotion ? `${Number(promotion.percent)}% off ${promotedProduct?.name || 'selected gifts'}` : adminData.content?.announcement}</strong>
+          <span>{promotion ? 'View the offer →' : 'Return to the storefront →'}</span>
+        </button>
 
-          <div style={styles.sectionGroup}>
-            <span style={styles.sectionLabel}>DELIVERY</span>
-            <p style={styles.studioText}>
-              Same-day delivery available in Accra
-            </p>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div style={styles.drawerFooter}>
-          <div style={styles.socials}>
-            <a href="https://www.instagram.com/flowergirl_ghana/" target="_blank" rel="noreferrer" style={styles.socialIcon} aria-label="Instagram"><Globe size={18} /></a>
-            <a href="https://wa.me/message/WWAXSHH3LEGIL1" target="_blank" rel="noreferrer" style={styles.socialIcon} aria-label="WhatsApp"><MessageCircle size={18} /></a>
-            <a href="tel:+233202417072" style={styles.socialIcon} aria-label="Phone"><Phone size={18} /></a>
-            <span style={styles.socialIcon} aria-label="Kwabenya, Accra"><MapPin size={18} /></span>
-          </div>
-          <p style={styles.copyright}>© 2026 The Gifting Factory by Flower Girl.</p>
+        {/* Social links — horizontal, text-based, matching site style */}
+        <div className="storefront-drawer__socials" style={styles.socialRow}>
+          <a href="tel:+233202417072" style={styles.socialLink} className="link-underline">CALL</a>
+          <a href="https://wa.me/message/WWAXSHH3LEGIL1" target="_blank" rel="noreferrer" style={styles.socialLink} className="link-underline">WA</a>
+          <a href="https://www.instagram.com/flowergirl_ghana/" target="_blank" rel="noreferrer" style={styles.socialLink} className="link-underline">IG</a>
         </div>
       </div>
     </div>
@@ -96,144 +62,59 @@ export default function DrawerMenu({ isOpen, onClose, currentSlideIndex, onSelec
 }
 
 const styles = {
-  backdrop: {
+  fullPage: {
     position: 'fixed',
     top: 0,
     left: 0,
     width: '100vw',
     height: '100vh',
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
-    backdropFilter: 'blur(4px)',
+    backgroundColor: '#ecece9',
     zIndex: 100,
     display: 'flex',
-    justifyContent: 'flex-end'
+    flexDirection: 'column',
   },
-  drawer: {
-    width: '420px',
-    maxWidth: '90vw',
+  inner: {
+    width: '100%',
     height: '100%',
-    backgroundColor: '#ecece9',
     display: 'flex',
     flexDirection: 'column',
     padding: '2.5rem 2rem',
-    boxShadow: '-8px 0 32px rgba(0,0,0,0.12)'
-  },
-  topHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: '1.5rem',
-    borderBottom: '1px solid rgba(0,0,0,0.08)'
-  },
-  artistBrand: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '1rem'
-  },
-  drawerAvatar: {
-    width: '42px',
-    height: '42px',
-    borderRadius: '50%',
-    objectFit: 'cover'
-  },
-  drawerTitle: {
-    fontSize: '1.1rem',
-    fontWeight: '600',
-    color: '#181818'
-  },
-  drawerSub: {
-    fontSize: '0.75rem',
-    color: '#666666',
-    letterSpacing: '0.05em'
+    boxSizing: 'border-box',
   },
   closeBtn: {
+    alignSelf: 'flex-end',
     padding: '0.5rem',
     borderRadius: '50%',
-    backgroundColor: 'rgba(0,0,0,0.04)'
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    marginBottom: '3rem',
   },
-  contentBody: {
-    flex: 1,
-    overflowY: 'auto',
-    paddingTop: '2rem',
+  pageList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '2rem'
-  },
-  sectionGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.75rem'
-  },
-  sectionLabel: {
-    fontSize: '0.7rem',
-    letterSpacing: '0.18em',
-    color: '#888888',
-    fontWeight: '600'
-  },
-  seriesList: {
-    listStyle: 'none',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem'
-  },
-  seriesItem: {
-    width: '100%'
-  },
-  seriesBtn: {
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '1rem',
-    padding: '0.75rem 1rem',
-    borderRadius: '6px',
-    backgroundColor: 'rgba(255,255,255,0.4)',
-    textAlign: 'left',
-    transition: 'all 0.2s ease'
-  },
-  seriesCode: {
-    fontSize: '0.85rem',
-    fontWeight: '700',
-    letterSpacing: '0.05em'
-  },
-  seriesTitle: {
-    fontSize: '0.9rem',
-    flex: 1
-  },
-  pagesGrid: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.6rem'
+    gap: '0.6rem',
   },
   pageBtn: {
     textAlign: 'left',
     fontSize: '0.95rem',
     color: '#181818',
     padding: '0.4rem 0',
-    borderBottom: '1px solid rgba(0,0,0,0.05)'
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
   },
-  studioText: {
-    fontSize: '0.82rem',
-    lineHeight: '1.6',
-    color: '#555555'
-  },
-  drawerFooter: {
-    paddingTop: '1.5rem',
-    borderTop: '1px solid rgba(0,0,0,0.08)',
+  socialRow: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '0.75rem'
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: '2rem',
+    marginTop: '3rem',
+    paddingBottom: '1rem',
   },
-  socials: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '1.2rem'
+  socialLink: {
+    fontSize: '0.8rem',
+    fontWeight: '500',
+    letterSpacing: '0.12em',
+    color: '#111111',
+    textDecoration: 'none',
   },
-  socialIcon: {
-    color: '#333333',
-    transition: 'transform 0.2s ease'
-  },
-  copyright: {
-    fontSize: '0.72rem',
-    color: '#888888'
-  }
 };

@@ -3,113 +3,104 @@ import { Menu, Search, ShoppingBag, Heart } from 'lucide-react';
 export default function Navigation({ activeTab, setActiveTab, onOpenDrawer, onOpenSearch, onOpenShop, onOpenCheckout, onOpenWishlist, onOpenServices, onOpenGallery, cartCount, wishlistCount }) {
   return (
     <header style={styles.header} className="portfolio-header">
-      <div style={styles.leftGroup}>
-        <button
-          onClick={onOpenDrawer}
-          style={styles.menuButton}
-          className="mobile-menu-button"
-          aria-label="Open Menu Drawer"
-        >
-          <Menu size={20} color="#111111" strokeWidth={2} />
-        </button>
-        <button className="header-wordmark" onClick={() => setActiveTab('home')} aria-label="The Gifting Factory by Flower Girl home">
-          <span className="logo-image-reveal"><img src="/assets/gifting-factory-logo-transparent-v2.png" alt="" /></span>
-        </button>
-      </div>
 
-      {/* Right: Nav Links (HOME, ABOUT, SHOP, Search) */}
-      <nav style={styles.rightNav}>
+      {/* ── HAMBURGER (left) — visible on mobile only ── */}
+      <button
+        onClick={onOpenDrawer}
+        style={styles.menuButton}
+        className="mobile-menu-button"
+        aria-label="Open Menu Drawer"
+      >
+        <Menu size={20} color="#111111" strokeWidth={2} />
+      </button>
+
+      {/* ── LOGO — left on desktop, centered on mobile ── */}
+      <button
+        className="header-wordmark"
+        onClick={() => setActiveTab('home')}
+        aria-label="The Gifting Factory by Flower Girl – go home"
+      >
+        <img
+          src="/assets/gifting-factory-logo-transparent-v2.png"
+          alt="The Gifting Factory logo"
+          className="header-logo-img"
+        />
+      </button>
+
+      {/* ── DESKTOP NAV LINKS — hidden on mobile ── */}
+      <nav style={styles.rightNav} className="desktop-nav">
         <button
-          style={{
-            ...styles.navLink,
-            fontWeight: activeTab === 'home' ? '600' : '400',
-            opacity: activeTab === 'home' ? 1 : 0.8
-          }}
+          style={{ ...styles.navLink, fontWeight: activeTab === 'home' ? '600' : '400', opacity: activeTab === 'home' ? 1 : 0.8 }}
           onClick={() => setActiveTab('home')}
           className="link-underline"
-        >
-          HOME
-        </button>
+        >HOME</button>
 
         <button
-          style={{
-            ...styles.navLink,
-            fontWeight: activeTab === 'about' ? '600' : '400',
-            opacity: activeTab === 'about' ? 1 : 0.8
-          }}
+          style={{ ...styles.navLink, fontWeight: activeTab === 'about' ? '600' : '400', opacity: activeTab === 'about' ? 1 : 0.8 }}
           onClick={() => setActiveTab('about')}
           className="link-underline"
-        >
-          ABOUT
-        </button>
+        >ABOUT</button>
 
         <button
-          style={{
-            ...styles.navLink,
-            fontWeight: activeTab === 'services' ? '600' : '400',
-            opacity: activeTab === 'services' ? 1 : 0.8
-          }}
+          style={{ ...styles.navLink, fontWeight: activeTab === 'services' ? '600' : '400', opacity: activeTab === 'services' ? 1 : 0.8 }}
           onClick={onOpenServices}
           className="link-underline"
-        >
-          SERVICES
-        </button>
+        >SERVICES</button>
 
         <button
-          style={{
-            ...styles.navLink,
-            fontWeight: activeTab === 'gallery' ? '600' : '400',
-            opacity: activeTab === 'gallery' ? 1 : 0.8
-          }}
+          style={{ ...styles.navLink, fontWeight: activeTab === 'gallery' ? '600' : '400', opacity: activeTab === 'gallery' ? 1 : 0.8 }}
           onClick={onOpenGallery}
           className="link-underline"
-        >
-          GALLERY
-        </button>
+        >GALLERY</button>
 
         <button
-          style={{
-            ...styles.navLink,
-            fontWeight: activeTab === 'shop' ? '600' : '400',
-            opacity: activeTab === 'shop' ? 1 : 0.8
-          }}
+          style={{ ...styles.navLink, fontWeight: activeTab === 'shop' ? '600' : '400', opacity: activeTab === 'shop' ? 1 : 0.8 }}
           onClick={onOpenShop}
           className="link-underline"
-        >
-          SHOP
-        </button>
+        >SHOP</button>
 
         <button
-          style={{
-            ...styles.navLink,
-            fontWeight: activeTab === 'careers' ? '600' : '400',
-            opacity: activeTab === 'careers' ? 1 : 0.8
-          }}
+          style={{ ...styles.navLink, fontWeight: activeTab === 'careers' ? '600' : '400', opacity: activeTab === 'careers' ? 1 : 0.8 }}
           onClick={() => setActiveTab('careers')}
           className="link-underline"
-        >
-          CAREERS
-        </button>
+        >CAREERS</button>
+
+        <button
+          style={{ ...styles.navLink, fontWeight: activeTab === 'track' ? '600' : '400', opacity: activeTab === 'track' ? 1 : 0.8 }}
+          onClick={() => setActiveTab('track')}
+          className="link-underline"
+        >TRACK ORDER</button>
 
         <div className="nav-utilities">
-          <button
-            onClick={onOpenSearch}
-            style={styles.searchButton}
-            aria-label="Search Artworks"
-            className="hover-lift"
-          >
+          <button onClick={onOpenSearch} style={styles.searchButton} aria-label="Search" className="hover-lift">
             <Search size={18} color="#111111" strokeWidth={2.2} />
           </button>
           <button className="nav-order" onClick={onOpenWishlist} aria-label={`${wishlistCount} saved gifts. Open wishlist`}>
             <Heart size={18} strokeWidth={1.9} />
             {wishlistCount > 0 && <span aria-hidden="true">{wishlistCount}</span>}
           </button>
-          <button className={`nav-order ${cartCount ? 'has-items' : ''}`} onClick={onOpenCheckout} aria-label={`${cartCount} items in your order. Open checkout`}>
+          <button className={`nav-order ${cartCount ? 'has-items' : ''}`} onClick={onOpenCheckout} aria-label={`${cartCount} items in cart. Open checkout`}>
             <ShoppingBag size={18} strokeWidth={1.9} />
             {cartCount > 0 && <span aria-hidden="true">{cartCount}</span>}
           </button>
         </div>
       </nav>
+
+      {/* ── MOBILE UTILITY ICONS — search + cart (right side) ── */}
+      <div className="mobile-nav-utils">
+        <button onClick={onOpenSearch} style={styles.searchButton} aria-label="Search" className="hover-lift">
+          <Search size={18} color="#111111" strokeWidth={2.2} />
+        </button>
+        <button className="nav-order" onClick={onOpenWishlist} aria-label={`${wishlistCount} saved gifts. Open wishlist`}>
+          <Heart size={18} strokeWidth={1.9} />
+          {wishlistCount > 0 && <span aria-hidden="true">{wishlistCount}</span>}
+        </button>
+        <button className={`nav-order ${cartCount ? 'has-items' : ''}`} onClick={onOpenCheckout} aria-label={`${cartCount} items in cart`}>
+          <ShoppingBag size={18} strokeWidth={1.9} />
+          {cartCount > 0 && <span aria-hidden="true">{cartCount}</span>}
+        </button>
+      </div>
+
     </header>
   );
 }
