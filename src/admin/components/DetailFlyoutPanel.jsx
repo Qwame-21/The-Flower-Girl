@@ -49,6 +49,13 @@ export default function DetailFlyoutPanel({
         )}
         {selectedItem.type === 'request' && (
           <section className="panel-detail-grid">
+            <article><small>Request reference</small><strong>{selectedItem.request.reference || 'Not supplied'}</strong></article>
+            <article><small>Email</small><p>{selectedItem.request.email || 'Not supplied'}</p></article>
+            <article><small>Recipient</small><strong>{selectedItem.request.recipient || selectedItem.request.name}</strong><p>{selectedItem.request.recipientPhone || selectedItem.request.phone}</p></article>
+            <article><small>Delivery / collection</small><strong>{selectedItem.request.deliveryAddress || 'Location not supplied'}</strong><p>{selectedItem.request.landmark}</p><p>{selectedItem.request.locationLink}</p><p>{selectedItem.request.deliveryInstructions}</p></article>
+            <article><small>Budget</small><p>{selectedItem.request.budget ? `GHS ${selectedItem.request.budget}` : 'Not supplied'}</p></article>
+            <article><small>Gift card</small><p>{selectedItem.request.cardMessage || 'No message'}</p><p>{selectedItem.request.cardStyleNotes}</p></article>
+
             <div>
               <small>Contact</small>
               <strong>{selectedItem.request.name}</strong>

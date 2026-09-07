@@ -1481,13 +1481,13 @@ a {
   color: #777;
 }
 
-.custom-builder fieldset>div {
+.custom-builder .custom-option-group>div {
   display: flex;
   flex-wrap: wrap;
   gap: .55rem;
 }
 
-.custom-builder fieldset label {
+.custom-builder .custom-option-group label {
   position: relative;
   display: block;
   padding: .65rem .9rem;
@@ -1497,12 +1497,12 @@ a {
   transition: .2s ease;
 }
 
-.custom-builder fieldset label.selected {
+.custom-builder .custom-option-group label.selected {
   background: #1d1d1d;
   color: #fff;
 }
 
-.custom-builder fieldset input {
+.custom-builder .custom-option-group input {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -1512,7 +1512,7 @@ a {
   cursor: pointer;
 }
 
-.custom-builder fieldset label:has(input:focus-visible) {
+.custom-builder .custom-option-group label:has(input:focus-visible) {
   outline: 2px solid rgba(17, 17, 17, .28);
   outline-offset: 3px;
 }

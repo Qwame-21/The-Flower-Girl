@@ -106,7 +106,7 @@ export default function App() {
   }, [returningFromPayment]);
 
   useEffect(() => {
-    const syncRoute = () => setAdminMode(window.location.pathname === '/admin');
+    const syncRoute = () => setAdminMode(/^\/admin\/?$/.test(window.location.pathname));
     window.addEventListener('popstate', syncRoute);
     return () => window.removeEventListener('popstate', syncRoute);
   }, []);
