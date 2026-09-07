@@ -718,6 +718,10 @@ a {
   color: #fff;
 }
 
+.portfolio-page :is(a, button).primary-action {
+  color: #fff;
+}
+
 .soft-action {
   background: transparent;
   color: #1d1d1d;
@@ -10833,9 +10837,8 @@ a {
   width: min(42vw, 560px);
   aspect-ratio: 1;
   transform: translateY(-46%) rotate(3deg);
-  background: url('/assets/about-floral-emblem.png') center/contain no-repeat;
-  mix-blend-mode: multiply;
-  opacity: .96;
+  background: url('/assets/about-floral-emblem-transparent-full.png') center/contain no-repeat;
+  opacity: 1;
   pointer-events: none
 }
 
@@ -12408,12 +12411,12 @@ a {
     right: auto;
     top: auto;
     width: min(88vw, 380px);
-    height: min(76vw, 330px);
-    aspect-ratio: auto;
+    aspect-ratio: 1008 / 948;
     margin: 1.4rem auto .35rem;
     transform: none;
-    background-size: auto 205%;
-    background-position: center 50%;
+    background-image: url('/assets/about-floral-emblem-transparent.png');
+    background-size: contain;
+    background-position: center;
     animation: about-flower-breathe 4.8s ease-in-out infinite;
   }
 
@@ -12489,18 +12492,18 @@ a {
 
 @keyframes about-flower-breathe {
   0%, 100% {
-    opacity: .72;
+    opacity: .94;
   }
 
   50% {
-    opacity: .98;
+    opacity: 1;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .about-page-heading::after {
     animation: none;
-    opacity: .96;
+    opacity: 1;
   }
 }
 
