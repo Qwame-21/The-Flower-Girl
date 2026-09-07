@@ -24,12 +24,12 @@ export default function CareerModal({ careerFormOpen, setCareerFormOpen }) {
         onClick={() => setCareerFormOpen(false)}
         aria-label="Close career form"
       />
-      <aside className="admin-detail-panel product-form-panel" aria-label="Create career">
+      <aside className="admin-detail-panel product-form-panel" aria-label="Create career"><header className="admin-panel-heading">
         <button onClick={() => setCareerFormOpen(false)} aria-label="Close career form">
           <X size={17} />
         </button>
         <small>Hiring</small>
-        <h2>Create a career</h2>
+        <h2>Create a career</h2></header>
         <form onSubmit={handleSubmit}>
           <label>
             Role title

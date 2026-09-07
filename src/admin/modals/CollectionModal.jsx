@@ -27,12 +27,12 @@ export default function CollectionModal({
         onClick={() => setCollectionFormOpen(false)}
         aria-label="Close collection form"
       />
-      <aside className="admin-detail-panel product-form-panel" aria-label="Create collection">
+      <aside className="admin-detail-panel product-form-panel" aria-label="Create collection"><header className="admin-panel-heading">
         <button onClick={() => setCollectionFormOpen(false)} aria-label="Close collection form">
           <X size={17} />
         </button>
         <small>Shop</small>
-        <h2>Create collection</h2>
+        <h2>Create collection</h2></header>
         <form onSubmit={handleSubmit}>
           <label>
             Collection title

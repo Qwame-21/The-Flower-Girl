@@ -54,12 +54,12 @@ export default function ReviewModal({
       <aside
         className="admin-detail-panel product-form-panel"
         aria-label={editingReview ? 'Edit review' : 'Add testimonial'}
-      >
+      ><header className="admin-panel-heading">
         <button onClick={handleClose} aria-label="Close review form">
           <X size={17} />
         </button>
         <small>Reviews</small>
-        <h2>{editingReview ? 'Edit review' : 'Add testimonial'}</h2>
+        <h2>{editingReview ? 'Edit review' : 'Add testimonial'}</h2></header>
         <form key={editingReview?.id || 'new-review'} onSubmit={handleSubmit}>
           <label>
             Customer name

@@ -1,3 +1,5 @@
+import { X } from 'lucide-react';
+
 export default function ConfirmDeleteModal({
   isOpen,
   title,
@@ -24,8 +26,11 @@ export default function ConfirmDeleteModal({
         role="alertdialog"
         aria-label={ariaLabel || title}
       >
-        {badgeText && <small>{badgeText}</small>}
-        {title && <h2>{title}</h2>}
+        <header className="admin-panel-heading">
+          <button type="button" onClick={onCancel} aria-label="Close confirmation"><X size={17} /></button>
+          {badgeText && <small>{badgeText}</small>}
+          {title && <h2>{title}</h2>}
+        </header>
         {detail && <p>{detail}</p>}
         {codeText && <code>{codeText}</code>}
         <div>

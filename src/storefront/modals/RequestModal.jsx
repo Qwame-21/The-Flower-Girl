@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Check, Upload, X } from 'lucide-react';
+import { Check, Upload } from 'lucide-react';
 import { addAdminRecord } from '../../data/adminStore';
 import { formDate } from '../utils/date';
 import CardStylePicker from '../components/CardStylePicker';
 import DateField from '../components/DateField';
 import PhoneInput from '../components/PhoneInput';
+import ModalHeader from '../components/ModalHeader';
 
 export default function RequestModal({ service, onClose }) {
   const [sent, setSent] = useState(false);
@@ -14,13 +15,13 @@ export default function RequestModal({ service, onClose }) {
 
   return (
     <div className="flow-backdrop" onClick={onClose}>
-      <section className="flow-modal request-modal" onClick={(event) => event.stopPropagation()} aria-modal="true" role="dialog">
-        <button className="round-icon close-flow" onClick={onClose} aria-label="Close request"><X size={18} /></button>
+      <section className="flow-modal request-modal fixed-heading-modal" onClick={(event) => event.stopPropagation()} aria-modal="true" role="dialog">
+        <ModalHeader eyebrow="SERVICE REQUEST" title={sent ? "Request saved" : service} onClose={onClose} closeLabel="Close request" />
+        <div className="modal-body">
         {sent ? (
-          <div className="flow-success"><Check size={28} /><h2>Request saved</h2><p>Save reference <strong>{requestReference}</strong>. Track it with the same phone number or continue with the team on WhatsApp.</p><a className="primary-action" href="https://wa.me/message/WWAXSHH3LEGIL1" target="_blank" rel="noreferrer">CONTINUE ON WHATSAPP</a></div>
+          <div className="flow-success"><Check size={28} /><p>Save reference <strong>{requestReference}</strong>. Track it with the same phone number or continue with the team on WhatsApp.</p><a className="primary-action" href="https://wa.me/message/WWAXSHH3LEGIL1" target="_blank" rel="noreferrer">CONTINUE ON WHATSAPP</a></div>
         ) : (
           <form onSubmit={submit}>
-            <span className="form-eyebrow">SERVICE REQUEST</span><h2>{service}</h2>
             <label>Name<input name="name" required /></label>
             <label>Email address<input name="email" type="email" required /></label>
             <PhoneInput required />
@@ -33,6 +34,7 @@ export default function RequestModal({ service, onClose }) {
             <button className="primary-action" type="submit">SAVE REQUEST</button>
           </form>
         )}
+        </div>
       </section>
     </div>
   );

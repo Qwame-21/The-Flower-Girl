@@ -68,12 +68,12 @@ export default function ProductModal({
       <aside
         className="admin-detail-panel product-form-panel"
         aria-label={editingProduct ? 'Edit product' : 'Add new product'}
-      >
+      ><header className="admin-panel-heading">
         <button onClick={handleClose} aria-label="Close product form">
           <X size={17} />
         </button>
         <small>Catalogue</small>
-        <h2>{editingProduct ? 'Edit product' : 'Add new product'}</h2>
+        <h2>{editingProduct ? 'Edit product' : 'Add new product'}</h2></header>
         <form key={editingProduct?.id || 'new-product'} onSubmit={handleSubmit}>
           <div className="product-image-pair">
             <label className="product-image-upload">

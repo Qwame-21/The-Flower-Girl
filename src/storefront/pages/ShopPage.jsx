@@ -33,14 +33,17 @@ export default function ShopPage({ onNavigate, cart, setCart, wishlist, setWishl
   const updateQuantity = (id, quantity) => setCart(current => quantity < 1 ? current.filter(item => item.id !== id) : current.map(item => item.id === id ? { ...item, quantity } : item));
   const toggleWishlist = id => setWishlist(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
   const savedProducts = shopProducts.filter(product => wishlist.includes(product.id));
+  const productOverlays = <>
+    {requestProduct && <RequestModal service={requestProduct} onClose={() => setRequestProduct(null)} />}
+    {detailProduct && <ProductDetail product={detailProduct} saved={wishlist.includes(detailProduct.id)} onClose={() => setDetailProduct(null)} onAdd={add} onToggleWishlist={toggleWishlist} onCustomize={setRequestProduct} />}
+  </>;
+  if (openCheckout) return <main className="commerce-page" aria-label="Checkout"><CheckoutModal cart={cart} onClose={onCheckoutHandled} onQuantity={updateQuantity} onNavigate={onNavigate} /></main>;
+  if (openWishlist) return <main className="commerce-page" aria-label="Wishlist"><WishlistModal products={savedProducts} onClose={onWishlistHandled} onView={setDetailProduct} onRemove={toggleWishlist} />{productOverlays}</main>;
   return (
     <main className="content-page shop-page">
       <header className="content-page-heading shop-heading"><div><span>ORDERS & BOOKINGS</span><h1>Shop</h1></div></header>
       <div className="shop-custom-banner"><div><span>BUILD YOUR OWN</span><h2>Choose every detail.</h2><p>Start with flowers or a box, then add perfume, chocolate, fashion, jewelry, engraving and delivery.</p></div><button className="primary-action" onClick={() => onNavigate?.('customize')}>OPEN GIFT BUILDER</button></div><div className="product-grid">{shopProducts.map(product => <ProductCard key={product.id} product={product} saved={wishlist.includes(product.id)} added={addedProduct === product.id} onSave={() => toggleWishlist(product.id)} onView={() => setDetailProduct(product)} onAdd={() => addWithFeedback(product)} />)}</div>
-      {requestProduct && <RequestModal service={requestProduct} onClose={() => setRequestProduct(null)} />}
-      {detailProduct && <ProductDetail product={detailProduct} saved={wishlist.includes(detailProduct.id)} onClose={() => setDetailProduct(null)} onAdd={add} onToggleWishlist={toggleWishlist} onCustomize={setRequestProduct} />}
-      {openWishlist && <WishlistModal products={savedProducts} onClose={onWishlistHandled} onView={product => { onWishlistHandled(); setDetailProduct(product); }} onRemove={toggleWishlist} />}
-      {openCheckout && <CheckoutModal cart={cart} onClose={onCheckoutHandled} onQuantity={updateQuantity} onNavigate={onNavigate} />}
+      {productOverlays}
       <SiteFooter onNavigate={onNavigate} />
     </main>
   );

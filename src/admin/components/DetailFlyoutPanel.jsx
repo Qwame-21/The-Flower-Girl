@@ -21,12 +21,12 @@ export default function DetailFlyoutPanel({
       <aside
         className="admin-detail-panel contextual-panel"
         aria-label={`${selectedItem.title} details`}
-      >
+      ><header className="admin-panel-heading">
         <button onClick={() => setSelectedItem(null)} aria-label="Close details">
           <X size={17} />
         </button>
         <small>{activeNav}</small>
-        <h2>{selectedItem.title}</h2>
+        <h2>{selectedItem.title}</h2></header>
         <span>{selectedItem.status}</span>
         <p>{selectedItem.detail}</p>
         {selectedItem.type === 'customer' && (

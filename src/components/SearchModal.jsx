@@ -119,7 +119,7 @@ const styles = {
     top: 0,
     left: 0,
     width: '100vw',
-    height: '100vh',
+    height: '100dvh',
     backgroundColor: 'rgba(226, 226, 224, 0.84)',
     backdropFilter: 'blur(16px)',
     zIndex: 120,
@@ -131,12 +131,16 @@ const styles = {
   modal: {
     width: '100%',
     maxWidth: '100vw',
+    maxHeight: '100dvh',
+    display: 'flex',
+    flexDirection: 'column',
     backgroundColor: 'transparent',
     borderRadius: '0',
     overflow: 'hidden',
     boxShadow: 'none'
   },
   searchBar: {
+    flexShrink: 0,
     padding: 'clamp(1.5rem,4vw,3rem) clamp(1.5rem,7vw,7rem)',
     display: 'flex',
     alignItems: 'center',
@@ -145,6 +149,7 @@ const styles = {
     backgroundColor: 'transparent'
   },
   input: {
+    minWidth: 0,
     flex: 1,
     border: 'none',
     outline: 'none',
@@ -164,11 +169,11 @@ const styles = {
     backgroundColor: 'rgba(17,17,17,0.06)'
   },
   resultsBody: {
-    maxHeight: 'calc(100dvh - 110px)',
+    minHeight: 0,
     overflowY: 'auto',
     padding: '2rem clamp(1.5rem,7vw,7rem) 4rem',
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))',
+    gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,300px),1fr))',
     gap: 'clamp(2rem,6vw,6rem)'
   },
   section: {

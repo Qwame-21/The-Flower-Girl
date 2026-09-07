@@ -10,7 +10,7 @@ import HomePage from './storefront/home/HomePage';
 
 export default function App() {
   const returningFromPayment = new URLSearchParams(window.location.search).get('payment') === 'return';
-  const [adminMode, setAdminMode] = useState(() => window.location.pathname === '/admin');
+  const [adminMode, setAdminMode] = useState(() => /^\/admin\/?$/.test(window.location.pathname));
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [activeTab, setActiveTab] = useState(() => returningFromPayment ? 'shop' : 'home');
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -117,7 +117,7 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [activeTab]);
 
-  const navigateStorefront = tab => { if (tab === 'services') setPreferredService(null); setActiveTab(tab); };
+  const navigateStorefront = tab => { setCheckoutRequested(false); setWishlistRequested(false); if (tab === 'services') setPreferredService(null); setActiveTab(tab); };
 
   if (adminMode) return <AdminDashboard onExit={() => { window.history.pushState({}, '', '/'); setAdminMode(false); }} />;
 
@@ -129,9 +129,9 @@ export default function App() {
         setActiveTab={navigateStorefront}
         onOpenDrawer={() => setDrawerOpen(true)}
         onOpenSearch={() => setSearchOpen(true)}
-        onOpenShop={() => setActiveTab('shop')}
-        onOpenCheckout={() => { setActiveTab('shop'); setCheckoutRequested(true); }}
-        onOpenWishlist={() => { setActiveTab('shop'); setWishlistRequested(true); }}
+        onOpenShop={() => navigateStorefront('shop')}
+        onOpenCheckout={() => { setWishlistRequested(false); setActiveTab('shop'); setCheckoutRequested(true); }}
+        onOpenWishlist={() => { setCheckoutRequested(false); setActiveTab('shop'); setWishlistRequested(true); }}
         onOpenServices={() => navigateStorefront('services')}
         onOpenGallery={() => setActiveTab('gallery')}
         cartCount={cartCount}
@@ -183,4 +183,3 @@ export default function App() {
     </div>
   );
 }
-
