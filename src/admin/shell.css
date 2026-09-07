@@ -1,65 +1,36 @@
-/* =============================================================
-   Admin Shell — Foundation
-   Mobile-first, iOS-safe, no page-specific styles.
-   All page styles will be written per-page during the rebuild.
-   ============================================================= */
-
-/* ── Tokens ─────────────────────────────────────────────── */
+/* Admin shell — structural foundation. Page content styled separately. */
 .admin-shell {
-  --as-bg:          #f6f6f2;
-  --as-nav-bg:      #edeee8;
-  --as-border:      #deded6;
-  --as-ink:         #1a1a18;
-  --as-ink-soft:    #6b6b63;
-  --as-accent:      #1a1a18;
-  --as-radius:      6px;
-  --as-nav-width:   228px;
-
-  /* iOS: kill the system blue highlight on every interactive element */
-  color-scheme: light;
-}
-
-/* ── Shell layout ───────────────────────────────────────── */
-.admin-shell {
+  --admin-ink: #242421;
   display: grid;
-  grid-template-columns: var(--as-nav-width) minmax(0, 1fr);
+  grid-template-columns: 224px minmax(0, 1fr);
   width: 100%;
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
-  background: var(--as-bg);
-  color: var(--as-ink);
-  font-family: var(--font-main, system-ui, sans-serif);
+  background: #f4f4f0;
+  color: var(--admin-ink);
+  font-family: var(--font-main);
+  /* iOS: prevent the system from rendering blue tints on the shell root */
+  color-scheme: light;
 }
 
-/* Reset all interactive elements inside the shell */
+/* Reset interactive elements — kill iOS blue highlight on everything */
 .admin-shell button,
 .admin-shell a,
 .admin-shell input,
 .admin-shell select,
 .admin-shell textarea {
-  -webkit-tap-highlight-color: transparent;
+  color: var(--admin-ink);
   -webkit-appearance: none;
   appearance: none;
-  color: inherit;
+  -webkit-tap-highlight-color: transparent;
   font: inherit;
   text-decoration: none;
 }
-.admin-shell button {
-  cursor: pointer;
-  touch-action: manipulation;
-  background: none;
-  border: none;
-  padding: 0;
-}
-.admin-shell button:focus-visible,
-.admin-shell a:focus-visible {
-  outline: 2px solid var(--as-ink);
-  outline-offset: -2px;
-  border-radius: var(--as-radius);
-}
+.admin-shell button { cursor: pointer; touch-action: manipulation; }
+.admin-shell button:focus-visible { outline: 2px solid var(--admin-ink); outline-offset: -3px; }
 
-/* ── Sidebar navigation ─────────────────────────────────── */
+/* ── Sidebar navigation ────────────────────────────────── */
 .admin-shell__navigation {
   display: flex;
   flex-direction: column;
@@ -67,67 +38,51 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding: 20px 14px;
-  border-right: 1px solid var(--as-border);
-  background: var(--as-nav-bg);
+  padding: 24px 16px;
+  border-right: 1px solid #deded7;
+  background: #ebebe5;
 }
-
 .admin-shell__brand {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 4px 10px 20px;
-  font-size: 0.88rem;
-  font-weight: 500;
+  padding: 0 10px 24px;
+  font-size: .9rem;
 }
 .admin-shell__brand small {
   display: block;
-  margin-top: 4px;
-  color: var(--as-ink-soft);
-  font-size: 0.72rem;
-  font-weight: 400;
+  margin-top: 6px;
+  color: #72726a;
+  font-size: .72rem;
 }
-
-.admin-shell__navigation nav {
-  display: grid;
-  gap: 2px;
-}
+.admin-shell__navigation nav { display: grid; gap: 3px; }
 .admin-shell__navigation nav button {
   min-height: 44px;
-  padding: 10px 12px;
-  border-radius: var(--as-radius);
+  padding: 10px 14px;
+  border-radius: 5px;
   text-align: left;
-  font-size: 0.85rem;
+  font-size: .86rem;
+  flex-shrink: 0;
+  background: none;
+  border: none;
 }
-.admin-shell__navigation nav button:hover {
-  background: #e3e4dc;
-}
-.admin-shell__navigation nav button[aria-current="page"] {
-  background: #d9d9d0;
-  font-weight: 500;
-}
-
+.admin-shell__navigation nav button:hover { background: #e0e0d8; }
+.admin-shell__navigation nav button[aria-current="page"] { background: #d8d8ce; font-weight: 500; }
 .admin-shell__store {
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: 44px;
-  margin-top: auto;
-  padding-top: 16px;
-  padding-bottom: 4px;
-  font-size: 0.8rem;
+  margin-top: 24px;
+  padding: 10px;
+  text-align: left;
+  font-size: .78rem;
+  background: none;
+  border: none;
 }
 
-/* ── Close button (mobile only, shown when nav drawer is open) */
-.admin-shell__close {
-  display: none;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-}
-
-/* ── Right-side workspace ───────────────────────────────── */
+/* ── Workspace (right side) ────────────────────────────── */
 .admin-shell__workspace {
   display: flex;
   flex-direction: column;
@@ -135,82 +90,69 @@
   min-width: 0;
   overflow: hidden;
 }
-
-/* ── Topbar ─────────────────────────────────────────────── */
 .admin-shell__header {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 12px;
-  min-height: 64px;
-  padding: 12px 28px;
-  border-bottom: 1px solid var(--as-border);
-  background: var(--as-bg);
+  min-height: 72px;
+  padding: 16px 32px;
+  border-bottom: 1px solid #deded7;
 }
 .admin-shell__header h1 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   font-weight: 500;
-  letter-spacing: -0.02em;
+  letter-spacing: -.02em;
 }
-.admin-shell__header h1:focus {
-  outline: none;
-}
+.admin-shell__header h1:focus { outline: none; }
 
-/* Hamburger — hidden on desktop */
-.admin-shell__menu {
-  display: none;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-}
-
-/* ── Page scrollable area ───────────────────────────────── */
+/* ── Scrollable page area ──────────────────────────────── */
 .admin-shell__page {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding: 28px 32px;
+  padding: 24px 32px;
 }
 
-/* ── Mobile scrim (when drawer is open) ─────────────────── */
-.admin-shell__scrim {
-  display: none;
-}
+/* ── Elements hidden on desktop, shown on mobile ───────── */
+.admin-shell__menu,
+.admin-shell__close,
+.admin-shell__scrim { display: none; }
 
-/* ── Stub placeholder — shown while pages are being built ─ */
-.admin-page-stub,
-.admin-modal-stub {
-  padding: 32px 0;
-  color: var(--as-ink-soft);
+/* ── Stub placeholder — while pages are being rebuilt ───── */
+.admin-page-stub {
+  padding: 24px 0;
+  color: #72726a;
 }
-.admin-page-stub h2,
-.admin-modal-stub h2 {
+.admin-page-stub h2 {
   margin: 0 0 6px;
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 500;
-  letter-spacing: -0.02em;
-  color: var(--as-ink);
+  letter-spacing: -.02em;
+  color: var(--admin-ink);
 }
-.admin-page-stub p,
-.admin-modal-stub p {
-  margin: 0;
-  font-size: 0.9rem;
-}
+.admin-page-stub p { margin: 0; font-size: .88rem; }
 
-/* ── Detail panel scrim ─────────────────────────────────── */
+.admin-modal-stub {
+  padding: 24px;
+  color: #72726a;
+}
+.admin-modal-stub p { margin: 0 0 16px; font-size: .88rem; }
+
+/* ── Detail flyout ─────────────────────────────────────── */
 .admin-detail-scrim {
   position: fixed;
   inset: 0;
   z-index: 200;
   width: 100%;
   height: 100%;
-  background: rgba(20, 20, 18, 0.24);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  background: rgba(24, 24, 20, .24);
+  border: none;
+  cursor: default;
 }
 .admin-detail-panel {
   position: fixed;
@@ -218,10 +160,10 @@
   z-index: 201;
   display: flex;
   flex-direction: column;
-  width: min(480px, 100vw);
+  width: min(460px, 100vw);
   height: 100%;
-  background: var(--as-bg);
-  border-left: 1px solid var(--as-border);
+  background: #f4f4f0;
+  border-left: 1px solid #deded7;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -230,76 +172,69 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--as-border);
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid #deded7;
   position: sticky;
   top: 0;
-  background: var(--as-bg);
+  background: #f4f4f0;
   z-index: 1;
 }
 .admin-panel-heading button:first-child {
   align-self: flex-start;
-  margin-bottom: 8px;
-  color: var(--as-ink-soft);
+  margin-bottom: 6px;
+  color: #72726a;
+  background: none;
+  border: none;
 }
 
-/* ── Responsive: mobile ─────────────────────────────────── */
-@media (max-width: 800px) {
+/* ── Mobile ────────────────────────────────────────────── */
+@media (max-width: 760px) {
   .admin-shell {
     grid-template-columns: minmax(0, 1fr);
   }
-
   .admin-shell__header {
-    min-height: 58px;
+    min-height: 65px;
     padding: max(10px, env(safe-area-inset-top)) 16px 10px;
   }
-
-  .admin-shell__menu {
-    display: grid;
-  }
-
+  .admin-shell__menu,
   .admin-shell__close {
     display: grid;
-    position: absolute;
-    top: max(12px, env(safe-area-inset-top));
-    right: 12px;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    background: none;
+    border: none;
   }
-
   .admin-shell__navigation {
     display: none;
     position: fixed;
-    z-index: 300;
+    z-index: 102;
     inset: 0 auto 0 0;
-    width: min(var(--as-nav-width), calc(100vw - 52px));
+    width: min(290px, calc(100vw - 48px));
     padding-top: max(20px, env(safe-area-inset-top));
     padding-bottom: max(20px, env(safe-area-inset-bottom));
   }
-  .admin-shell__navigation.is-open {
-    display: flex;
-  }
-
+  .admin-shell__navigation.is-open { display: flex; }
   .admin-shell__scrim {
     display: block;
     position: fixed;
+    z-index: 101;
     inset: 0;
-    z-index: 299;
     width: 100%;
     height: 100%;
-    background: rgba(20, 20, 18, 0.28);
+    background: rgba(24, 24, 20, .28);
     border: none;
-    cursor: default;
   }
-
   .admin-shell__page {
     padding: 20px 16px max(20px, env(safe-area-inset-bottom));
   }
-
   .admin-detail-panel {
     width: 100vw;
     border-left: none;
-    border-top: 1px solid var(--as-border);
-    border-radius: 16px 16px 0 0;
     inset: auto 0 0 0;
     height: 92dvh;
+    border-radius: 14px 14px 0 0;
+    border-top: 1px solid #deded7;
   }
 }
