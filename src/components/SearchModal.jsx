@@ -29,7 +29,7 @@ export default function SearchModal({ isOpen, onClose, onSelectSlide, onNavigate
   const filteredProducts = PRODUCTS.filter(item => `${item.name} ${item.tag} ${item.detail} ${item.priceLabel} ${item.includes.join(' ')}`.toLowerCase().includes(query.toLowerCase()));
 
   return (
-    <div style={styles.backdrop} onClick={onClose}>
+    <div className="search-modal-backdrop" style={styles.backdrop} onClick={onClose}>
       <div style={styles.modal} onClick={(e) => e.stopPropagation()} className="animate-scale-in">
         <div style={styles.searchBar}>
           <Search size={22} color="#888" />

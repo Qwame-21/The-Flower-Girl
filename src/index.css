@@ -161,6 +161,12 @@ a {
   -webkit-tap-highlight-color: transparent;
 }
 
+.portfolio-page button {
+  color: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 /* Seamless Image Blend */
 .seamless-blend {
   mix-blend-mode: multiply;
@@ -1901,15 +1907,45 @@ a {
 
 @media (max-width: 760px) {
 
+  html:has(.portfolio-page),
+  body:has(.portfolio-page) {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  body:has(.portfolio-page) #root {
+    width: 100%;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
   .portfolio-page {
-    height: 100dvh !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100dvh;
+    overflow: visible !important;
   }
 
   .home-scroll,
   .content-page {
+    height: auto !important;
+    min-height: calc(100dvh - 65px);
+    overflow: visible !important;
     overscroll-behavior-y: auto;
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
+  }
+
+  html:has(.portfolio-page .flow-backdrop),
+  body:has(.portfolio-page .flow-backdrop),
+  html:has(.portfolio-page .storefront-drawer),
+  body:has(.portfolio-page .storefront-drawer),
+  html:has(.portfolio-page .search-modal-backdrop),
+  body:has(.portfolio-page .search-modal-backdrop) {
+    overflow: hidden;
   }
 
   .portfolio-page .portfolio-header nav>button:not(.nav-order),
@@ -12493,4 +12529,15 @@ a {
 .checkout-modal .date-field > div:focus-within,
 .request-modal .date-field > div:focus-within {
   border-bottom-color: #111;
+}
+
+/* Mobile storefront pages use the document scroller; overlays keep their own scroll. */
+@media (max-width: 760px) {
+  .home-scroll,
+  .content-page {
+    height: auto !important;
+    min-height: calc(100dvh - 65px);
+    overflow: visible !important;
+    overscroll-behavior-y: auto;
+  }
 }

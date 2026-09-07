@@ -61,29 +61,38 @@ export default function App() {
 
   useEffect(() => {
     window.requestAnimationFrame(() => {
-      document.querySelector('.home-scroll, .content-page')?.scrollTo({ top: 0, behavior: 'instant' });
+      if (window.matchMedia('(max-width: 760px)').matches) window.scrollTo({ top: 0, behavior: 'instant' });
+      else document.querySelector('.home-scroll, .content-page')?.scrollTo({ top: 0, behavior: 'instant' });
     });
   }, [activeTab]);
 
   useEffect(() => {
     let scrollNode;
     let resizeObserver;
+    const mobile = window.matchMedia('(max-width: 760px)').matches;
     const updateIndicator = () => {
       if (!scrollNode) return;
-      const available = scrollNode.scrollHeight - scrollNode.clientHeight;
-      setScrollIndicator({ progress: available > 0 ? scrollNode.scrollTop / available : 0, visible: available > 8 });
+      const available = mobile
+        ? document.documentElement.scrollHeight - window.innerHeight
+        : scrollNode.scrollHeight - scrollNode.clientHeight;
+      const offset = mobile ? window.scrollY : scrollNode.scrollTop;
+      setScrollIndicator({ progress: available > 0 ? offset / available : 0, visible: available > 8 });
     };
     const frame = window.requestAnimationFrame(() => {
-      scrollNode = document.querySelector('.home-scroll, .content-page');
+      scrollNode = mobile ? window : document.querySelector('.home-scroll, .content-page');
       if (!scrollNode) return;
       scrollNode.addEventListener('scroll', updateIndicator, { passive: true });
-      resizeObserver = new ResizeObserver(updateIndicator);
-      resizeObserver.observe(scrollNode);
+      if (mobile) window.addEventListener('resize', updateIndicator, { passive: true });
+      else {
+        resizeObserver = new ResizeObserver(updateIndicator);
+        resizeObserver.observe(scrollNode);
+      }
       updateIndicator();
     });
     return () => {
       window.cancelAnimationFrame(frame);
       scrollNode?.removeEventListener('scroll', updateIndicator);
+      if (mobile) window.removeEventListener('resize', updateIndicator);
       resizeObserver?.disconnect();
     };
   }, [activeTab]);
@@ -174,5 +183,4 @@ export default function App() {
     </div>
   );
 }
-
 
