@@ -1,8 +1,9 @@
-import { UserRound } from 'lucide-react';
-
-export default function CustomersPage({ activeTab, customers, adminData, openOrder, setSelectedItem }) {
-  return <>
-    <header className="admin-page-heading"><div><small>Relationships · {activeTab}</small><h2>Customers</h2><p>Customer profiles are built from their real order history and recipient information.</p></div><button onClick={() => setSelectedItem({ type: 'customer-help', title: 'Customer profiles', status: 'Guide', detail: 'Profiles are created automatically when an order is placed.' })}>Customer guide</button></header>
-    <div className="customer-directory">{activeTab === 'Recipients' ? adminData.orders.map(order => <button key={`recipient-${order.id}`} onClick={() => openOrder(order.id)}><span className="customer-avatar"><UserRound size={20} /></span><span><strong>{order.recipient || order.customer}</strong><small>{order.phone} · {order.delivery || 'Location pending'}</small></span><span><small>Ordered by</small><b>{order.customer}</b></span><span><small>Order</small><b>{order.tracking}</b></span><i>→</i></button>) : customers.filter(customer => activeTab !== 'Returning' || customer.orders.length > 1).map(customer => <button key={customer.phone} onClick={() => setSelectedItem({ type: 'customer', title: customer.name, status: `${customer.orders.length} orders`, detail: customer.location, customer })}><span className="customer-avatar"><UserRound size={20} /></span><span><strong>{customer.name}</strong><small>{customer.phone} · {customer.location}</small></span><span><small>Orders</small><b>{customer.orders.length}</b></span><span><small>Total spent</small><b>GHS {customer.spent.toLocaleString()}</b></span><i>→</i></button>)}</div>
-  </>;
+// TODO: Design CustomersPage — customer list, order history, contact details
+export default function CustomersPage({ adminData }) {
+  return (
+    <div className="admin-page-stub">
+      <h2>Customers</h2>
+      <p>Customer directory and order history will be built here.</p>
+    </div>
+  );
 }
