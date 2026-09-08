@@ -18,13 +18,15 @@ import ProductsPage from '../admin/pages/ProductsPage';
 import ShopControlPage from '../admin/pages/ShopControlPage';
 import InsightsPage from '../admin/pages/InsightsPage';
 import SettingsPage from '../admin/pages/SettingsPage';
+import LoginPage from '../admin/pages/LoginPage';
 import ReviewModal from '../admin/modals/ReviewModal';
 import CareerModal from '../admin/modals/CareerModal';
 import ConfirmDeleteModal from '../admin/modals/ConfirmDeleteModal';
 import ProductModal from '../admin/modals/ProductModal';
 import CollectionModal from '../admin/modals/CollectionModal';
 import { ORDER_LABELS, cataloguePrice, mapDatabaseOrder, mapDatabaseRequest, mapDatabaseApplication, mapDatabaseCareer } from '../admin/utils/adminMappers';
-import { supabase } from '../config/supabase';
+import { supabase, supabaseConfigured } from '../config/supabase';
+
 
 
 const NAV_ITEMS = [
@@ -89,7 +91,75 @@ export default function AdminDashboard() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [secondaryImagePreview, setSecondaryImagePreview] = useState('');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [staffProfile, setStaffProfile] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [bypassedPreview, setBypassedPreview] = useState(false);
+
   const { adminData, setAdminData, products } = useAdminData();
+
+  useEffect(() => {
+    if (!supabaseConfigured || !supabase) {
+      setAuthChecked(true);
+      return undefined;
+    }
+    let active = true;
+
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user && active) {
+        const { data: staff } = await supabase
+          .from('staff_profiles')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (staff && staff.active && active) {
+          setCurrentUser(session.user);
+          setStaffProfile(staff);
+        } else {
+          await supabase.auth.signOut();
+          setCurrentUser(null);
+          setStaffProfile(null);
+        }
+      } else if (active) {
+        setCurrentUser(null);
+        setStaffProfile(null);
+      }
+      if (active) setAuthChecked(true);
+    };
+
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const { data: staff } = await supabase
+          .from('staff_profiles')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (staff && staff.active) {
+          setCurrentUser(session.user);
+          setStaffProfile(staff);
+        } else {
+          await supabase.auth.signOut();
+          setCurrentUser(null);
+          setStaffProfile(null);
+        }
+      } else {
+        setCurrentUser(null);
+        setStaffProfile(null);
+      }
+      setAuthChecked(true);
+    });
+
+    return () => {
+      active = false;
+      subscription?.unsubscribe();
+    };
+  }, []);
+
   useEffect(() => {
     if (!supabase) return undefined;
     let active = true;
@@ -290,6 +360,35 @@ export default function AdminDashboard() {
     window.setTimeout(() => setSavedOrderId(null), 1800);
   };
 
+  const handleSignOut = async () => {
+    if (supabaseConfigured && supabase) {
+      await supabase.auth.signOut();
+    }
+    setCurrentUser(null);
+    setStaffProfile(null);
+    setBypassedPreview(false);
+  };
+
+  if (supabaseConfigured && !currentUser && !bypassedPreview) {
+    if (!authChecked) {
+      return (
+        <div className="admin-loading-screen">
+          <div className="admin-loading-spinner" />
+          <p>Verifying staff authentication…</p>
+        </div>
+      );
+    }
+    return (
+      <LoginPage
+        onLoginSuccess={(user, staff) => {
+          setCurrentUser(user);
+          setStaffProfile(staff);
+        }}
+        onBypassPreview={() => setBypassedPreview(true)}
+      />
+    );
+  }
+
   return <main className={`admin-foundation ${railExpanded ? 'has-expanded-rail' : ''}`}>
     <AdminRail
       railExpanded={railExpanded}
@@ -319,6 +418,9 @@ export default function AdminDashboard() {
         setSelectedItem={setSelectedItem}
         adminData={adminData}
         setActiveTabs={setActiveTabs}
+        currentUser={currentUser}
+        staffProfile={staffProfile}
+        onSignOut={handleSignOut}
       />
 
       <section className="admin-file" style={{ '--active-tab': tabIndex }}>

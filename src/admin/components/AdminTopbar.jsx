@@ -20,7 +20,12 @@ export default function AdminTopbar({
   setSelectedItem,
   adminData,
   setActiveTabs,
+  currentUser,
+  staffProfile,
+  onSignOut,
 }) {
+  const displayName = staffProfile?.display_name || currentUser?.email?.split('@')[0] || adminData.settings.adminName || 'Admin';
+
   return (
     <header className="admin-foundation__topbar">
       <div className="admin-foundation__title">
@@ -56,7 +61,7 @@ export default function AdminTopbar({
           <span>
             <UserRound size={17} strokeWidth={1.6} />
           </span>
-          <strong>{adminData.settings.adminName || 'Admin'}</strong>
+          <strong>{displayName}</strong>
           <ChevronDown size={15} />
         </button>
       </div>
@@ -80,10 +85,18 @@ export default function AdminTopbar({
             />
           )}
           {utilityPanel === 'account' && (
-            <AccountPopover adminData={adminData} selectNav={selectNav} setActiveTabs={setActiveTabs} />
+            <AccountPopover
+              adminData={adminData}
+              selectNav={selectNav}
+              setActiveTabs={setActiveTabs}
+              currentUser={currentUser}
+              staffProfile={staffProfile}
+              onSignOut={onSignOut}
+            />
           )}
         </aside>
       )}
     </header>
   );
 }
+
