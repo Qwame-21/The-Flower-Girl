@@ -1,6 +1,5 @@
-import { X } from 'lucide-react';
+import { X, ExternalLink, ShoppingBag, MessageSquareText } from 'lucide-react';
 
-// TODO: Design DetailFlyoutPanel — contextual detail panel for orders, requests, reviews, customers etc.
 export default function DetailFlyoutPanel({
   selectedItem,
   setSelectedItem,
@@ -23,13 +22,39 @@ export default function DetailFlyoutPanel({
         aria-label={`${selectedItem.title ?? 'Details'} panel`}
       >
         <header className="admin-panel-heading">
+          <div>
+            <small>{selectedItem.status || 'Details'}</small>
+            <h2>{selectedItem.title ?? 'Details'}</h2>
+          </div>
           <button onClick={() => setSelectedItem(null)} aria-label="Close details">
             <X size={17} />
           </button>
-          <h2>{selectedItem.title ?? 'Details'}</h2>
         </header>
-        {/* TODO: Build contextual detail content here */}
+
+        <div className="admin-panel-body">
+          {selectedItem.detail && (
+            <p className="detail-panel-summary">{selectedItem.detail}</p>
+          )}
+
+          {selectedItem.recordId && (
+            <div className="detail-panel-actions">
+              <button
+                type="button"
+                className="primary-action-btn"
+                onClick={() => {
+                  if (openOrder && selectedItem.recordId) {
+                    openOrder(selectedItem.recordId);
+                    setSelectedItem(null);
+                  }
+                }}
+              >
+                <ShoppingBag size={15} /> View Full Order #{selectedItem.recordId}
+              </button>
+            </div>
+          )}
+        </div>
       </aside>
     </>
   );
 }
+

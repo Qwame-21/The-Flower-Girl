@@ -1,3 +1,75 @@
+.hero-shopping-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem 1.25rem;
+  margin-top: 1.25rem;
+}
+.hero-shopping-actions .primary-action {
+  min-height: 44px;
+  padding: .85rem 1.35rem;
+  white-space: nowrap;
+}
+.hero-build-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  min-height: 44px;
+  padding: .85rem 1.35rem;
+  color: inherit;
+  font-size: .68rem;
+  font-weight: 500;
+  letter-spacing: .08em;
+  border: 1px solid rgba(17, 17, 17, .3);
+  border-radius: 999px;
+  background: transparent;
+  white-space: nowrap;
+  transition: background-color .18s ease, border-color .18s ease;
+}
+.hero-build-link:hover { border-color: #111; background: rgba(17, 17, 17, .04); }
+.hero-shopping-actions button:focus-visible { outline: 2px solid #111; outline-offset: 4px; }
+@media (max-width: 760px) {
+  .hero-shopping-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: .65rem;
+    margin-top: 1rem;
+  }
+  .hero-shopping-actions .primary-action,
+  .hero-shopping-actions .hero-build-link {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: .8rem .65rem;
+    font-size: .65rem;
+    letter-spacing: .05em;
+  }
+}
+
+/* Keep the mobile About artwork close to its introduction. */
+@media (max-width: 760px) {
+  .about-page .about-page-heading { gap: .75rem; }
+  .about-page .about-gray-flower { display: none; }
+  .about-page .about-page-heading::after {
+    margin: .5rem auto 0;
+    animation: about-mobile-pulse 4.8s ease-in-out infinite;
+  }
+  .about-page .about-intro {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    gap: 1.5rem;
+  }
+}
+@keyframes about-mobile-pulse {
+  0%, 100% { opacity: .76; }
+  40%, 60% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .about-page .about-page-heading::after { animation: none; opacity: 1; }
+}
+
 /* Checkout and wishlist replace the shop canvas with a full page. */
 .commerce-page {
   display: flex;
@@ -214,3 +286,104 @@
   .admin-foundation__workspace { height: 100%; min-height: 0; min-width: 0; }
   .admin-foundation__rail { max-height: calc(100dvh - 20px); overflow-y: auto; }
 }
+
+/* Apply the native-control reset to the dashboard's current root. Keep
+   component-specific colors (including white primary actions) intact. */
+:where(.admin-foundation) button {
+  color: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.admin-foundation button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+/* Comfortable controls inside shopping flows, without changing gallery layout. */
+@media (pointer: coarse), (max-width: 760px) {
+  .commerce-page .quantity-control,
+  .product-detail .quantity-control { min-height: 44px; width: 118px; grid-template-columns: 44px 28px 44px; }
+  .commerce-page .quantity-control button,
+  .product-detail .quantity-control button { min-width: 44px; min-height: 44px; }
+  .commerce-page .checkout-line .checkout-remove,
+  .wishlist-list article > button { min-width: 44px; min-height: 44px; }
+}
+
+.request-reference > strong { overflow-wrap: anywhere; min-width: 0; }
+
+/* Shared date picker: one field row, with options outside normal layout. */
+.portfolio-page .date-field {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+.portfolio-page .date-field > legend { padding: 0; margin-bottom: .6rem; }
+.portfolio-page .date-field > div { align-items: start; }
+.portfolio-page .date-field .custom-select { position: relative; min-width: 0; }
+.portfolio-page .date-field .custom-select.open { z-index: 12; }
+.portfolio-page .date-field .date-value {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.portfolio-page .date-field .custom-select > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  width: 100%;
+  height: 48px;
+  padding: .65rem .75rem;
+  font: inherit;
+  font-size: 1rem;
+  color: inherit;
+  text-align: left;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.portfolio-page .date-field .custom-select > button i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+.portfolio-page .date-field .custom-select-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  display: grid;
+  max-height: min(240px, 35dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: .25rem;
+  border: 1px solid rgba(17,17,17,.18);
+  border-radius: 8px;
+  background: #f3f3ef;
+  box-shadow: 0 6px 18px rgba(17,17,17,.1);
+}
+.portfolio-page .date-field .custom-select-menu button {
+  min-height: 44px;
+  width: 100%;
+  padding: .6rem;
+  color: inherit;
+  font: inherit;
+  font-size: 1rem;
+  text-align: left;
+  border-radius: 4px;
+}
+.portfolio-page .date-field .custom-select-menu button:hover,
+.portfolio-page .date-field .custom-select-menu button[aria-selected="true"] { background: #e1e1dc; }
+.portfolio-page .date-field button:focus-visible { outline: 2px solid #333; outline-offset: -2px; }
+.portfolio-page .date-field > small { display: block; margin-top: .5rem; font-size: .8rem; line-height: 1.4; color: #8a3027; }

@@ -22,7 +22,9 @@ export default function ShopPage({ onNavigate, cart, setCart, wishlist, setWishl
     }));
   }, [shopProducts, setCart]);
   const add = (product, quantity = 1) => {
-    setCart(current => current.some(item => item.id === product.id) ? current : [...current, { ...product, quantity }]);
+    setCart(current => current.some(item => item.id === product.id)
+      ? current.map(item => item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item)
+      : [...current, { ...product, quantity }]);
     setWishlist(current => current.filter(id => id !== product.id));
   };
   const addWithFeedback = product => {

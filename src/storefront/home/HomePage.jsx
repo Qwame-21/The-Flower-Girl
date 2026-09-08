@@ -16,6 +16,7 @@ export default function HomePage({
   onNavigate
 }) {
   const currentSlide = PORTFOLIO_SERIES[currentSlideIndex];
+  const serviceNumber = Math.max(0, HOME_SERVICE_LINKS.findIndex(item => item.service === homeServiceOpen)) + 1;
 
   return (
     <div className="home-scroll">
@@ -34,6 +35,10 @@ export default function HomePage({
             </h1>
             <span className="brand-signature">BY FLOWER GIRL</span>
             <p style={styles.subjectSub}>{currentSlide.subject}</p>
+            <div className="hero-shopping-actions">
+              <button type="button" className="primary-action" onClick={() => onNavigate('shop')}>SHOP GIFTS</button>
+              <button type="button" className="hero-build-link" onClick={() => onNavigate('customize')}>BUILD A GIFT</button>
+            </div>
           </div>
 
           <div style={styles.counterWrapper}>
@@ -123,7 +128,7 @@ export default function HomePage({
         <div className="home-facts"><p>Luxury hampers built around the person, the occasion and your budget.</p><p>Fresh flowers, wrapping, engagement presentation and personalized finishing.</p><p>Collection and same-day delivery options confirmed with every order.</p></div>
       </section>
       <section className="home-service-links">
-        <div className="service-links-intro"><span>01 / 05</span><h2>What we make<br />meaningful.</h2></div>
+        <div className="service-links-intro"><span aria-live="polite" aria-atomic="true">{String(serviceNumber).padStart(2, '0')} / {String(HOME_SERVICE_LINKS.length).padStart(2, '0')}</span><h2>What we make<br />meaningful.</h2></div>
         <ol>{HOME_SERVICE_LINKS.map((item, index) => <li key={item.label} className={homeServiceOpen === item.service ? 'is-open' : ''}><button aria-expanded={homeServiceOpen === item.service} onClick={() => setHomeServiceOpen(current => current === item.service ? null : item.service)}><span>{String(index + 1).padStart(2, '0')}</span><strong>{item.label}</strong><i>+</i></button>{homeServiceOpen === item.service && <div className="home-service-detail"><p>{item.detail}</p><button onClick={() => { setPreferredService(item.service); setActiveTab('services'); }}>VIEW THIS SERVICE</button></div>}</li>)}</ol>
       </section>
       <section className="career-callout"><div><span>WE’RE GROWING</span><h2>Join the creative<br />team behind the gifts.</h2></div><div><p>Applications are open for a Content Creator / Social Media Manager in Accra.</p><button className="primary-action" onClick={() => setActiveTab('careers')}>VIEW THE ROLE</button></div></section>

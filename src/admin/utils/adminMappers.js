@@ -42,3 +42,64 @@ export const mapDatabaseOrder = order => {
     events: order.order_events || [],
   };
 };
+
+export const mapDatabaseRequest = req => ({
+  id: req.id,
+  reference: req.reference,
+  requestType: req.request_type,
+  service: req.service,
+  name: req.customer_name,
+  email: req.email,
+  phone: req.phone,
+  occasion: req.occasion,
+  date: req.preferred_date,
+  preferredDate: req.preferred_date,
+  selections: Array.isArray(req.selections) ? req.selections : [],
+  quantity: Number(req.quantity || 1),
+  note: req.notes,
+  cardMessage: req.card_message,
+  cardStyleNotes: req.card_style,
+  inspirationPath: req.inspiration_path,
+  estimateLow: req.estimate_low != null ? Number(req.estimate_low) : null,
+  estimateHigh: req.estimate_high != null ? Number(req.estimate_high) : null,
+  confirmedQuote: req.confirmed_quote != null ? Number(req.confirmed_quote) : null,
+  status: req.status || 'new',
+  adminNote: req.admin_note || '',
+  approvedAt: req.approved_at,
+  convertedAt: req.converted_at,
+  createdAt: req.created_at,
+  updatedAt: req.updated_at,
+});
+
+export const mapDatabaseApplication = app => ({
+  id: app.id,
+  careerId: app.career_id,
+  name: app.full_name,
+  fullName: app.full_name,
+  email: app.email,
+  phone: app.phone,
+  location: app.location,
+  portfolio: app.portfolio_url,
+  portfolioUrl: app.portfolio_url,
+  date: app.earliest_start_date,
+  earliestStartDate: app.earliest_start_date,
+  experience: app.experience,
+  motivation: app.motivation,
+  resumePath: app.resume_path,
+  status: app.status || 'new',
+  role: 'Applicant',
+  createdAt: app.created_at,
+  updatedAt: app.updated_at,
+});
+
+export const mapDatabaseCareer = career => ({
+  id: career.id,
+  title: career.title,
+  location: career.location || 'Accra',
+  employmentType: career.employment_type || 'Full-time',
+  description: career.description || '',
+  status: career.status || 'draft',
+  createdAt: career.created_at,
+  updatedAt: career.updated_at,
+});
+

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { addAdminRecord } from '../../data/adminStore';
+import { submitInquiry } from '../api/submissions';
 import { CUSTOM_ESTIMATES, CUSTOM_OPTIONS } from '../data/customization';
-import { formDate } from '../utils/date';
+import { formDate, formIsoDate } from '../utils/date';
 import CardStylePicker from '../components/CardStylePicker';
 import DateField from '../components/DateField';
 import QuantityControl from '../components/QuantityControl';
@@ -15,20 +15,25 @@ export default function CustomizePage({ onNavigate }) {
   const [selected, setSelected] = useState([]);
   const [sent, setSent] = useState(false);
   const [quantity, setQuantity] = useState(1);
-  const [requestReference] = useState(() => `RQ-${String(Date.now()).slice(-6)}`);
+  const [submissionId] = useState(() => crypto.randomUUID());
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
   const toggle = option => setSelected(current => current.includes(option) ? current.filter(item => item !== option) : [...current, option]);
   const unitEstimate = selected.reduce((sum, option) => sum + (CUSTOM_ESTIMATES[option] || 0), 0);
   const estimateLow = unitEstimate * quantity;
   const estimateHigh = Math.ceil(estimateLow * 1.12 / 10) * 10;
-  const submit = event => {
+  const submit = async event => {
     event.preventDefault();
+    if (submitting || sent) return;
+    setSubmitting(true); setError('');
+    try {
     const data = new FormData(event.currentTarget);
     const record = {
       ...requestDeliveryDetails(data),
       service: 'Custom gift',
       email: data.get('email'),
       occasion: data.get('occasion'),
-      reference: requestReference,
+      date: formIsoDate(data, 'custom'),
       name: data.get('name'),
       phone: data.get('phone'),
       note: data.get('note'),
@@ -41,8 +46,10 @@ export default function CustomizePage({ onNavigate }) {
       quantity,
       status: 'new'
     };
-    addAdminRecord('requests', record);
-    setSent(record);
+    const result = await submitInquiry('request', record, null, submissionId);
+    setSent({ ...record, ...result });
+    } catch (error) { setError(error.message); }
+    finally { setSubmitting(false); }
   };
 
   return <main className="content-page customize-page">
@@ -55,7 +62,8 @@ export default function CustomizePage({ onNavigate }) {
       <div className="custom-contact"><label>Name<input name="name" required /></label><label>Email address<input name="email" type="email" required /></label><label>Occasion<input name="occasion" required /></label><PhoneInput label="WhatsApp number" required /><DateField label="Preferred date" prefix="custom" /></div>
       <RequestDeliveryFields />
       <div className="custom-quantity"><span>NUMBER OF IDENTICAL GIFTS</span><QuantityControl value={quantity} label="custom gifts" onDecrease={() => setQuantity(current => Math.max(1, current - 1))} onIncrease={() => setQuantity(current => current + 1)} /></div>
-      <input type="hidden" name="custom-quantity" value={quantity} /><button className="primary-action" type="submit">{sent ? 'REQUEST SAVED' : `SAVE ${quantity > 1 ? `${quantity} ` : ''}CUSTOM REQUEST${quantity > 1 ? 'S' : ''}`}</button>
+      <input type="hidden" name="custom-quantity" value={quantity} /><button className="primary-action" type="submit" disabled={submitting || Boolean(sent)}>{submitting ? 'SUBMITTING…' : sent ? 'REQUEST SAVED' : `SAVE ${quantity > 1 ? `${quantity} ` : ''}CUSTOM REQUEST${quantity > 1 ? 'S' : ''}`}</button>
+      {error && <p role="alert">{error}</p>}
       {sent && <div className="inline-success custom-request-success" role="status"><RequestConfirmation request={sent} /><button type="button" onClick={() => onNavigate?.('track')}>TRACK THIS REQUEST</button></div>}
     </form><aside><img src="/assets/hamper-editorial-v2.png" alt="A curated luxury gift hamper" /><span>YOUR SELECTION · QTY {quantity}</span><h2>{selected.length ? `${selected.length} choices` : 'Start with anything'}</h2><p>{selected.length ? selected.join(' · ') : 'Choose a base, add the items they will love, and tell us how to finish it.'}</p><div className="estimate-panel"><small>LIVE ESTIMATE</small>{unitEstimate ? <><strong>GHS {estimateLow.toLocaleString()}–{estimateHigh.toLocaleString()}</strong><p>For {quantity} gift{quantity > 1 ? 's' : ''}. Final pricing follows stock and delivery confirmation.</p></> : <p>Select a base and gift items to calculate an estimate.</p>}</div><p>Save your request to continue on WhatsApp with your reference and complete gift details.</p></aside></div>
     <SiteFooter onNavigate={onNavigate} />
