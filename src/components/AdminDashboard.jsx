@@ -367,10 +367,11 @@ export default function AdminDashboard() {
     setCurrentUser(null);
     setStaffProfile(null);
     setBypassedPreview(false);
+    setUtilityPanel(null);
   };
 
-  if (supabaseConfigured && !currentUser && !bypassedPreview) {
-    if (!authChecked) {
+  if (!currentUser && !bypassedPreview) {
+    if (supabaseConfigured && !authChecked) {
       return (
         <div className="admin-loading-screen">
           <div className="admin-loading-spinner" />
@@ -388,6 +389,7 @@ export default function AdminDashboard() {
       />
     );
   }
+
 
   return <main className={`admin-foundation ${railExpanded ? 'has-expanded-rail' : ''}`}>
     <AdminRail
