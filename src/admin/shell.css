@@ -27,8 +27,16 @@
   font: inherit;
   text-decoration: none;
 }
-.admin-shell button { cursor: pointer; touch-action: manipulation; }
-.admin-shell button:focus-visible { outline: 2px solid var(--admin-ink); outline-offset: -3px; }
+
+.admin-shell button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.admin-shell button:focus-visible {
+  outline: 2px solid var(--admin-ink);
+  outline-offset: -3px;
+}
 
 /* ── Sidebar navigation ────────────────────────────────── */
 .admin-shell__navigation {
@@ -42,6 +50,7 @@
   border-right: 1px solid #deded7;
   background: #ebebe5;
 }
+
 .admin-shell__brand {
   display: flex;
   align-items: center;
@@ -50,13 +59,19 @@
   padding: 0 10px 24px;
   font-size: .9rem;
 }
+
 .admin-shell__brand small {
   display: block;
   margin-top: 6px;
   color: #72726a;
   font-size: .72rem;
 }
-.admin-shell__navigation nav { display: grid; gap: 3px; }
+
+.admin-shell__navigation nav {
+  display: grid;
+  gap: 3px;
+}
+
 .admin-shell__navigation nav button {
   min-height: 44px;
   padding: 10px 14px;
@@ -67,8 +82,16 @@
   background: none;
   border: none;
 }
-.admin-shell__navigation nav button:hover { background: #e0e0d8; }
-.admin-shell__navigation nav button[aria-current="page"] { background: #d8d8ce; font-weight: 500; }
+
+.admin-shell__navigation nav button:hover {
+  background: #e0e0d8;
+}
+
+.admin-shell__navigation nav button[aria-current="page"] {
+  background: #d8d8ce;
+  font-weight: 500;
+}
+
 .admin-shell__store {
   display: flex;
   align-items: center;
@@ -90,6 +113,7 @@
   min-width: 0;
   overflow: hidden;
 }
+
 .admin-shell__header {
   display: flex;
   flex: 0 0 auto;
@@ -99,13 +123,17 @@
   padding: 16px 32px;
   border-bottom: 1px solid #deded7;
 }
+
 .admin-shell__header h1 {
   margin: 0;
   font-size: 1.3rem;
   font-weight: 500;
   letter-spacing: -.02em;
 }
-.admin-shell__header h1:focus { outline: none; }
+
+.admin-shell__header h1:focus {
+  outline: none;
+}
 
 /* ── Scrollable page area ──────────────────────────────── */
 .admin-shell__page {
@@ -121,13 +149,16 @@
 /* ── Elements hidden on desktop, shown on mobile ───────── */
 .admin-shell__menu,
 .admin-shell__close,
-.admin-shell__scrim { display: none; }
+.admin-shell__scrim {
+  display: none;
+}
 
 /* ── Stub placeholder — while pages are being rebuilt ───── */
 .admin-page-stub {
   padding: 24px 0;
   color: #72726a;
 }
+
 .admin-page-stub h2 {
   margin: 0 0 6px;
   font-size: 1.4rem;
@@ -135,13 +166,21 @@
   letter-spacing: -.02em;
   color: var(--admin-ink);
 }
-.admin-page-stub p { margin: 0; font-size: .88rem; }
+
+.admin-page-stub p {
+  margin: 0;
+  font-size: .88rem;
+}
 
 .admin-modal-stub {
   padding: 24px;
   color: #72726a;
 }
-.admin-modal-stub p { margin: 0 0 16px; font-size: .88rem; }
+
+.admin-modal-stub p {
+  margin: 0 0 16px;
+  font-size: .88rem;
+}
 
 /* ── Detail flyout ─────────────────────────────────────── */
 .admin-detail-scrim {
@@ -154,6 +193,7 @@
   border: none;
   cursor: default;
 }
+
 .admin-detail-panel {
   position: fixed;
   inset: 0 0 0 auto;
@@ -168,6 +208,7 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
+
 .admin-panel-heading {
   display: flex;
   flex-direction: column;
@@ -179,6 +220,7 @@
   background: #f4f4f0;
   z-index: 1;
 }
+
 .admin-panel-heading button:first-child {
   align-self: flex-start;
   margin-bottom: 6px;
@@ -192,10 +234,12 @@
   .admin-shell {
     grid-template-columns: minmax(0, 1fr);
   }
+
   .admin-shell__header {
     min-height: 65px;
     padding: max(10px, env(safe-area-inset-top)) 16px 10px;
   }
+
   .admin-shell__menu,
   .admin-shell__close {
     display: grid;
@@ -206,6 +250,7 @@
     background: none;
     border: none;
   }
+
   .admin-shell__navigation {
     display: none;
     position: fixed;
@@ -215,7 +260,11 @@
     padding-top: max(20px, env(safe-area-inset-top));
     padding-bottom: max(20px, env(safe-area-inset-bottom));
   }
-  .admin-shell__navigation.is-open { display: flex; }
+
+  .admin-shell__navigation.is-open {
+    display: flex;
+  }
+
   .admin-shell__scrim {
     display: block;
     position: fixed;
@@ -226,9 +275,11 @@
     background: rgba(24, 24, 20, .28);
     border: none;
   }
+
   .admin-shell__page {
     padding: 20px 16px max(20px, env(safe-area-inset-bottom));
   }
+
   .admin-detail-panel {
     width: 100vw;
     border-left: none;
