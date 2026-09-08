@@ -1,4 +1,4 @@
-import { Settings, X } from 'lucide-react';
+import { Settings, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 export default function AdminRail({
   railExpanded,
@@ -21,7 +21,7 @@ export default function AdminRail({
           aria-label={`${railExpanded ? 'Collapse' : 'Expand'} navigation`}
           aria-expanded={railExpanded}
         >
-          <img src="/gifting-factory-mark.svg" alt="" />
+          {railExpanded ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
           <span>{railExpanded ? 'Collapse menu' : 'Expand menu'}</span>
         </button>
         <button
@@ -41,6 +41,7 @@ export default function AdminRail({
               className={activeNav === label ? 'is-active' : ''}
               onClick={() => selectNav(label)}
               aria-label={label}
+              aria-current={activeNav === label ? 'page' : undefined}
             >
               <Icon size={18} strokeWidth={1.7} />
               <span>{label}</span>

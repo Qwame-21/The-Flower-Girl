@@ -14,7 +14,8 @@ export default function HelpPopover({ selectNav }) {
   return (
     <>
       <small>Admin manual</small>
-      <strong>How to run the store</strong>
+      <strong>Your workspace guide</strong>
+      <p>Use search and section tabs to find records. Browser-backed pages identify their storage; shared requests and careers require staff sign-in.</p>
       <div className="admin-help-list">
         {manualItems.map(([label, text, steps]) => (
           <details key={label}>

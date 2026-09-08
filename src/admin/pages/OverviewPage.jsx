@@ -1,9 +1,50 @@
-// TODO: Design OverviewPage — summary metrics, recent activity, quick links
-export default function OverviewPage({ activeTab, overview, displayRows, setSelectedItem, activeNav }) {
-  return (
-    <div className="admin-page-stub">
-      <h2>Overview</h2>
-      <p>Summary metrics and recent activity will be built here.</p>
-    </div>
-  );
+import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Search, Check, Clock3, Package, Truck, Wallet, MessageSquareText, Activity, X } from 'lucide-react';
+import { buildOverview } from '../utils/overview';
+import { ORDER_LABELS } from '../utils/adminMappers';
+import '../overview.css';
+import FlowArrow from '../components/FlowArrow';
+const money = value => new Intl.NumberFormat('en-GH', { style: 'currency', currency: 'GHS', currencyDisplay: 'code', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+const formatDate = value => new Date(value).toLocaleDateString('en-GH', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short' });
+
+export default function OverviewPage({ activeTab, adminData, dataStatus }) {
+  const [now, setNow] = useState(Date.now);
+  const triggerRef = useRef(null);
+  const [selected, setSelected] = useState(null);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState('All');
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
+  useEffect(() => {
+    if (!selected) return;
+    const trigger = triggerRef.current;
+    const close = event => { if (event.key === 'Escape') setSelected(null); };
+    document.addEventListener('keydown', close);
+    return () => { document.removeEventListener('keydown', close); trigger?.focus?.(); };
+  }, [selected]);
+  const data = buildOverview(adminData, activeTab, now);
+  const searchResults = buildOverview(adminData, 'Activity', now).activities.filter(item => `${item.title} ${item.detail} ${item.record.phone || ''} ${item.record.service || ''}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const activities = data.activities.filter(item => filter === 'All' || item.kind === filter);
+  const priorities = [
+    { label: 'Overdue deliveries', detail: 'Review delivery estimates and follow up.', records: data.overdue, icon: Truck, urgent: true },
+    { label: 'Ready to leave', detail: 'Gifts packed and waiting for dispatch.', records: data.ready, icon: Package },
+    { label: 'Awaiting payment', detail: 'Confirm payment before preparation.', records: data.awaitingPayment, icon: Wallet },
+    { label: 'Requests awaiting a quote', detail: 'Open customer briefs and quotation details.', records: data.quotes, icon: MessageSquareText },
+  ];
+  const inspect = (title, records) => { triggerRef.current = document.activeElement; setSelected({ title, records }); };
+  return <div className="overview-v2">
+    <header className="ov-intro"><div><span className="ov-eyebrow">THE DAILY EDIT · {formatDate(now)} · ACCRA</span><h2>{activeTab === 'This week' ? 'A little perspective.' : activeTab === 'Activity' ? 'The latest from the factory.' : 'Make someone’s day.'}</h2><p>{activeTab === 'This week' ? 'Seven days of gifting, with the work ahead in view.' : 'A clear view of what’s moving, what’s waiting, and what needs you.'}</p></div><span className="ov-source">{dataStatus === 'loading' ? 'Loading shared orders…' : dataStatus === 'error' ? 'Shared orders unavailable' : adminData.ordersSource === 'supabase' ? 'Shared orders connected' : 'Local workspace'}</span></header>
+    <div className="ov-search-row"><label><Search size={18} /><input type="search" aria-label="Search available records" placeholder="Find an order, customer or request…" value={query} onChange={event => setQuery(event.target.value)} /></label><span>YOUR WORKSPACE, AT A GLANCE</span></div>
+    {query.trim() && <section className="ov-search-results" aria-label="Search results"><header><strong>{searchResults.length} matching records</strong><button onClick={() => setQuery('')}>Clear search</button></header>{searchResults.length ? searchResults.map(item => <button key={item.id} onClick={() => inspect(item.title, [item.record])}><span><strong>{item.title}</strong><small>{item.kind} · {item.detail}</small></span><FlowArrow size={17} /></button>) : <p>No matches in available records. Try a name, phone number or reference.</p>}</section>}
+    {dataStatus === 'error'  && <p className="ov-warning" role="alert">Shared orders could not be loaded. Figures below may only reflect locally available records.</p>}
+    {activeTab !== 'Activity' && <>
+      <div className="ov-feature-grid">
+        <section className="ov-revenue"><div className="ov-section-title"><span><Wallet size={18} /> Revenue</span><span>{activeTab === 'This week' ? 'LAST 7 DAYS' : 'TODAY'}</span></div><strong className="ov-revenue-value"><small>GHS</small>{dataStatus === 'loading' ? '—' : new Intl.NumberFormat('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(data.revenue)}</strong><p>{data.paid.length ? `${data.paid.length} confirmed paid ${data.paid.length === 1 ? 'order' : 'orders'}` : 'Your next paid order starts the story.'}</p>{data.paid.length ? <div className="ov-trend" aria-label="Revenue by time period">{data.trend.map(slot => <div key={slot.from} aria-label={`${new Date(slot.from).toISOString()}: ${money(slot.value)}`}><span className="ov-bar-space"><i style={{ height: `${data.revenue ? Math.max(3, slot.value / Math.max(...data.trend.map(point => point.value), 1) * 100) : 0}%` }} /></span><small>{activeTab === 'This week' ? new Date(slot.from).toLocaleDateString('en-GH', { weekday: 'short', timeZone: 'Africa/Accra' }) : `${new Date(slot.from).getUTCHours()}:00`}</small><span className="ov-bar-value">{money(slot.value)}</span></div>)}</div> : <div className="ov-revenue-empty"><Wallet size={20} /><span>{dataStatus === 'loading' ? 'Loading paid orders…' : 'No paid orders in this period'}</span><small>Your revenue chart appears when payments are recorded.</small></div>}<small className="ov-revenue-footnote">Paid order totals. Order date is used when a payment date is unavailable.</small></section>
+        <section className="ov-priorities"><div className="ov-section-title"><span>Today’s priorities</span><Clock3 size={18} /></div><p className="ov-muted">A little attention goes a long way.</p><div>{priorities.map(({ label, detail, records, icon: Icon, urgent }) => <button key={label} onClick={() => inspect(label, records)} className={urgent && records.length ? 'needs-attention' : ''}><span className="ov-priority-icon"><Icon size={18} /></span><span><strong>{label}</strong><small>{detail}</small></span><b>{records.length}</b><FlowArrow size={16} /></button>)}</div></section>
+      </div>
+      <div className="ov-metrics"><button onClick={() => inspect('Pending orders', data.pending)}><span><Package size={19} /> Pending orders</span><strong>{data.pending.length}<FlowArrow size={20} /></strong><p>Open orders across every stage.</p></button><button onClick={() => inspect('Overdue deliveries', data.overdue)} className={data.overdue.length ? 'is-warm' : ''}><span><Truck size={19} /> Overdue deliveries</span><strong>{data.overdue.length}<FlowArrow size={20} /></strong><p>{data.overdue.length ? 'These gifts need a delivery update.' : 'No missed estimates in available orders.'}</p></button><section className="ov-small-note"><span className="ov-note-mark"><Check size={22} /></span><div><h3>{data.pending.length ? 'One thoughtful step at a time.' : 'Room for something wonderful.'}</h3><p>{data.pending.length ? 'Open a priority to see the records behind it.' : 'New orders and requests will bring this workspace to life.'}</p></div></section></div>
+    </>}
+    <section className="ov-activity"><header><div><span className="ov-eyebrow">KEEPING YOU IN THE LOOP</span><h3>Recent activity</h3></div><div className="ov-filters" aria-label="Filter activity">{['All', 'Order', 'Request', 'Application'].map(kind => <button key={kind} aria-pressed={filter === kind} onClick={() => setFilter(kind)}>{kind === 'All' ? 'All updates' : `${kind}s`}</button>)}</div></header>{activities.length ? <div className="ov-activity-list">{activities.slice(0, activeTab === 'Activity' ? 50 : 6).map(item => <button key={item.id} onClick={() => inspect(item.title, [item.record])}><span className="ov-activity-icon"><Activity size={17} /></span><span><strong>{item.title}</strong><small>{item.detail}</small></span><span className="ov-activity-status">{ORDER_LABELS[item.status] || item.status || item.kind}</span><time>{formatDate(item.time)} · {new Date(item.time).toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Accra' })}</time><FlowArrow size={16} /></button>)}</div> : <div className="ov-quiet"><Activity size={23} /><div><strong>No {filter === 'All' ? '' : `${filter.toLowerCase()} `}activity {activeTab === 'Activity' ? 'yet' : 'in this period'}</strong><p>New orders, requests and applications will appear here.</p></div></div>}</section>
+    {selected && createPortal(<section className="ov-inspector" aria-label={selected.title}><header><button autoFocus onClick={() => setSelected(null)} aria-label="Close record details"><FlowArrow size={16} direction="left" /></button><h3>{selected.title}</h3><button onClick={() => setSelected(null)} aria-label="Dismiss details"><X size={18} /></button></header>{selected.records.length ? selected.records.map((record, index) => <article key={record.id || index}><strong>{record.tracking || record.reference || record.name || 'Record'}</strong><p>{record.customer || record.name || record.role}</p><dl>{record.reference && <><dt>Source</dt><dd>Customer request · {adminData.requestsSource === 'supabase' ? 'Shared data' : 'Saved in this browser'}</dd></>}{record.service && <><dt>Service</dt><dd>{record.service}</dd></>}{(record.note || record.notes) && <><dt>Brief</dt><dd>{record.note || record.notes}</dd></>}<dt>Status</dt><dd>{ORDER_LABELS[record.status] || record.status || 'Not recorded'}</dd>{record.total != null && <><dt>Total</dt><dd>{money(Number(record.total))}</dd></>}{record.delivery && <><dt>Delivery</dt><dd>{record.delivery}</dd></>}{record.estimatedDelivery && <><dt>Estimate</dt><dd>{new Date(record.estimatedDelivery).toLocaleString('en-GH', { timeZone: 'Africa/Accra' })}</dd></>}{record.phone && <><dt>Phone</dt><dd>{record.phone}</dd></>}</dl></article>) : <div className="ov-quiet"><Check size={24} /><p>Nothing waiting here. You’re up to date.</p></div>}</section>, document.body)}
+  </div>;
 }

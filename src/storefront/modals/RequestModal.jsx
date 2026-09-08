@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Check, Upload } from 'lucide-react';
-import { addAdminRecord } from '../../data/adminStore';
-import { formDate } from '../utils/date';
+import { submitInquiry } from '../api/submissions';
+import { formDate, formIsoDate } from '../utils/date';
 import CardStylePicker from '../components/CardStylePicker';
 import DateField from '../components/DateField';
 import PhoneInput from '../components/PhoneInput';
@@ -13,8 +13,21 @@ import { requestDeliveryDetails } from '../utils/request';
 export default function RequestModal({ service, onClose }) {
   const [sent, setSent] = useState(false);
   const [fileName, setFileName] = useState('');
-  const [requestReference] = useState(() => `RQ-${String(Date.now()).slice(-6)}`);
-  const submit = (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); const record = { ...requestDeliveryDetails(data), quantity: Number(data.get('quantity') || 1), reference: requestReference, service, name: data.get('name'), email: data.get('email'), phone: data.get('phone'), occasion: data.get('occasion'), preferredDate: formDate(data, 'request'), inspirationName: fileName, note: data.get('request'), cardMessage: data.get('cardMessage'), cardStyleNotes: data.get('cardStyleNotes'), status: 'new' }; addAdminRecord('requests', record); setSent(record); };
+  const [submissionId] = useState(() => crypto.randomUUID());
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async event => {
+    event.preventDefault();
+    if (submitting) return;
+    setSubmitting(true); setError('');
+    try {
+      const data = new FormData(event.currentTarget);
+      const record = { ...requestDeliveryDetails(data), quantity: Number(data.get('quantity') || 1), service, name: data.get('name'), email: data.get('email'), phone: data.get('phone'), occasion: data.get('occasion'), preferredDate: formDate(data, 'request'), date: formIsoDate(data, 'request'), note: data.get('request'), cardMessage: data.get('cardMessage'), cardStyleNotes: data.get('cardStyleNotes'), status: 'new' };
+      const result = await submitInquiry('request', record, data.get('inspiration'), submissionId);
+      setSent({ ...record, ...result });
+    } catch (error) { setError(error.message); }
+    finally { setSubmitting(false); }
+  };
 
   return (
     <div className="flow-backdrop" onClick={onClose}>
@@ -34,9 +47,9 @@ export default function RequestModal({ service, onClose }) {
             <RequestDeliveryFields />
             <label>Service notes and instructions<textarea name="request" rows="4" required placeholder="Describe what you need, who it is for, preferred colours, wording or any delivery details" /></label>
             <fieldset className="request-card-message"><legend>Gift card <small>(optional)</small></legend><label>Message for the card<textarea name="cardMessage" rows="3" placeholder="Write the message exactly as it should appear" /></label><CardStylePicker /></fieldset>
-            <label className="upload-field"><Upload size={16} /> Inspiration image<input type="file" accept="image/*" onChange={(event) => setFileName(event.target.files?.[0]?.name || '')} /></label>
-            {fileName && <small>{fileName} — please attach this image in the WhatsApp chat.</small>}
-            <button className="primary-action" type="submit">SAVE REQUEST</button>
+            <label className="upload-field"><Upload size={16} /> Inspiration image<input name="inspiration" type="file" accept=".jpg,.jpeg,.png,.webp" onChange={(event) => setFileName(event.target.files?.[0]?.name || '')} /></label>
+            {fileName && <small>{fileName} — uploaded securely with your request (maximum 5 MB).</small>}
+            <button className="primary-action" type="submit" disabled={submitting}>{submitting ? 'SUBMITTING…' : 'SUBMIT REQUEST'}</button>{error && <p role="alert">{error}</p>}
           </form>
         )}
         </div>

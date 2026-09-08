@@ -1,18 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import Navigation from './components/Navigation';
 import DrawerMenu from './components/DrawerMenu';
 import SearchModal from './components/SearchModal';
-import AdminDashboard from './components/AdminDashboard';
-import { AboutPage, CareersPage, CustomizePage, ServicesPage, GalleryPage, ShopPage, InformationPage, TrackOrderPage } from './components/ContentPages';
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
+import AdminAccess from './admin/components/AdminAccess';
+const AboutPage = lazy(() => import('./storefront/pages/AboutPage'));
+const CareersPage = lazy(() => import('./storefront/pages/CareersPage'));
+const CustomizePage = lazy(() => import('./storefront/pages/CustomizePage'));
+const ServicesPage = lazy(() => import('./storefront/pages/ServicesPage'));
+const GalleryPage = lazy(() => import('./storefront/pages/GalleryPage'));
+const ShopPage = lazy(() => import('./storefront/pages/ShopPage'));
+const InformationPage = lazy(() => import('./storefront/pages/InformationPage'));
+const TrackOrderPage = lazy(() => import('./storefront/pages/TrackOrderPage'));
 import { PORTFOLIO_SERIES } from './data/portfolioData';
 import { styles } from './storefront/home/homeStyles';
 import HomePage from './storefront/home/HomePage';
 
-export default function App() {
+import PageMetadata from './site/PageMetadata';
+import { pages, pageForPath } from './site/routes';
+
+export default function App() { return <Suspense fallback={<main className="site-loading" role="status">Opening your page…</main>}><SiteApp /></Suspense>; }
+function SiteApp() {
   const returningFromPayment = new URLSearchParams(window.location.search).get('payment') === 'return';
-  const [adminMode, setAdminMode] = useState(() => /^\/admin\/?$/.test(window.location.pathname));
+  const [adminMode, setAdminMode] = useState(() => /^\/admin(?:\/login)?\/?$/.test(window.location.pathname));
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState(() => returningFromPayment ? 'shop' : 'home');
+  const [activeTab, updateActiveTab] = useState(() => returningFromPayment ? 'shop' : pageForPath(window.location.pathname));
+  const setActiveTab = tab => { updateActiveTab(tab); if (pages[tab] && window.location.pathname !== pages[tab][0]) window.history.pushState({}, '', pages[tab][0]); };
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [checkoutRequested, setCheckoutRequested] = useState(returningFromPayment);
@@ -106,7 +119,7 @@ export default function App() {
   }, [returningFromPayment]);
 
   useEffect(() => {
-    const syncRoute = () => setAdminMode(/^\/admin\/?$/.test(window.location.pathname));
+    const syncRoute = () => { setAdminMode(/^\/admin(?:\/login)?\/?$/.test(window.location.pathname)); updateActiveTab(pageForPath(window.location.pathname)); };
     window.addEventListener('popstate', syncRoute);
     return () => window.removeEventListener('popstate', syncRoute);
   }, []);
@@ -119,10 +132,13 @@ export default function App() {
 
   const navigateStorefront = tab => { setCheckoutRequested(false); setWishlistRequested(false); if (tab === 'services') setPreferredService(null); setActiveTab(tab); };
 
-  if (adminMode) return <AdminDashboard onExit={() => { window.history.pushState({}, '', '/'); setAdminMode(false); }} />;
+  if (adminMode) return <><PageMetadata admin /><AdminAccess>{identity => <AdminDashboard staffIdentity={identity} onExit={() => { window.history.pushState({}, '', '/'); setAdminMode(false); }} />}</AdminAccess></>;
+
+  if (activeTab === 'not-found') return <><PageMetadata page="not-found"/><main className="site-not-found"><p>404 · PAGE NOT FOUND</p><h1>Let’s find your way back.</h1><p>This page may have moved or the address may be incorrect.</p><a href="/">Return to the storefront</a></main></>;
 
   return (
     <div style={styles.appContainer} className="portfolio-page">
+      <PageMetadata page={activeTab} />
       {/* Top Header Navigation */}
       <Navigation
         activeTab={activeTab}

@@ -15,6 +15,7 @@ export const mapDatabaseOrder = order => {
   const eventTimes = Object.fromEntries((order.order_events || []).map(event => [`${event.stage}At`, event.created_at]));
   return {
     id: order.id,
+    source: 'supabase',
     tracking: order.tracking_number,
     code: order.order_code,
     customer: order.customer_name,

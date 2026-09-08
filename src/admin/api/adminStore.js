@@ -1,15 +1,8 @@
 const KEY = 'gifting-factory-admin-data-v2';
 const EVENT = 'gifting-factory-admin-update';
 
-const hour = 60 * 60 * 1000;
 const defaults = {
-  orders: [
-    { id: 'order-gf-1052', tracking: 'GF-1052', customer: 'Naa Dedei Quaye', phone: '024 621 8047', items: [{ name: 'Celebration hamper', qty: 1 }], total: 2875, paymentMethod: 'Mobile Money', paymentStatus: 'paid', status: 'paid', createdAt: new Date(Date.now() - hour * 1.2).toISOString(), delivery: 'East Legon' },
-    { id: 'order-gf-1051', tracking: 'GF-1051', customer: 'Kwesi Asare', phone: '055 893 1472', items: [{ name: 'Fresh flower bouquet', qty: 2 }], total: 920, paymentMethod: 'Card', status: 'packaging', createdAt: new Date(Date.now() - hour * 4.7).toISOString(), delivery: 'Cantonments' },
-    { id: 'order-gf-1050', tracking: 'GF-1050', customer: 'Akosua Frempong', phone: '020 174 6390', items: [{ name: 'Care gift box', qty: 1 }], total: 675, paymentMethod: 'Mobile Money', status: 'ready', createdAt: new Date(Date.now() - hour * 20.4).toISOString(), delivery: 'Adenta' },
-    { id: 'order-gf-1049', tracking: 'GF-1049', customer: 'Kobina Annan', phone: '027 440 2186', items: [{ name: 'Engraved wrist bag', qty: 1 }], total: 1135, paymentMethod: 'Pay on delivery', status: 'delivery', createdAt: new Date(Date.now() - hour * 30.8).toISOString(), delivery: 'Tema Community 12' },
-    { id: 'order-gf-1048', tracking: 'GF-1048', customer: 'Mansa Ofori', phone: '050 316 7724', items: [{ name: 'Luxury flower hamper', qty: 1 }], total: 3640, paymentMethod: 'Card', status: 'completed', createdAt: new Date(Date.now() - hour * 76.2).toISOString(), delivery: 'Airport Residential' },
-  ], requests: [], applications: [], products: [
+  orders: [], requests: [], applications: [], products: [
     { id: 'product-hamper', name: 'Luxury celebration hamper', category: 'Hampers', price: 'GHS 3,750', stock: 8, visible: true, image: '/assets/hamper-editorial-v2.png' },
     { id: 'product-bouquet', name: 'Fresh flower bouquet', category: 'Flowers', price: 'From GHS 450', stock: 19, visible: true, image: '/assets/bouquet-editorial-v2.png' },
     { id: 'product-care', name: 'Period care box', category: 'Care gifts', price: 'From GHS 650', stock: 6, visible: true, image: '/assets/gifting-factory-logo-transparent-v2.png' },
@@ -26,11 +19,7 @@ const defaults = {
     { id: 'gallery-wrap', src: '/assets/wrapping-editorial-v2.png', label: 'Signature gift presentation', visible: true },
     { id: 'gallery-basket', src: '/assets/basket-hamper-editorial-v2.png', label: 'Curated celebration basket', visible: true },
   ],
-  reviews: [
-    { id: 'RV-018', customer: 'Adwoa Mensimah', product: 'Luxury celebration hamper', rating: 5, status: 'Pending', date: '4 Sept 2026', text: 'The presentation was beautiful and the recipient loved every item.' },
-    { id: 'RV-017', customer: 'Nana Kusi', product: 'Fresh flower bouquet', rating: 4, status: 'Pending', date: '3 Sept 2026', text: 'Fresh flowers and thoughtful wrapping. Delivery arrived a little later than expected.' },
-    { id: 'RV-016', customer: 'Esi Arthur', product: 'Engraved wrist bag', rating: 5, status: 'Published', date: '1 Sept 2026', text: 'The engraving was neat and exactly matched the preview.' },
-  ],
+  reviews: [],
   content: {
     announcement: 'Thoughtful gifting, prepared with care in Accra.',
     deliveryPolicy: 'Delivery timing is confirmed with each order after availability and destination are reviewed.',
@@ -40,6 +29,13 @@ const defaults = {
   settings: { businessName: 'The Gifting Factory', supportPhone: '+233 24 000 0000', supportEmail: 'hello@thegiftingfactory.com', dispatchCity: 'Accra', leadTime: 'Delivery timing confirmed per order', deliveryNote: 'We will call the recipient before dispatch.', adminName: 'Administrator', adminEmail: 'admin@thegiftingfactory.com' },
   careers: [{ id: 'career-content', title: 'Content Creator & Social Media Manager', status: 'open' }],
 };
+
+// Match only unchanged built-in catalogue examples; edited or shared records stay visible.
+export function isDefaultAdminRecord(collection, record) {
+  if (record.source === 'supabase' || record.createdAt || record.updatedAt) return false;
+  const example = defaults[collection]?.find?.(item => item.id === record.id);
+  return Boolean(example && Object.keys(record).length === Object.keys(example).length && Object.entries(example).every(([key, value]) => JSON.stringify(record[key]) === JSON.stringify(value)));
+}
 
 export function readAdminData() {
   try {

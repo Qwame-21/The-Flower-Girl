@@ -1,10 +1,13 @@
-import { Bell, ChevronDown, CircleHelp, Menu, UserRound, X } from 'lucide-react';
+import { Bell, CircleHelp, Menu, UserRound, X } from 'lucide-react';
+import '../chrome.css';
+import FlowArrow from './FlowArrow';
 import HelpPopover from './HelpPopover';
 import NotificationsPopover from './NotificationsPopover';
 import AccountPopover from './AccountPopover';
 
 export default function AdminTopbar({
   activeNav,
+  description,
   setMobileOpen,
   utilityPanel,
   toggleUtility,
@@ -18,7 +21,7 @@ export default function AdminTopbar({
   openOrder,
   selectNav,
   setSelectedItem,
-  adminData,
+  staffIdentity,
   setActiveTabs,
 }) {
   return (
@@ -27,7 +30,7 @@ export default function AdminTopbar({
         <button className="admin-foundation__menu" onClick={() => setMobileOpen(true)} aria-label="Open navigation">
           <Menu size={19} />
         </button>
-        <h1>{activeNav}</h1>
+        <h1>{activeNav}</h1><p className="admin-topbar-description">{description}</p>
       </div>
       <div className="admin-foundation__utilities">
         <button
@@ -56,8 +59,8 @@ export default function AdminTopbar({
           <span>
             <UserRound size={17} strokeWidth={1.6} />
           </span>
-          <strong>{adminData.settings.adminName || 'Admin'}</strong>
-          <ChevronDown size={15} />
+          <strong>{staffIdentity?.profile.display_name || staffIdentity?.email || 'Staff'}</strong>
+          <FlowArrow size={11} direction={utilityPanel === 'account' ? 'up' : 'down'} />
         </button>
       </div>
       {utilityPanel && (
@@ -80,7 +83,7 @@ export default function AdminTopbar({
             />
           )}
           {utilityPanel === 'account' && (
-            <AccountPopover adminData={adminData} selectNav={selectNav} setActiveTabs={setActiveTabs} />
+            <AccountPopover staffIdentity={staffIdentity} selectNav={selectNav} setActiveTabs={setActiveTabs} onClose={() => setUtilityPanel(null)} />
           )}
         </aside>
       )}

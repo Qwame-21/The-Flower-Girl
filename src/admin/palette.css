@@ -1,0 +1,100 @@
+/* Single source of truth for admin surfaces and control states. */
+.admin-foundation,.admin-record-dialog,.ov-inspector {
+ --admin-blue:#397fe8; --admin-white:#fff; --admin-ink:#151515;
+ --admin-muted:#666; --admin-rule:rgba(17,17,17,.09); --admin-surface:#fff;
+ --admin-orange:var(--admin-blue); --admin-black:var(--admin-ink); --admin-gray:#fafafa;
+ --a-ink:var(--admin-ink); --a-muted:var(--admin-muted); --a-rule:var(--admin-rule); --ov-orange:var(--admin-blue);
+ color:var(--admin-ink); font-family:'Outfit',sans-serif; color-scheme:light;
+}
+.admin-foundation { background:#fafafa; }
+.admin-foundation .admin-foundation__canvas,.admin-foundation .overview-v2 { background:transparent; border-color:transparent; box-shadow:none; }
+.admin-foundation .admin-foundation__rail,.admin-foundation .admin-foundation__topbar,.admin-foundation .admin-foundation__popover,.ov-inspector {
+ background:rgba(255,255,255,.94); border:1px solid rgba(17,17,17,.035); box-shadow:0 5px 24px #11111108; backdrop-filter:blur(18px);
+}
+.admin-foundation .ov-revenue,.admin-foundation .ov-priorities,.admin-foundation .ov-metrics>button,.admin-foundation .ov-small-note,.admin-foundation .ov-activity,.admin-foundation .ov-quiet,.admin-foundation .ov-search-results {
+ background:#fff; border:0; box-shadow:0 5px 24px #11111108;
+}
+.admin-foundation .ov-revenue:before { display:none; }
+.admin-foundation .ov-intro .ov-eyebrow,.admin-foundation .ov-revenue-value>small,.admin-foundation .ov-revenue .ov-section-title>span:first-child>svg { color:var(--admin-ink); }
+.admin-foundation .ov-priority-icon,.admin-foundation .ov-activity-icon,.admin-foundation .ov-note-mark { color:var(--admin-ink); background:transparent; border:0; box-shadow:none; }
+.admin-foundation .ov-bar-space i { background:var(--admin-blue); box-shadow:none; }.admin-foundation .ov-metrics>button:after { background:var(--admin-blue); height:2px; }
+.admin-foundation .ov-intro p,.admin-foundation .ov-priorities small,.admin-foundation .ov-muted,.admin-foundation .ov-revenue>p,.admin-foundation .ov-revenue-footnote,.admin-foundation .ov-trend small,.admin-foundation .ov-activity-status,.admin-foundation .ov-activity-list time,.admin-foundation .ov-activity-list small,.admin-foundation .ov-metrics p,.admin-foundation .ov-search-row>span,.admin-foundation .ov-quiet { color:var(--admin-muted); }
+/* Every control inherits one color. Descendants may never retain a conflicting hover color. */
+.admin-foundation :where(button:not(.admin-foundation__scrim):not(.admin-detail-scrim):not(.admin-confirm-scrim)),.admin-record-dialog button,.ov-inspector button {
+ color:var(--admin-ink); background:#fff; background-image:none; border:1px solid var(--admin-rule); box-shadow:none; cursor:pointer; -webkit-appearance:none;
+ transition:color 160ms ease,background-color 160ms ease,transform 160ms ease;
+}
+.admin-foundation button :is(svg,strong,small,b,em,time),.admin-record-dialog button :is(svg,span),.ov-inspector button svg { color:inherit !important; }
+.admin-foundation button:not(:disabled):is(:hover,:focus-visible),.admin-record-dialog button:not(:disabled):is(:hover,:focus-visible),.ov-inspector button:not(:disabled):is(:hover,:focus-visible) {
+ color:#fff !important; background:#397fe8 !important; border-color:transparent; box-shadow:none;
+}
+.admin-foundation button:not(:disabled):is(:hover,:focus-visible) :is(span,svg,strong,small,b,em,time,i),.admin-record-dialog button:not(:disabled):is(:hover,:focus-visible) :is(svg,span),.ov-inspector button:not(:disabled):is(:hover,:focus-visible) :is(svg,span,i) { color:#fff !important; }
+.admin-foundation .admin-primary,.admin-record-dialog .admin-primary,.admin-foundation .orders-primary,.admin-foundation .admin-file .admin-foundation__tabs>button.is-active,.admin-foundation .ov-filters button[aria-pressed=true],.admin-foundation .admin-foundation__rail nav button.is-active,.admin-foundation .admin-foundation__rail-footer button.is-active {
+ background:#397fe8; color:#fff; border-color:transparent; box-shadow:none;
+}
+.admin-foundation button:disabled,.admin-record-dialog button:disabled { opacity:.45; cursor:not-allowed; }
+.admin-foundation button:focus-visible,.admin-record-dialog button:focus-visible,.ov-inspector button:focus-visible { outline:2px solid #111 !important; outline-offset:3px; }
+.admin-foundation .admin-foundation__rail:not(.is-expanded) button>span { background:#397fe8 !important; color:#fff !important; border:0 !important; box-shadow:0 5px 20px #11111110 !important; }
+.admin-foundation .admin-foundation__rail:not(.is-expanded) .admin-foundation__brand>span,.admin-foundation .admin-foundation__brand,.admin-foundation .admin-foundation__rail.is-expanded .admin-foundation__brand { border-radius:999px !important; }
+.admin-foundation .admin-foundation__rail.is-expanded nav button { border-radius:10px; box-shadow:none; }
+.admin-foundation .admin-foundation__brand>svg { color:inherit !important; }
+.admin-foundation .admin-file .admin-foundation__tabs button:before,.admin-foundation .admin-file .admin-foundation__tabs button:after { content:none !important; display:none !important; }
+.admin-foundation .admin-file .admin-foundation__tabs { padding:0 0 8px !important; gap:8px; align-items:center; }
+.admin-foundation .admin-file .admin-foundation__tabs>button { grid-template-columns:30px minmax(0,1fr); width:auto; min-width:140px; height:46px; margin:0; padding:8px 16px; border-radius:14px; box-shadow:none; }
+.admin-foundation .admin-file .admin-foundation__tabs button .admin-foundation__tab-icon { color:inherit; background:transparent; box-shadow:none; }
+.admin-foundation :is(input,textarea,select),.admin-record-dialog :is(input,textarea,select) { color:#151515; background:#fff; accent-color:#397fe8; caret-color:#397fe8; }
+.admin-foundation :is(input,textarea,select):focus,.admin-record-dialog :is(input,textarea,select):focus { outline:2px solid #397fe8 !important; outline-offset:2px; box-shadow:none !important; }
+.admin-foundation .ov-search-row input:focus { outline:none !important; }.admin-foundation .ov-search-row label:focus-within { outline:2px solid #397fe8; outline-offset:2px; }
+.admin-foundation .ov-search-row label { background:#fff; box-shadow:none; border-color:var(--admin-rule); }
+.admin-foundation input::selection,.admin-foundation textarea::selection { background:#397fe833; color:#111; }
+.admin-foundation .admin-sound-track { background:#ccc; }.admin-foundation .admin-notification-sound[aria-checked=true] .admin-sound-track { background:#397fe8; }
+.admin-foundation .admin-account-actions button,.admin-foundation .admin-notification-actions button { color:#111; background:#fff; border-color:var(--admin-rule); }
+.admin-foundation .ov-priorities button { padding:14px 10px; margin:6px 0; border-radius:12px; }
+.admin-foundation .admin-flow-arrow { color:inherit !important; }.ov-inspector>header { background:#fff; }
+.admin-foundation .ov-filters button { border-color:var(--admin-rule); }
+@media(prefers-reduced-motion:reduce) { .admin-foundation button,.admin-record-dialog button { transition:none; }.admin-foundation .ov-revenue,.admin-foundation .ov-priorities { animation:none; } }
+/* Authenticated account menu: quiet surface, clear identity and shared blue states. */
+.admin-foundation .admin-foundation__popover.is-account { width:340px; max-width:calc(100vw - 32px); padding:24px; border-radius:24px; }
+.admin-foundation .admin-account-eyebrow { margin:0 0 20px; font-size:10px; letter-spacing:.18em; color:var(--admin-muted); }
+.admin-foundation .admin-account-identity { gap:12px; padding:0; min-width:0; }
+.admin-foundation .admin-account-avatar { display:grid; place-items:center; flex:0 0 44px; height:44px; border-radius:15px; background:#397fe812; color:var(--admin-ink); font-size:22px; }
+.admin-foundation .admin-account-identity>div { min-width:0; }
+.admin-foundation .admin-account-identity strong { display:block; margin:0 0 4px; font-size:18px; overflow-wrap:anywhere; }
+.admin-foundation .admin-account-identity small { display:block; color:var(--admin-muted); font-size:12px; }
+.admin-foundation .admin-account-email { margin:16px 0 8px; color:var(--admin-muted); line-height:1.5; }
+.admin-foundation .admin-account-session { display:flex; align-items:center; gap:6px; margin:0 0 20px; font-size:11px; color:var(--admin-muted); }
+.admin-foundation .admin-account-actions { padding-top:12px; border-color:var(--admin-rule); gap:6px; }
+.admin-foundation .admin-account-actions button { border:0; border-radius:16px; padding:12px; gap:12px; min-height:48px; }
+.admin-foundation .admin-account-actions button span { display:grid; gap:4px; }
+.admin-foundation .admin-account-actions button strong { font-size:14px; font-weight:500; }
+.admin-foundation .admin-account-actions button small { font-size:11px; opacity:.7; }
+.admin-foundation .admin-account-actions .is-logout { color:var(--admin-ink); margin-top:8px; background:#397fe80d; }
+.admin-foundation .admin-account-error { font-size:12px; line-height:1.5; margin:12px 0 0; }
+/* Keep operational emphasis within the shared white/blue palette. */
+.admin-foundation .ov-priorities .needs-attention .ov-priority-icon { background:#397fe810; color:var(--admin-ink); }
+.admin-foundation .ov-priorities button:hover .ov-priority-icon { background:transparent; }
+.admin-foundation .ov-priorities button:active,.admin-foundation .admin-account-actions button:active { transform:translateY(1px); }
+.admin-foundation .admin-foundation__notification-dot,.admin-foundation .admin-notification-button>b { background:var(--admin-blue); color:#fff; }
+.admin-foundation .ov-revenue-empty { display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:10px; min-height:130px; margin:24px 0 12px; padding:20px; border-radius:16px; background:#397fe806; color:var(--admin-muted); font-size:13px; }
+.admin-foundation .ov-revenue-empty small { font-size:11px; line-height:1.6; }
+.admin-foundation .ov-warning { background:#397fe80d; color:var(--admin-ink); }
+.admin-foundation .ov-source { border-color:var(--admin-rule); color:var(--admin-muted); }
+.admin-foundation .ov-intro { padding-bottom:24px; }
+.admin-foundation .ov-bar-value { background:var(--admin-blue); }
+.admin-foundation .ov-priorities button:focus-visible { outline-offset:1px; }
+@media(max-width:600px) { .admin-foundation .ov-intro { gap:16px; }.admin-foundation .ov-revenue,.admin-foundation .ov-priorities { padding:22px; }.admin-foundation .ov-priorities button { gap:8px; padding-inline:4px; }.admin-foundation .ov-filters { width:100%; gap:6px; }.admin-foundation .ov-filters button { flex:1; padding:10px 8px; font-size:11px; } }
+.admin-foundation .admin-data-reset { margin-top:32px; padding-top:24px; border-top:1px solid var(--admin-rule); }
+.admin-data-reset>h3 { margin:0 0 8px; font-size:22px; font-weight:500; }
+.admin-data-reset p { font-size:13px; line-height:1.7; color:var(--admin-muted); }
+.admin-reset-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:20px; }
+.admin-reset-options article { display:flex; flex-direction:column; align-items:flex-start; padding:24px; background:#fff; border-radius:20px; }
+.admin-reset-options h4 { margin:14px 0 0; font-weight:500; font-size:16px; }
+.admin-reset-options p { flex:1; }.admin-reset-options button { padding:12px 18px; border-radius:999px; }.admin-reset-options small { margin-top:10px; font-size:11px; }
+@media(max-width:650px) { .admin-reset-options { grid-template-columns:1fr; } }
+
+/* Admin stays light independently of browser/system theme and legacy shell rules. */
+html:has(.admin-foundation),html:has(.admin-login) { color-scheme:light; background:#fafafa; }
+body:has(.admin-foundation),body:has(.admin-login) { background:#fafafa; color:#151515; }
+.admin-foundation .admin-foundation__account.is-active,
+.admin-foundation .admin-foundation__utilities>button.is-active { background:#397fe8; color:#fff; border-color:transparent; }
+.admin-login { color-scheme:light; background:#fafafa; color:#151515; }

@@ -1,0 +1,97 @@
+.admin-foundation .admin-topbar-description { margin:0; padding-left:18px; border-left:1px solid #d6d6cc; max-width:480px; color:#707067; font-size:13px; line-height:1.5; }
+.admin-foundation__title { min-width:0; }.admin-foundation__title h1 { flex-shrink:0; }
+.admin-foundation .admin-foundation__account>span { background:transparent; }
+.admin-foundation .admin-foundation__popover { padding:24px; max-height:calc(100dvh - 110px); overflow-y:auto; overscroll-behavior:contain; border:1px solid #d9d9cf; border-radius:14px; background:#fafaf5; }
+.admin-foundation .admin-foundation__popover.is-notifications { width:min(390px,calc(100vw - 40px)); }
+.admin-foundation .admin-foundation__popover-close { width:32px; height:32px; top:10px; right:10px; }
+.admin-account-identity { display:flex; align-items:center; gap:14px; padding-right:26px; }
+.admin-foundation .admin-account-identity strong { font-size:16px; margin-top:5px; }
+.admin-foundation .admin-account-email { font-size:13px; overflow-wrap:anywhere; margin:16px 0; }
+.admin-account-actions { display:grid; gap:8px; border-top:1px solid #ddddd3; padding-top:16px; }
+.admin-foundation .admin-account-actions button { display:flex; align-items:center; gap:12px; width:100%; padding:13px 12px; min-height:46px; text-align:left; border:1px solid #deded3; border-radius:7px; background:#f1f1e9; color:#34372f; font-size:14px; }
+.admin-account-actions button span { flex:1; }.admin-foundation .admin-account-actions .is-logout { margin-top:8px; color:#853f32; background:transparent; }.admin-foundation .admin-account-actions button:hover { background:#e7e8dd; }
+.admin-notification-actions { display:flex; flex-wrap:wrap; gap:10px; margin:20px 0; }
+.admin-foundation .admin-notification-actions button { display:inline-flex; align-items:center; gap:7px; margin:0; padding:10px 12px; min-height:40px; border:1px solid #d5d5c9; border-radius:6px; color:#44483b; background:#efefe6; font-size:12px; }
+.admin-foundation .admin-notification-actions button:disabled { opacity:.45; cursor:default; }
+.admin-foundation .admin-notification-list { gap:0; margin:0; }
+.admin-foundation .admin-notification-list button:not(.is-read) { box-shadow:none; }
+.admin-foundation .admin-notification-list button { padding:16px 10px; border:0; border-top:1px solid #deded3; border-radius:0; background:transparent; gap:7px; }
+.admin-foundation .admin-notification-list button:hover { background:#eeefe5; }
+.admin-foundation .admin-notification-list b { font-size:14px; font-weight:500; }.admin-foundation .admin-notification-list span { font-size:10px; text-transform:uppercase; letter-spacing:.12em; color:#737662; }.admin-foundation .admin-notification-list em { font-size:12px; color:#65665b; }
+.admin-notification-empty { padding:24px 8px; text-align:center; color:#747765; }
+.admin-foundation .admin-notification-empty p { font-size:13px; }
+/* The page identity lives in the top bar, above the section tabs. */
+.admin-foundation .admin-page-stub>h2,.admin-foundation .orders-heading h2,.admin-foundation .orders-heading p,.admin-foundation .admin-page-heading>div { display:none; }
+.admin-foundation .orders-heading { justify-content:flex-end; }
+@media(min-width:761px) {
+.admin-foundation .admin-foundation__rail:not(.is-expanded) button>span { left:-1px !important; top:-1px !important; height:calc(100% + 2px) !important; min-width:100% !important; padding:0 18px 0 52px !important; transform:none !important; z-index:1 !important; box-sizing:border-box; font-family:'Outfit',sans-serif; font-size:10px !important; font-weight:600; letter-spacing:.22em; text-transform:uppercase; background:#f8f8f4 !important; }
+.admin-foundation .admin-foundation__rail:not(.is-expanded) button:hover>span,.admin-foundation .admin-foundation__rail:not(.is-expanded) button:focus-visible>span { transform:none !important; }
+.admin-foundation .admin-foundation__rail:not(.is-expanded) button:hover,.admin-foundation .admin-foundation__rail:not(.is-expanded) button:focus-visible { z-index:25; }
+}
+@media(max-width:1100px) { .admin-foundation .admin-topbar-description { display:none; } }
+@media(max-width:760px) { .admin-foundation .admin-foundation__popover.is-notifications { right:0; }.admin-foundation .admin-foundation__popover { padding:22px 18px; }.admin-foundation .admin-foundation__utilities { gap:6px; } }
+@media(prefers-reduced-motion:reduce) { .admin-foundation .admin-foundation__rail button>span,.admin-foundation .admin-foundation__popover { animation:none !important; transition:none !important; } }
+@media(min-width:761px) {
+.admin-foundation .admin-foundation__rail:not(.is-expanded) button:hover>svg,.admin-foundation .admin-foundation__rail:not(.is-expanded) button:focus-visible>svg { color:#30342c; }
+}
+/* Reference direction: monochrome navigation, warm orange utility accents. */
+.admin-foundation .admin-foundation__rail button>span {
+  font-family:'Outfit',sans-serif !important;
+  font-size:10px !important;
+  font-weight:600;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+}
+.admin-foundation .admin-foundation__rail.is-expanded nav button,
+.admin-foundation .admin-foundation__rail.is-expanded .admin-foundation__rail-footer button {
+  border-radius:10px;
+  box-shadow:none;
+  border-color:transparent;
+}
+.admin-foundation .admin-foundation__rail.is-expanded {
+  border-radius:20px;
+  box-shadow:0 12px 30px rgba(30,30,26,.09), inset 0 1px 0 rgba(255,255,255,.7);
+}
+.admin-foundation .admin-foundation__rail.is-expanded button:hover,
+.admin-foundation .admin-foundation__rail.is-expanded button:focus-visible {
+  background:var(--admin-blue, #397fe8);
+  color:#fff;
+}
+.admin-foundation .admin-foundation__rail.is-expanded .admin-foundation__brand { border-radius:10px; }
+@media(min-width:761px) {
+  .admin-foundation .admin-foundation__rail:not(.is-expanded) button>span {
+    background:var(--admin-blue, #397fe8) !important;
+    color:#fff !important;
+    border-color:var(--admin-blue, #397fe8) !important;
+    box-shadow:0 7px 16px rgba(25,26,23,.12) !important;
+  }
+  .admin-foundation .admin-foundation__rail:not(.is-expanded) .admin-foundation__brand>span { border-radius:10px !important; }
+  .admin-foundation .admin-foundation__rail:not(.is-expanded) button:hover>svg,
+  .admin-foundation .admin-foundation__rail:not(.is-expanded) button:focus-visible>svg { color:#fff; }
+  .admin-foundation .admin-foundation__brand:hover img,
+  .admin-foundation .admin-foundation__brand:focus-visible img { filter:invert(1); mix-blend-mode:screen; }
+}
+.admin-foundation .admin-notification-actions button { border-radius:999px; min-height:44px; }
+.admin-sound-track { display:inline-flex; align-items:center; width:30px; height:18px; padding:2px; margin-left:5px; border-radius:999px; background:#b5b5ab; box-sizing:border-box; transition:background 160ms ease; }
+.admin-sound-track i { width:14px; height:14px; border-radius:50%; background:white; box-shadow:0 1px 3px #0002; transition:transform 160ms ease; }
+.admin-notification-sound[aria-checked="true"] .admin-sound-track { background:#bd5c36; }
+.admin-notification-sound[aria-checked="true"] .admin-sound-track i { transform:translateX(12px); }
+.admin-foundation .admin-foundation__popover.is-help { width:min(430px,calc(100vw - 40px)); }
+.admin-foundation .admin-help-list { gap:10px; margin-top:22px; }
+.admin-foundation .admin-help-list details { border:1px solid #dcdcd2; border-radius:10px; background:#f3f3ed; overflow:hidden; }
+.admin-foundation .admin-help-list summary { cursor:pointer; padding:16px; display:grid; grid-template-columns:1fr auto; gap:8px; list-style:none; }
+.admin-foundation .admin-help-list summary::-webkit-details-marker { display:none; }
+.admin-foundation .admin-help-list summary::after { content:'+'; grid-column:2; grid-row:1; font-size:18px; }
+.admin-foundation .admin-help-list details[open] summary::after { content:'−'; }
+.admin-foundation .admin-help-list summary b { font-size:14px; font-weight:500; }
+.admin-foundation .admin-help-list summary span { grid-column:1 / -1; font-size:13px; line-height:1.55; color:#66685d; }
+.admin-foundation .admin-help-list details>p { padding:0 16px; margin:0 0 14px; font-size:13px; line-height:1.7; }
+.admin-foundation .admin-help-list details>button { display:block; width:calc(100% - 32px); margin:0 16px 16px; padding:12px 16px; background:#22251e; color:#fff; border-radius:999px; text-align:center; font-size:13px; }
+.admin-foundation .admin-help-list summary:focus-visible { outline:2px solid #bd5c36; outline-offset:-3px; }
+.admin-foundation .admin-page-heading[hidden] { display:none; }
+.admin-foundation .admin-foundation__brand>svg { position:relative; z-index:2; flex-shrink:0; }
+.admin-foundation .admin-foundation__rail.is-expanded .admin-foundation__brand { gap:0; padding-left:11px; }
+.admin-foundation .admin-foundation__popover { background:linear-gradient(130deg,#fafbf5f5,#eeefe5eb); backdrop-filter:blur(26px) saturate(120%); -webkit-backdrop-filter:blur(26px) saturate(120%); border-color:#ffffffcf; box-shadow:inset 0 1px 0 white,0 18px 44px #30332424; }
+.admin-foundation .admin-foundation__utilities>button:not(.admin-foundation__account) { background:#ffffff70; border:1px solid #ffffffbb; box-shadow:inset 0 1px 0 white; }
+.admin-foundation .admin-foundation__brand>svg { color:#363a30; }
+.admin-foundation .admin-foundation__brand:hover>svg,.admin-foundation .admin-foundation__brand:focus-visible>svg { color:white; }

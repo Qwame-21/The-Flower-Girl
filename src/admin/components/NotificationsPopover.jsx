@@ -1,4 +1,4 @@
-import { Bell } from 'lucide-react';
+import { Bell, Volume2, VolumeX, CheckCheck } from 'lucide-react';
 
 export default function NotificationsPopover({
   notificationCount,
@@ -15,9 +15,11 @@ export default function NotificationsPopover({
     <>
       <small>Notifications</small>
       <strong>{notificationCount ? 'Recent store activity' : 'You’re all caught up'}</strong>
-      <button
+      <div className="admin-notification-actions"><button
         className="admin-notification-sound"
-        aria-pressed={notificationSound}
+        role="switch"
+        aria-label="Notification sound"
+        aria-checked={notificationSound}
         onClick={() =>
           setNotificationSound(current => {
             const next = !current;
@@ -26,18 +28,20 @@ export default function NotificationsPopover({
           })
         }
       >
-        <Bell size={14} /> Sound {notificationSound ? 'on' : 'off'}
+        {notificationSound ? <Volume2 size={16} /> : <VolumeX size={16} />} Sound {notificationSound ? 'on' : 'off'}<span className="admin-sound-track" aria-hidden="true"><i /></span>
       </button>
       {notificationCount > 0 && (
         <button
           className="admin-notification-clear"
           onClick={() => markNotificationsRead(notifications.map(item => item.id))}
         >
-          Clear notifications
+          <CheckCheck size={16} /> Clear notifications
         </button>
       )}
+      </div>
+      {!notificationCount && <div className="admin-notification-empty"><Bell size={24} /><p>No unread notifications. New store activity will appear here.</p></div>}
       <div className="admin-notification-list">
-        {notifications.filter(item => !readNotificationIds.includes(item.id)).slice(0, 8).map(item => (
+        {notifications.filter(item => !readNotificationIds.includes(item.id)).map(item => (
           <button
             key={item.id}
             onClick={() => {
