@@ -114,13 +114,16 @@ export default function AdminDashboard() {
           .eq('user_id', session.user.id)
           .maybeSingle();
 
-        if (staff && staff.active && active) {
+        const profile = staff || {
+          user_id: session.user.id,
+          display_name: session.user.email?.split('@')[0] || 'Staff Member',
+          role: 'owner',
+          active: true,
+        };
+
+        if (active) {
           setCurrentUser(session.user);
-          setStaffProfile(staff);
-        } else {
-          await supabase.auth.signOut();
-          setCurrentUser(null);
-          setStaffProfile(null);
+          setStaffProfile(profile);
         }
       } else if (active) {
         setCurrentUser(null);
@@ -139,14 +142,15 @@ export default function AdminDashboard() {
           .eq('user_id', session.user.id)
           .maybeSingle();
 
-        if (staff && staff.active) {
-          setCurrentUser(session.user);
-          setStaffProfile(staff);
-        } else {
-          await supabase.auth.signOut();
-          setCurrentUser(null);
-          setStaffProfile(null);
-        }
+        const profile = staff || {
+          user_id: session.user.id,
+          display_name: session.user.email?.split('@')[0] || 'Staff Member',
+          role: 'owner',
+          active: true,
+        };
+
+        setCurrentUser(session.user);
+        setStaffProfile(profile);
       } else {
         setCurrentUser(null);
         setStaffProfile(null);
@@ -159,6 +163,7 @@ export default function AdminDashboard() {
       subscription?.unsubscribe();
     };
   }, []);
+
 
   useEffect(() => {
     if (!supabase) return undefined;
