@@ -6,20 +6,10 @@ import { useNotificationAudio } from '../admin/hooks/useNotificationAudio';
 import AdminRail from '../admin/components/AdminRail';
 import AdminTopbar from '../admin/components/AdminTopbar';
 import DetailFlyoutPanel from '../admin/components/DetailFlyoutPanel';
-import CareersPage from '../admin/pages/CareersPage';
-import ContentPage from '../admin/pages/ContentPage';
 import OrdersPage from '../admin/pages/OrdersPage';
 import OverviewPage from '../admin/pages/OverviewPage';
 import WorkspacePages from '../admin/pages/WorkspacePages';
 import ManualOrderModal from '../admin/modals/ManualOrderModal';
-import RequestsPage from '../admin/pages/RequestsPage';
-import CustomersPage from '../admin/pages/CustomersPage';
-import ReviewsPage from '../admin/pages/ReviewsPage';
-import DeliveryPage from '../admin/pages/DeliveryPage';
-import ProductsPage from '../admin/pages/ProductsPage';
-import ShopControlPage from '../admin/pages/ShopControlPage';
-import InsightsPage from '../admin/pages/InsightsPage';
-import SettingsPage from '../admin/pages/SettingsPage';
 import ReviewModal from '../admin/modals/ReviewModal';
 import CareerModal from '../admin/modals/CareerModal';
 import ConfirmDeleteModal from '../admin/modals/ConfirmDeleteModal';
@@ -53,12 +43,6 @@ const PAGE_DATA = {
   Settings: { tabs: [['Store', 6, Settings], ['Team', 4, Users], ['Security', 3, ClipboardCheck]], title: 'Store settings', subtitle: 'Manage business details, staff access and admin preferences.', rows: [['Business profile', 'Complete', 'Name, contact and operating hours'], ['Delivery settings', 'Review', 'Zones, timing and customer notes'], ['Team access', '4 members', 'Roles and permissions'], ['Security', 'Active', 'Sessions and account protection']] },
 };
 
-const OVERVIEW_VIEWS = {
-  Today: { title: 'Today at a glance', subtitle: 'Live priorities and fulfilment activity for 4 September.', revenue: 4470, orders: 4, queue: 2, note: '2 orders need attention', bars: [24, 38, 31, 56, 72, 48, 64], labels: ['8am', '10am', '12pm', '2pm', '4pm', '6pm', 'Now'], rows: [['GF-1052 paid', '10:46 PM', 'Naa Dedei Quaye · GHS 2,875'], ['GF-1051 moved to preparation', '7:16 PM', 'Kwesi Asare · Cantonments'], ['Gallery image published', '3:08 PM', 'Curated celebration basket'], ['Custom request received', '11:32 AM', 'Corporate hamper · 12 recipients']] },
-  'This week': { title: 'This week in the shop', subtitle: 'Revenue, workload and delivery performance from Monday to Sunday.', revenue: 28435, orders: 19, queue: 6, note: 'Up 11.8% from last week', bars: [42, 64, 51, 78, 58, 88, 70], labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], rows: [['Orders completed', '13', '72% weekly completion rate'], ['Highest-volume day', 'Saturday', '6 orders · GHS 8,240'], ['Average order value', 'GHS 1,496', 'Up GHS 138 from last week'], ['Deliveries on schedule', '11 of 13', '2 orders completed after estimate']] },
-  Activity: { title: 'Team activity', subtitle: 'The latest payment, catalogue, delivery and customer-service updates.', revenue: 12640, orders: 11, queue: 4, note: '16 updates across the team', bars: [66, 35, 82, 44, 73, 52, 91], labels: ['Paid', 'Packed', 'Ready', 'Sent', 'Delivered', 'Quotes', 'Replies'], rows: [['Payment confirmed', '12 min ago', 'GF-1052 · Mobile Money'], ['Product visibility changed', '48 min ago', 'Embroidery service hidden'], ['Delivery assigned', '1 hr ago', 'GF-1049 · Tema Community 12'], ['Gallery updated', '2 hrs ago', 'Signature gift presentation published']] },
-};
-
 export default function AdminDashboard({ staffIdentity }) {
   const [overviewDataStatus, setOverviewDataStatus] = useState('local');
   const [activeNav, setActiveNav] = useState('Overview');
@@ -80,13 +64,11 @@ export default function AdminDashboard({ staffIdentity }) {
   const [staffCartMessage, setStaffCartMessage] = useState('');
   const [collectionFormOpen, setCollectionFormOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
-  const [settingsMessage, setSettingsMessage] = useState('');
   const [galleryMessage, setGalleryMessage] = useState('');
   const [readNotificationIds, setReadNotificationIds] = useState(() => { try { return JSON.parse(window.localStorage.getItem('gifting-factory-read-notifications') || '[]'); } catch { return []; } });
   const [notificationSound, setNotificationSound] = useState(() => window.localStorage.getItem('gifting-factory-notification-sound') !== 'off');
   const [utilityPanel, setUtilityPanel] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
-  const [productQuery, setProductQuery] = useState('');
   const [productFormOpen, setProductFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
@@ -156,30 +138,9 @@ export default function AdminDashboard({ staffIdentity }) {
   })();
   const activeTab = activeTabs[activeNav] || tabs[0][0];
   const tabIndex = tabs.findIndex(([label]) => label === activeTab);
-  const filteredProducts = products.filter(product => `${product.name} ${product.category}`.toLowerCase().includes(productQuery.toLowerCase()) && (activeTab !== 'Low stock' || product.stock < 10) && (activeTab !== 'Hidden' || !product.visible));
   const filteredOrders = adminData.orders.filter(order => (activeTab === 'All orders' ? true : activeTab === 'Paid' ? order.paymentStatus === 'paid' : activeTab === 'Preparing' ? order.status === 'packaging' : activeTab === 'Ready' ? order.status === 'ready' : activeTab === 'Log' ? order.status === 'completed' : true) && `${order.tracking} ${order.code || ''} ${order.customer} ${order.phone} ${order.delivery}`.toLowerCase().includes(orderQuery.toLowerCase()));
-  const filteredRequests = adminData.requests.filter(request => activeTab === 'Quote needed' ? ['new', 'quote_needed'].includes(request.status) : activeTab === 'Approved' ? request.status === 'approved' : true);
   const paidOrders = adminData.orders.filter(order => order.paymentStatus === 'paid');
   const activeOrders = adminData.orders.filter(order => order.status !== 'completed');
-  const orderRevenue = paidOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
-  const customers = Object.values(adminData.orders.reduce((map, order) => { const key = order.phone || order.customer; const current = map[key] || { name: order.customer, phone: order.phone, location: order.delivery, orders: [], spent: 0 }; current.orders.push(order); if (order.paymentStatus === 'paid') current.spent += Number(order.total || 0); map[key] = current; return map; }, {})).sort((a, b) => b.spent - a.spent);
-  const overview = (() => {
-    const now = new Date();
-    const start = new Date(now);
-    if (activeTab === 'This week') start.setDate(now.getDate() - 6); else start.setHours(0, 0, 0, 0);
-    const rangeOrders = adminData.orders.filter(order => new Date(order.createdAt) >= start);
-    const rangePaid = rangeOrders.filter(order => order.paymentStatus === 'paid');
-    const liveRevenue = rangePaid.reduce((sum, order) => sum + Number(order.total || 0), 0);
-    const queue = adminData.orders.filter(order => ['ready', 'delivery'].includes(order.status)).length;
-    const activityRows = [...adminData.orders.slice(0, 3).map(order => [`${order.tracking} · ${ORDER_LABELS[order.status]}`, new Date(order.createdAt).toLocaleTimeString('en-GH', { hour: 'numeric', minute: '2-digit' }), `${order.customer} · GHS ${Number(order.total || 0).toLocaleString()}`]), ...adminData.requests.slice(0, 2).map(request => ['Custom request received', new Date(request.createdAt).toLocaleTimeString('en-GH', { hour: 'numeric', minute: '2-digit' }), `${request.name || 'Customer'} · ${request.service || 'Bespoke gift'}`])];
-    if (activeTab === 'Activity') { const activityCount = adminData.orders.length + adminData.requests.length + adminData.applications.length; return { ...OVERVIEW_VIEWS.Activity, revenue: orderRevenue, orders: activityCount, queue, note: `${activityCount} recorded store updates`, rows: activityRows }; }
-    const weekly = activeTab === 'This week';
-    const slots = weekly ? Array.from({ length: 7 }, (_, index) => { const date = new Date(now); date.setDate(now.getDate() - (6 - index)); return date; }) : [8, 10, 12, 14, 16, 18, 20].map(hourValue => { const date = new Date(now); date.setHours(hourValue, 0, 0, 0); return date; });
-    const bars = slots.map(slot => { const next = weekly ? new Date(slot.getFullYear(), slot.getMonth(), slot.getDate() + 1) : new Date(slot.getTime() + 2 * 60 * 60 * 1000); const count = rangeOrders.filter(order => { const date = new Date(order.createdAt); return date >= slot && date < next; }).length; return count ? Math.min(100, count * 24) : 0; });
-    return { title: weekly ? 'This week in the shop' : 'Today at a glance', subtitle: weekly ? 'The last seven days of real dashboard activity.' : 'Live priorities from orders, requests and delivery.', revenue: liveRevenue, orders: rangeOrders.length, queue, note: `${rangePaid.length} confirmed payment${rangePaid.length === 1 ? '' : 's'}`, bars, labels: weekly ? slots.map(date => date.toLocaleDateString('en-GH', { weekday: 'short' })) : ['8am', '10am', '12pm', '2pm', '4pm', '6pm', '8pm'], rows: activityRows.length ? activityRows : [['No activity yet', 'Now', 'New storefront activity will appear here']] };
-  })();
-  const liveRows = activeNav === 'Orders' && adminData.orders.length ? [...adminData.orders.map(order => [`${order.tracking} · ${order.customer}`, order.status, `${order.items?.length || 0} items · GHS ${Number(order.total || 0).toLocaleString()}`]), ...page.rows] : activeNav === 'Requests' && adminData.requests.length ? [...adminData.requests.map(request => [request.name || 'New request', request.status, request.service || request.note || 'Custom gift request']), ...page.rows] : activeNav === 'Careers' && adminData.applications.length ? [...adminData.applications.map(application => [application.name, application.status, application.role]), ...page.rows] : page.rows;
-  const displayRows = activeNav === 'Overview' ? overview.rows : liveRows;
   const notifications = [...adminData.orders.map(order => ({ id: `order-${order.id}-${order.status}-${order.updatedAt || order.createdAt}`, type: order.updatedAt ? 'Order updated' : 'Order received', title: `${order.tracking} · ${order.customer}`, status: ORDER_LABELS[order.status], route: 'Orders', record: order })), ...adminData.requests.map(request => ({ id: `request-${request.id}-${request.status}-${request.updatedAt || request.createdAt}`, type: request.updatedAt ? 'Request updated' : 'Request received', title: `${request.reference || 'Request'} · ${request.name || 'Customer'}`, status: request.status === 'quote_needed' ? 'Quote needed' : request.status, route: 'Requests', record: request })), ...adminData.applications.map(application => ({ id: `application-${application.id}-${application.status}-${application.updatedAt || application.createdAt}`, type: 'Application', title: application.name || 'New applicant', status: application.status || application.role, route: 'Careers', record: application }))].sort((a, b) => new Date(b.record.updatedAt || b.record.createdAt || 0) - new Date(a.record.updatedAt || a.record.createdAt || 0));
   const notificationCount = notifications.filter(item => !readNotificationIds.includes(item.id)).length;
   useNotificationAudio(notificationCount, notificationSound);
@@ -241,21 +202,7 @@ export default function AdminDashboard({ staffIdentity }) {
         </nav>
         <section id="admin-active-panel" role="tabpanel" aria-labelledby={`admin-tab-${activeNav}-${Math.max(0, tabIndex)}`} key={`${activeNav}-${activeTab}`} className="admin-foundation__canvas" aria-label={`${activeTab} workspace`}>
           {/* Overview and operational workspaces share navigation; gallery controls retain their existing implementation. */}
-          {activeNav === 'Overview' ? <OverviewPage activeTab={activeTab} adminData={adminData} dataStatus={overviewDataStatus} /> : !['Gallery', 'Orders'].includes(activeNav) ? <WorkspacePages staffIdentity={staffIdentity} activeNav={activeNav} activeTab={activeTab} adminData={adminData} setAdminData={setAdminData} /> : activeNav === 'Products' ? (
-            <ProductsPage
-              activeTab={activeTab}
-              productQuery={productQuery}
-              setProductQuery={setProductQuery}
-              filteredProducts={filteredProducts}
-              setSelectedItem={setSelectedItem}
-              setEditingProduct={setEditingProduct}
-              setImagePreview={setImagePreview}
-              setSecondaryImagePreview={setSecondaryImagePreview}
-              setProductFormOpen={setProductFormOpen}
-              setPendingDelete={setPendingDelete}
-              adminData={adminData}
-            />
-          ) : activeNav === 'Orders' ? (
+          {activeNav === 'Overview' ? <OverviewPage activeTab={activeTab} adminData={adminData} dataStatus={overviewDataStatus} /> : !['Gallery', 'Orders'].includes(activeNav) ? <WorkspacePages staffIdentity={staffIdentity} activeNav={activeNav} activeTab={activeTab} adminData={adminData} setAdminData={setAdminData} /> : activeNav === 'Orders' ? (
             <OrdersPage
               activeTab={activeTab}
               filteredOrders={filteredOrders}
@@ -276,97 +223,7 @@ export default function AdminDashboard({ staffIdentity }) {
               adminData={adminData}
               setManualOrderOpen={setManualOrderOpen}
             />
-          ) : activeNav === 'Requests' ? (
-            <RequestsPage
-              activeTab={activeTab}
-              filteredRequests={filteredRequests}
-              setSelectedItem={setSelectedItem}
-            />
-          ) : activeNav === 'Customers' ? (
-            <CustomersPage
-              activeTab={activeTab}
-              customers={customers}
-              adminData={adminData}
-              openOrder={openOrder}
-              setSelectedItem={setSelectedItem}
-            />
-          ) : activeNav === 'Reviews' ? (
-            <ReviewsPage
-              activeTab={activeTab}
-              reviews={reviews}
-              setSelectedItem={setSelectedItem}
-              setEditingReview={setEditingReview}
-              setReviewFormOpen={setReviewFormOpen}
-            />
-          ) : activeNav === 'Delivery' ? (
-            <DeliveryPage
-              activeTab={activeTab}
-              deliveries={deliveries}
-              adminData={adminData}
-              setSelectedItem={setSelectedItem}
-            />
-          ) : activeNav === 'Careers' ? (
-            <CareersPage
-              activeTab={activeTab}
-              adminData={adminData}
-              setCareerFormOpen={setCareerFormOpen}
-              setSelectedItem={setSelectedItem}
-            />
-          ) : activeNav === 'Content' ? (
-            <ContentPage
-              activeTab={activeTab}
-              adminData={adminData}
-              settingsMessage={settingsMessage}
-              setSettingsMessage={setSettingsMessage}
-              setSelectedItem={setSelectedItem}
-            />
-          ) : activeNav === 'Settings' ? (
-            <SettingsPage
-              activeTab={activeTab}
-              adminData={adminData}
-              settingsMessage={settingsMessage}
-              setSettingsMessage={setSettingsMessage}
-            />
-          ) : activeNav === 'Overview' ? (
-            <OverviewPage
-              activeNav={activeNav}
-              activeTab={activeTab}
-              overview={overview}
-              displayRows={displayRows}
-              setSelectedItem={setSelectedItem}
-            />
-          ) : <>
-            <header className="admin-page-heading" hidden><div><small>{activeNav} · {activeTab}</small><h2>{page.title}</h2><p>{page.subtitle}</p></div><button onClick={() => setSelectedItem({ title: `${activeNav} updates`, status: activeTab, detail: 'Recent activity and notes for this workspace.' })}>View updates</button></header>
-            {activeNav === 'Shop' && (
-              <ShopControlPage
-                activeTab={activeTab}
-                adminData={adminData}
-                products={products}
-                setCollectionFormOpen={setCollectionFormOpen}
-                setEditingProduct={setEditingProduct}
-                setImagePreview={setImagePreview}
-                setSecondaryImagePreview={setSecondaryImagePreview}
-                setProductFormOpen={setProductFormOpen}
-                setSelectedItem={setSelectedItem}
-                staffCart={staffCart}
-                setStaffCart={setStaffCart}
-                setStaffCartOpen={setStaffCartOpen}
-              />
-            )}
-            {activeNav === 'Gallery' && <section className="admin-gallery-manager"><label><input type="file" accept="image/png,image/jpeg,image/webp" onChange={event => { const file = event.target.files?.[0]; if (!file) return; if (!file.type.startsWith('image/')) { setGalleryMessage('Choose a PNG, JPG or WebP image.'); return; } if (file.size > 2 * 1024 * 1024) { setGalleryMessage('Image is too large. Choose a file under 2 MB for this browser preview.'); return; } const reader = new FileReader(); reader.onerror = () => setGalleryMessage('The image could not be read.'); reader.onload = () => { addAdminRecord('gallery', { src: reader.result, label: file.name.replace(/\.[^.]+$/, ''), visible: true }); setGalleryMessage('Image uploaded and published.'); }; reader.readAsDataURL(file); }} /><FileImage size={18} /><span>Upload gallery image</span></label>{galleryMessage && <p className="gallery-message" role="status">{galleryMessage}</p>}{adminData.gallery.filter(image => activeTab === 'Published' ? image.visible : activeTab === 'Hidden' ? !image.visible : Boolean(image.createdAt)).map(image => <article key={image.id}><img src={image.src} alt={image.label} /><label>Image label<input aria-label={`Label for ${image.label}`} defaultValue={image.label} onBlur={event => { const label = event.target.value.trim(); if (label) updateAdminCollection('gallery', items => items.map(item => item.id === image.id ? { ...item, label } : item)); }} /></label><div><button aria-label={`Move ${image.label} earlier`} onClick={() => updateAdminCollection('gallery', items => { const index = items.findIndex(item => item.id === image.id); if (index < 1) return items; const next = [...items]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}>↑</button><button aria-label={`Move ${image.label} later`} onClick={() => updateAdminCollection('gallery', items => { const index = items.findIndex(item => item.id === image.id); if (index < 0 || index === items.length - 1) return items; const next = [...items]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; return next; })}>↓</button><button onClick={() => updateAdminCollection('gallery', items => items.map(item => item.id === image.id ? { ...item, visible: !item.visible } : item))}>{image.visible ? 'Hide' : 'Publish'}</button><button className="is-danger" onClick={() => setPendingDelete({ collection: 'gallery', id: image.id, title: image.label, detail: 'This removes the image from Admin and the public gallery.' })}>Delete</button></div></article>)}</section>}
-            {activeNav === 'Insights' && (
-              <InsightsPage
-                activeTab={activeTab}
-                adminData={adminData}
-                products={products}
-                paidOrders={paidOrders}
-                orderRevenue={orderRevenue}
-                overview={overview}
-              />
-            )}
-            {activeNav === 'Careers' && <section className="career-admin-controls"><button onClick={() => { const careersOpen = adminData.careers.some(role => role.status === 'open'); updateAdminCollection('careers', roles => roles.map(role => role.status === 'draft' ? role : { ...role, status: careersOpen ? 'paused' : 'open' })); }}>{adminData.careers.some(role => role.status === 'open') ? 'Pause storefront applications' : 'Reopen storefront applications'}</button><button onClick={() => addAdminRecord('careers', { title: `New role ${adminData.careers.length + 1}`, status: 'draft' })}>Create career draft</button></section>}
-            {activeNav !== 'Shop' && displayRows.length > 0 && <div className="admin-page-list">{displayRows.map(([title, status, detail], index) => <button key={`${title}-${index}`} onClick={() => { const order = activeNav === 'Orders' ? adminData.orders.find(item => title.includes(item.tracking)) : null; setSelectedItem({ title, status, detail, recordId: order?.id }); }}><span>{String(index + 1).padStart(2, '0')}</span><strong>{title}</strong><em>{detail}</em><b>{status}</b><i>→</i></button>)}</div>}
-          </>}
+          ) : (<section className="admin-gallery-manager"><label><input type="file" accept="image/png,image/jpeg,image/webp" onChange={event => { const file = event.target.files?.[0]; if (!file) return; if (!file.type.startsWith('image/')) { setGalleryMessage('Choose a PNG, JPG or WebP image.'); return; } if (file.size > 2 * 1024 * 1024) { setGalleryMessage('Image is too large. Choose a file under 2 MB for this browser preview.'); return; } const reader = new FileReader(); reader.onerror = () => setGalleryMessage('The image could not be read.'); reader.onload = () => { addAdminRecord('gallery', { src: reader.result, label: file.name.replace(/\.[^.]+$/, ''), visible: true }); setGalleryMessage('Image uploaded and published.'); }; reader.readAsDataURL(file); }} /><FileImage size={18} /><span>Upload gallery image</span></label>{galleryMessage && <p className="gallery-message" role="status">{galleryMessage}</p>}{adminData.gallery.filter(image => activeTab === 'Published' ? image.visible : activeTab === 'Hidden' ? !image.visible : Boolean(image.createdAt)).map(image => <article key={image.id}><img src={image.src} alt={image.label} /><label>Image label<input aria-label={`Label for ${image.label}`} defaultValue={image.label} onBlur={event => { const label = event.target.value.trim(); if (label) updateAdminCollection('gallery', items => items.map(item => item.id === image.id ? { ...item, label } : item)); }} /></label><div><button aria-label={`Move ${image.label} earlier`} onClick={() => updateAdminCollection('gallery', items => { const index = items.findIndex(item => item.id === image.id); if (index < 1) return items; const next = [...items]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}>↑</button><button aria-label={`Move ${image.label} later`} onClick={() => updateAdminCollection('gallery', items => { const index = items.findIndex(item => item.id === image.id); if (index < 0 || index === items.length - 1) return items; const next = [...items]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; return next; })}>↓</button><button onClick={() => updateAdminCollection('gallery', items => items.map(item => item.id === image.id ? { ...item, visible: !item.visible } : item))}>{image.visible ? 'Hide' : 'Publish'}</button><button className="is-danger" onClick={() => setPendingDelete({ collection: 'gallery', id: image.id, title: image.label, detail: 'This removes the image from Admin and the public gallery.' })}>Delete</button></div></article>)}</section>)}
         </section>
       </section>
     </section>
