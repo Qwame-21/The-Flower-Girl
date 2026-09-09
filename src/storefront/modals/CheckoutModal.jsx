@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check, LoaderCircle, LocateFixed, MapPin, Trash2 } from 'lucide-react';
 import { initializeCheckout } from '../api/checkoutApi';
 import { hasTrackingApi, trackRecord } from '../api/trackingApi';
-import { formIsoDate } from '../utils/date';
+import { formIsoDateOptional } from '../utils/date';
 import CardStylePicker from '../components/CardStylePicker';
 import DateField from '../components/DateField';
 import QuantityControl from '../components/QuantityControl';
@@ -90,7 +90,7 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
         customerNote: instructionParts.join('\n'),
         cardMessage: cardMessage || '',
         cardStyleNotes: cardStyleNotes || '',
-        requestedDeliveryDate: formIsoDate(data, 'checkout'),
+        requestedDeliveryDate: formIsoDateOptional(data, 'checkout'),
         callbackUrl: `${window.location.origin}/?payment=return`,
         cart: cart.map(item => ({ id: item.id, name: item.name, quantity: item.quantity, price: item.price })),
       });

@@ -3,7 +3,7 @@ import { useId, useRef } from 'react';
 const COUNTRY_CODES = [
   { code: '+233', label: 'Ghana', short: 'GH', flag: '🇬🇭' },
   { code: '+234', label: 'Nigeria', short: 'NG', flag: '🇳🇬' },
-  { code: '+225', label: 'Côte d’Ivoire', short: 'CI', flag: '🇨🇮' },
+  { code: '+225', label: 'Côte d\u2019Ivoire', short: 'CI', flag: '🇨🇮' },
   { code: '+228', label: 'Togo', short: 'TG', flag: '🇹🇬' },
   { code: '+226', label: 'Burkina Faso', short: 'BF', flag: '🇧🇫' },
   { code: '+221', label: 'Senegal', short: 'SN', flag: '🇸🇳' },
@@ -31,9 +31,17 @@ export default function PhoneInput({
 }) {
   const id = useId();
   const numberRef = useRef(null);
+  const selectRef = useRef(null);
   const hiddenRef = useRef(null);
-  const syncValue = countryCode => {
-    if (hiddenRef.current) hiddenRef.current.value = combinePhone(countryCode, numberRef.current?.value);
+
+  // Single sync function — reads directly from refs, no DOM traversal.
+  const sync = () => {
+    if (hiddenRef.current) {
+      hiddenRef.current.value = combinePhone(
+        selectRef.current?.value || '+233',
+        numberRef.current?.value,
+      );
+    }
   };
 
   return (
@@ -41,10 +49,11 @@ export default function PhoneInput({
       {label}
       <span className="phone-input-control">
         <select
+          ref={selectRef}
           aria-label="Country code"
           defaultValue="+233"
           disabled={disabled}
-          onChange={event => syncValue(event.target.value)}
+          onChange={sync}
         >
           {COUNTRY_CODES.map(country => (
             <option key={`${country.label}-${country.code}`} value={country.code}>
@@ -62,10 +71,12 @@ export default function PhoneInput({
           defaultValue={defaultValue}
           required={required}
           disabled={disabled}
-          onInput={event => {
-            const select = event.currentTarget.previousElementSibling;
-            syncValue(select?.value || '+233');
-          }}
+          onInput={sync}
+          onChange={sync}
+          onBlur={sync}
+          // onAnimationStart fires when Chrome applies :-webkit-autofill,
+          // the only reliable hook to sync the hidden field after browser autofill.
+          onAnimationStart={sync}
         />
       </span>
       <input ref={hiddenRef} type="hidden" name={name} defaultValue={combinePhone('+233', defaultValue)} />

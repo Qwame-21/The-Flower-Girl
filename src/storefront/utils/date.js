@@ -15,6 +15,16 @@ export function formIsoDate(data, prefix) {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+// Returns '' when any date picker field is blank (for optional date fields).
+// Only throws if fields are partially filled but form an invalid date.
+export function formIsoDateOptional(data, prefix) {
+  const rawDay   = data.get(`${prefix}-day`)   || '';
+  const rawMonth = data.get(`${prefix}-month`) || '';
+  const rawYear  = data.get(`${prefix}-year`)  || '';
+  if (!rawDay && !rawMonth && !rawYear) return '';
+  return formIsoDate(data, prefix);
+}
+
 export function formDate(data, prefix) {
   formIsoDate(data, prefix);
   return `${data.get(`${prefix}-day`)} ${data.get(`${prefix}-month`)} ${data.get(`${prefix}-year`)}`;
