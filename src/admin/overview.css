@@ -35,4 +35,22 @@
 .ov-inspector { position:fixed; top:100px; right:24px; z-index:100; color:#292b25; font-family:'Outfit',sans-serif; }
 .ov-inspector button { color:inherit; border:0; cursor:pointer; -webkit-appearance:none; }
 .ov-inspector button:focus-visible { outline:2px solid #a85e3d; outline-offset:2px; }
-@media(max-width:600px) { .ov-inspector { top:90px; right:12px; width:calc(100vw - 24px); max-height:calc(100dvh - 110px); } }
+/* ── Admin Skeleton Shimmer Loading ─────────────────── */
+@keyframes adminShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.admin-skeleton {
+  display: inline-block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(0,0,0,0.06) 25%, rgba(0,0,0,0.12) 37%, rgba(0,0,0,0.06) 63%);
+  background-size: 400% 100%;
+  animation: adminShimmer 1.4s ease infinite;
+}
+.admin-skeleton--title { height: 28px; width: 140px; }
+.admin-skeleton--text { height: 16px; width: 70%; }
+.admin-skeleton--val { height: 42px; width: 180px; }
+.admin-skeleton--card { height: 90px; width: 100%; border-radius: 16px; }
+.admin-skeleton--row { height: 48px; width: 100%; border-radius: 10px; margin-bottom: 8px; }
+
