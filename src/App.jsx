@@ -19,8 +19,20 @@ import HomePage from './storefront/home/HomePage';
 import PageMetadata from './site/PageMetadata';
 import { pages, pageForPath } from './site/routes';
 
-export default function App() { return <Suspense fallback={<main className="site-loading" role="status">Opening your page…</main>}><SiteApp /></Suspense>; }
+export default function App() { return <Suspense fallback={null}><SiteApp /></Suspense>; }
 function SiteApp() {
+  // Pre-fetch storefront lazy route chunks immediately on mount for instant navigation
+  useEffect(() => {
+    import('./storefront/pages/AboutPage');
+    import('./storefront/pages/CareersPage');
+    import('./storefront/pages/CustomizePage');
+    import('./storefront/pages/ServicesPage');
+    import('./storefront/pages/GalleryPage');
+    import('./storefront/pages/ShopPage');
+    import('./storefront/pages/InformationPage');
+    import('./storefront/pages/TrackOrderPage');
+  }, []);
+
   const returningFromPayment = new URLSearchParams(window.location.search).get('payment') === 'return';
   const [adminMode, setAdminMode] = useState(() => /^\/admin(?:\/login)?\/?$/.test(window.location.pathname));
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
