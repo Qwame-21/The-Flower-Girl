@@ -6,7 +6,7 @@ import { formIsoDateOptional } from '../utils/date';
 import CardStylePicker from '../components/CardStylePicker';
 import DateField from '../components/DateField';
 import QuantityControl from '../components/QuantityControl';
-import PhoneInput from '../components/PhoneInput';
+import PhoneInput, { combinePhone } from '../components/PhoneInput';
 import ModalHeader from '../components/ModalHeader';
 import DeliveryAddressFields from '../components/DeliveryAddressFields';
 import { formatDeliveryAddress } from '../utils/address';
@@ -18,7 +18,6 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
   const [copied, setCopied] = useState(false);
   const [copying, setCopying] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [redirecting, setRedirecting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [locationLink, setLocationLink] = useState('');
   const [locationStatus, setLocationStatus] = useState('');
@@ -79,13 +78,14 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
     ].filter(Boolean);
 
     try {
+      const customerPhone = String(data.get('phone') || '').trim() || combinePhone(data.get('phone-code') || '+233', data.get('phone-number'));
       const res = await initializeCheckout({
-        customerName: data.get('customer'),
-        customerEmail: data.get('email'),
-        customerPhone: data.get('phone'),
-        recipientName: data.get('recipient-name') || data.get('customer'),
+        customerName: String(data.get('customer') || '').trim(),
+        customerEmail: String(data.get('email') || '').trim(),
+        customerPhone,
+        recipientName: String(data.get('recipient-name') || data.get('customer') || '').trim(),
         deliveryAddress: formatDeliveryAddress(data),
-        landmark: data.get('landmark') || '',
+        landmark: String(data.get('landmark') || '').trim(),
         locationLink,
         customerNote: instructionParts.join('\n'),
         cardMessage: cardMessage || '',
@@ -107,8 +107,7 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
       const receipt = { trackingNumber: json.trackingNumber, orderCode: json.orderCode, reference: json.reference, customerEmail: data.get('email'), status: 'confirming' };
       window.sessionStorage.setItem('gifting-factory-payment-return', JSON.stringify(receipt));
       cart.forEach(item => onQuantity(item.id, 0));
-      setRedirecting(true);
-      window.setTimeout(() => window.location.assign(json.authorizationUrl), 180);
+      window.location.assign(json.authorizationUrl);
     } catch (err) {
       console.error('Checkout error:', err);
       setSubmitError('Network error. Check your connection and try again.');
@@ -127,7 +126,6 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
   return (
       <section className="flow-modal checkout-modal fixed-heading-modal" onScrollCapture={event => { const node = event.target; const available = node.scrollHeight - node.clientHeight; setScrollState({ progress: available > 0 ? node.scrollTop / available : 0, visible: available > 8 }); }} aria-label="Your order">
         <div className={`modal-scroll-indicator ${scrollState.visible ? 'visible' : ''}`} aria-hidden="true"><span style={{ top: `${scrollState.progress * 100}%`, transform: `translateY(-${scrollState.progress * 100}%)` }} /></div>
-        {redirecting && <div className="paystack-transition" role="status" aria-live="polite"><span>SECURE CHECKOUT</span><strong>Opening Paystack</strong><p>Keep this tab open. Your order details are ready.</p><i aria-hidden="true" /></div>}
         <ModalHeader eyebrow={complete ? 'PAYMENT RETURN' : 'CHECKOUT'} title={complete ? (complete.status === 'paid' ? 'Your order is confirmed.' : complete.status === 'pending' ? 'Confirmation is taking longer.' : 'Confirming your payment.') : cart.length ? 'Your order' : 'Your bag is empty'} onClose={onClose} closeLabel="Back to shop" back />
         <div className="modal-body">
         {complete ? (

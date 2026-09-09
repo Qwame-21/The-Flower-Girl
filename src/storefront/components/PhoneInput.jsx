@@ -13,7 +13,7 @@ const COUNTRY_CODES = [
   { code: '+1', label: 'United States / Canada', short: 'US', flag: '🇺🇸' },
 ];
 
-function combinePhone(code, number) {
+export function combinePhone(code, number) {
   const value = String(number || '').trim();
   const digits = value.replace(/\D/g, '');
   if (!digits) return '';
@@ -50,6 +50,7 @@ export default function PhoneInput({
       <span className="phone-input-control">
         <select
           ref={selectRef}
+          name={`${name}-code`}
           aria-label="Country code"
           defaultValue="+233"
           disabled={disabled}
@@ -64,6 +65,7 @@ export default function PhoneInput({
         <input
           id={`${id}-number`}
           ref={numberRef}
+          name={`${name}-number`}
           type="tel"
           inputMode="tel"
           autoComplete="tel-national"
