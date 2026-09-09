@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { BriefcaseBusiness, ChartNoAxesColumnIncreasing, ClipboardCheck, Clock3, FileImage, House, Images, MessageSquareText, Package, Settings, ShoppingBag, Tag, Truck, UserRound, Users, X } from 'lucide-react';
 import { addAdminRecord, readAdminData, updateAdminCollection } from '../admin/api/adminStore';
 import { useAdminData } from '../admin/hooks/useAdminData';
+import { logoutToLogin } from '../admin/utils/logout';
 import { useNotificationAudio } from '../admin/hooks/useNotificationAudio';
 import AdminRail from '../admin/components/AdminRail';
 import AdminTopbar from '../admin/components/AdminTopbar';
@@ -74,6 +75,24 @@ export default function AdminDashboard({ staffIdentity }) {
   const [imagePreview, setImagePreview] = useState('');
   const [secondaryImagePreview, setSecondaryImagePreview] = useState('');
   const { adminData, setAdminData, products } = useAdminData();
+
+  // Inactivity auto-logout — 15 minutes of no user input signs out the session.
+  useEffect(() => {
+    if (!staffIdentity) return undefined;
+    const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+    let timer;
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { logoutToLogin(); }, INACTIVITY_TIMEOUT_MS);
+    };
+    const events = ['mousemove', 'keydown', 'pointerdown', 'scroll', 'touchstart'];
+    events.forEach(evt => window.addEventListener(evt, resetTimer, { passive: true }));
+    resetTimer();
+    return () => {
+      clearTimeout(timer);
+      events.forEach(evt => window.removeEventListener(evt, resetTimer));
+    };
+  }, [staffIdentity]);
   useEffect(() => {
     if (!supabase) return undefined;
     let active = true;

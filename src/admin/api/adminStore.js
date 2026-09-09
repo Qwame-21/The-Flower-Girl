@@ -85,3 +85,62 @@ export function subscribeAdminData(callback) {
   window.addEventListener('storage', storage);
   return () => { window.removeEventListener(EVENT, local); window.removeEventListener('storage', storage); };
 }
+
+export async function resetTestDataApi(supabaseClient, userEmail = 'Admin') {
+  const current = readAdminData();
+  const summaryCounts = {
+    orders: current.orders?.length || 0,
+    requests: current.requests?.length || 0,
+    applications: current.applications?.length || 0,
+  };
+
+  // 1. Clear local transactional collections while preserving catalog, settings, careers, gallery, etc.
+  const nextData = {
+    ...current,
+    orders: [],
+    requests: [],
+    applications: [],
+  };
+  writeAdminData(nextData);
+
+  // 2. Clear related cart & notification session data
+  try {
+    window.localStorage.removeItem('gifting-factory-cart');
+    window.localStorage.removeItem('gifting-factory-staff-cart');
+    window.localStorage.removeItem('gifting-factory-read-notifications');
+  } catch (e) {
+    console.error('Error clearing cart/session storage', e);
+  }
+
+  // 3. Wipes in Supabase in strict FK order (children first: order_events, order_items -> orders -> requests -> applications)
+  if (supabaseClient) {
+    try {
+      await supabaseClient.from('order_events').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabaseClient.from('order_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabaseClient.from('orders').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabaseClient.from('customer_requests').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabaseClient.from('career_applications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    } catch (err) {
+      console.warn('Supabase transactional data wipe note:', err);
+    }
+  }
+
+  // 4. Record audit log entry in audit storage (which is NOT wiped)
+  const auditEntry = {
+    id: `audit-${Date.now()}`,
+    action: 'RESET_TEST_DATA',
+    user: userEmail,
+    timestamp: new Date().toISOString(),
+    details: `Wiped ${summaryCounts.orders} orders, ${summaryCounts.requests} requests, ${summaryCounts.applications} applications and session carts. Products, settings, staff profiles preserved.`,
+  };
+
+  try {
+    const existingLogs = JSON.parse(window.localStorage.getItem('gifting-factory-audit-logs') || '[]');
+    window.localStorage.setItem('gifting-factory-audit-logs', JSON.stringify([auditEntry, ...existingLogs]));
+  } catch (e) {
+    console.error('Audit log write error', e);
+  }
+
+  return { summaryCounts, auditEntry };
+}
+
