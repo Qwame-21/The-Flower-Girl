@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Eye, EyeOff, LockKeyhole, ArrowLeft, LogOut } from 'lucide-react';
+import { Eye, EyeOff, LogOut } from 'lucide-react';
 import { supabase } from '../../config/supabase';
 import '../login.css';
 import { logoutToLogin } from '../utils/logout';
@@ -24,12 +24,26 @@ export function StaffLogin({ message = '', onSubmitted }) {
     } catch { setError('Sign-in failed. Check your email and password, or try again when your connection is available.'); }
     finally { setBusy(false); }
   };
-  return <main className="admin-login"><a className="login-home" href="/"><ArrowLeft size={16} />Back to storefront</a><section className="login-card" aria-labelledby="staff-login-title"><span className="login-mark"><LockKeyhole size={24} /></span><p className="login-eyebrow">THE GIFTING FACTORY</p><h1 id="staff-login-title">Welcome back.</h1><p className="login-description">Sign in to your staff workspace.</p>
-    {!supabase && <p className="login-notice" role="status">Staff sign-in is not connected in this preview. The backend configuration is needed before accounts can sign in.</p>}
-    {message && <p className="login-notice" role="status">{message}</p>}
-    <form onSubmit={submit}><label>Email address<input autoFocus type="email" name="email" autoComplete="username" required placeholder="you@example.com" disabled={busy} /></label><label>Password<div className="login-password"><input name="password" type={visible ? 'text' : 'password'} autoComplete="current-password" required disabled={busy} onKeyUp={event=>setCapsLock(event.getModifierState('CapsLock'))} onKeyDown={event=>setCapsLock(event.getModifierState('CapsLock'))} /><button type="button" disabled={busy} onClick={()=>setVisible(value=>!value)} aria-label={visible ? 'Hide password' : 'Show password'} aria-pressed={visible}>{visible ? <EyeOff size={18}/> : <Eye size={18}/>}</button></div></label>{capsLock && <small className="login-caps" role="status">Caps Lock is on.</small>}{error && <p className="login-notice" role="alert">{error}</p>}<button className="login-submit" type="submit" disabled={!supabase || busy}>{busy ? 'Signing in…' : 'Sign in'}</button></form>
-    <p className="login-help">Need access or a password reset? Contact your store administrator.</p>
-  </section><p className="login-footer">A thoughtful workspace for thoughtful gifting.</p></main>;
+  return <main className="admin-login">
+    <div className="login-left">
+      <p className="login-eyebrow">THE GIFTING FACTORY</p>
+      <h1>Welcome back.</h1>
+      <p className="login-description">Sign in to your staff workspace.</p>
+      {!supabase && <p className="login-notice" role="status">Staff sign-in is not connected in this preview. The backend configuration is needed before accounts can sign in.</p>}
+      {message && <p className="login-notice" role="status">{message}</p>}
+      <form onSubmit={submit}>
+        <label>Email address<input autoFocus type="email" name="email" autoComplete="username" required placeholder="you@example.com" disabled={busy} /></label>
+        <label>Password<div className="login-password"><input name="password" type={visible ? 'text' : 'password'} autoComplete="current-password" required disabled={busy} onKeyUp={event=>setCapsLock(event.getModifierState('CapsLock'))} onKeyDown={event=>setCapsLock(event.getModifierState('CapsLock'))} /><button type="button" disabled={busy} onClick={()=>setVisible(value=>!value)} aria-label={visible ? 'Hide password' : 'Show password'} aria-pressed={visible}>{visible ? <EyeOff size={18}/> : <Eye size={18}/>}</button></div></label>
+        {capsLock && <small className="login-caps" role="status">Caps Lock is on.</small>}
+        {error && <p className="login-notice" role="alert">{error}</p>}
+        <button className="login-submit" type="submit" disabled={!supabase || busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+      </form>
+      <p className="login-help">Need access or a password reset? Contact your store administrator.</p>
+    </div>
+    <div className="login-right">
+      <img src="/assets/hero_orange_roses_cutout.png" alt="" className="login-halftone" />
+    </div>
+  </main>;
 }
 
 export default function AdminAccess({ children }) {
@@ -56,6 +70,6 @@ export default function AdminAccess({ children }) {
   },[revision]);
   if(access.status==='ready')return children(access.identity);
   if(access.status==='signed-out')return <StaffLogin/>;
-  if(access.status==='loading')return <main className="admin-login" aria-busy="true" role="status" aria-label="Verifying staff session" />;
-  return <main className="admin-login"><section className="login-card"><span className="login-mark"><LockKeyhole size={24}/></span><h1>Staff access</h1><p className="login-description" role="status">{access.error}</p><div className="login-recovery"><button className="login-submit" onClick={()=>setRevision(value=>value+1)}>Try again</button><button onClick={async()=>{try { await logoutToLogin(); } catch { setAccess(current=>({...current,error:'Could not sign out. Please retry.'})); }}}><LogOut size={16}/>Use another account</button></div></section></main>;
+  if(access.status==='loading')return <main className="admin-login" aria-busy="true" role="status" aria-label="Verifying staff session"><div className="login-left"><p className="login-eyebrow">THE GIFTING FACTORY</p><h1>Staff access</h1><p className="login-description" role="status">Verifying your session...</p></div><div className="login-right"><img src="/assets/hero_orange_roses_cutout.png" alt="" className="login-halftone" /></div></main>;
+  return <main className="admin-login"><div className="login-left"><p className="login-eyebrow">THE GIFTING FACTORY</p><h1>Staff access</h1><p className="login-description" role="status">{access.error}</p><div className="login-recovery"><button className="login-submit" onClick={()=>setRevision(value=>value+1)}>Try again</button><button onClick={async()=>{try { await logoutToLogin(); } catch { setAccess(current=>({...current,error:'Could not sign out. Please retry.'})); }}}><LogOut size={16}/>Use another account</button></div></div><div className="login-right"><img src="/assets/hero_orange_roses_cutout.png" alt="" className="login-halftone" /></div></main>;
 }
