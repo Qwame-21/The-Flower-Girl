@@ -6,7 +6,7 @@
  --a-ink:var(--admin-ink); --a-muted:var(--admin-muted); --a-rule:var(--admin-rule); --ov-orange:var(--admin-blue);
  color:var(--admin-ink); font-family:'Outfit',sans-serif; color-scheme:light;
 }
-.admin-foundation { background:#fafafa; }
+.admin-foundation { background: #f7f6f4; }
 .admin-foundation .admin-foundation__canvas,.admin-foundation .overview-v2 { background:transparent; border-color:transparent; box-shadow:none; }
 .admin-foundation .admin-foundation__rail,.admin-foundation .admin-foundation__topbar,.admin-foundation .admin-foundation__popover,.ov-inspector {
  background:rgba(255,255,255,.94); border:1px solid rgba(17,17,17,.035); box-shadow:0 5px 24px #11111108; backdrop-filter:blur(18px);
@@ -93,8 +93,8 @@
 @media(max-width:650px) { .admin-reset-options { grid-template-columns:1fr; } }
 
 /* Admin stays light independently of browser/system theme and legacy shell rules. */
-html:has(.admin-foundation),html:has(.admin-login) { color-scheme:light; background:#fafafa; }
-body:has(.admin-foundation),body:has(.admin-login) { background:#fafafa; color:#151515; }
+html:has(.admin-foundation),html:has(.admin-login) { color-scheme:light; background:#f7f6f4; }
+body:has(.admin-foundation),body:has(.admin-login) { background:#f7f6f4; color:#151515; }
 .admin-foundation .admin-foundation__account.is-active,
 .admin-foundation .admin-foundation__utilities>button.is-active { background:#397fe8; color:#fff; border-color:transparent; }
-.admin-login { color-scheme:light; background:#fafafa; color:#151515; }
+.admin-login { color-scheme:light; background:#f7f6f4; color:#151515; }

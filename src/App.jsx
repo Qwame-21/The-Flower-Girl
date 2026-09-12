@@ -3,7 +3,7 @@ import Navigation from './components/Navigation';
 import DrawerMenu from './components/DrawerMenu';
 import SearchModal from './components/SearchModal';
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
-import AdminAccess from './admin/components/AdminAccess';
+import AdminAccess, { AdminLoadingFallback } from './admin/components/AdminAccess';
 const AboutPage = lazy(() => import('./storefront/pages/AboutPage'));
 const CareersPage = lazy(() => import('./storefront/pages/CareersPage'));
 const CustomizePage = lazy(() => import('./storefront/pages/CustomizePage'));
@@ -21,8 +21,9 @@ import { pages, pageForPath } from './site/routes';
 
 export default function App() { return <Suspense fallback={null}><SiteApp /></Suspense>; }
 function SiteApp() {
-  // Pre-fetch storefront lazy route chunks immediately on mount for instant navigation
+  // Pre-fetch storefront lazy route chunks and admin dashboard chunk immediately on mount for instant navigation
   useEffect(() => {
+    import('./components/AdminDashboard');
     import('./storefront/pages/AboutPage');
     import('./storefront/pages/CareersPage');
     import('./storefront/pages/CustomizePage');
@@ -35,6 +36,12 @@ function SiteApp() {
 
   const returningFromPayment = new URLSearchParams(window.location.search).get('payment') === 'return';
   const [adminMode, setAdminMode] = useState(() => /^\/admin(?:\/login)?\/?$/.test(window.location.pathname));
+
+  useEffect(() => {
+    if (adminMode) {
+      import('./components/AdminDashboard');
+    }
+  }, [adminMode]);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [activeTab, updateActiveTab] = useState(() => returningFromPayment ? 'shop' : pageForPath(window.location.pathname));
   const setActiveTab = tab => { updateActiveTab(tab); if (pages[tab] && window.location.pathname !== pages[tab][0]) window.history.pushState({}, '', pages[tab][0]); };
@@ -144,7 +151,18 @@ function SiteApp() {
 
   const navigateStorefront = tab => { setCheckoutRequested(false); setWishlistRequested(false); if (tab === 'services') setPreferredService(null); setActiveTab(tab); };
 
-  if (adminMode) return <><PageMetadata admin /><AdminAccess>{identity => <AdminDashboard staffIdentity={identity} onExit={() => { window.history.pushState({}, '', '/'); setAdminMode(false); }} />}</AdminAccess></>;
+  if (adminMode) {
+    return (
+      <>
+        <PageMetadata admin />
+        <Suspense fallback={<AdminLoadingFallback message="Loading staff workspace…" />}>
+          <AdminAccess>
+            {identity => <AdminDashboard staffIdentity={identity} onExit={() => { window.history.pushState({}, '', '/'); setAdminMode(false); }} />}
+          </AdminAccess>
+        </Suspense>
+      </>
+    );
+  }
 
   if (activeTab === 'not-found') return <><PageMetadata page="not-found"/><main className="site-not-found"><p>404 · PAGE NOT FOUND</p><h1>Let’s find your way back.</h1><p>This page may have moved or the address may be incorrect.</p><a href="/">Return to the storefront</a></main></>;
 

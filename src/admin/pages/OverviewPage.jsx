@@ -1,50 +1,310 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
-import { Search, Check, Clock3, Package, Truck, Wallet, MessageSquareText, Activity, X } from 'lucide-react';
+import { Search, X, Check, ArrowRight, ArrowLeft } from 'lucide-react';
 import { buildOverview } from '../utils/overview';
 import { ORDER_LABELS } from '../utils/adminMappers';
 import '../overview.css';
-import FlowArrow from '../components/FlowArrow';
-const money = value => new Intl.NumberFormat('en-GH', { style: 'currency', currency: 'GHS', currencyDisplay: 'code', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-const formatDate = value => new Date(value).toLocaleDateString('en-GH', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short' });
 
-export default function OverviewPage({ activeTab, adminData, dataStatus }) {
+// Import modular sub-components
+import WelcomeHeader from '../components/overview/WelcomeHeader';
+import OverviewNavBar from '../components/overview/OverviewNavBar';
+import MetricsCards from '../components/overview/MetricsCards';
+import OrdersCarousel from '../components/overview/OrdersCarousel';
+import RecentActivityFeed from '../components/overview/RecentActivityFeed';
+import QuickActions from '../components/overview/QuickActions';
+import HeroFloralBanner from '../components/overview/HeroFloralBanner';
+
+const money = val =>
+  new Intl.NumberFormat('en-GH', {
+    style: 'currency',
+    currency: 'GHS',
+    currencyDisplay: 'code',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(val || 0);
+
+/* ─── Skeleton Loader Component ────────────────────────────────────── */
+function DashboardSkeleton() {
+  return (
+    <div className="ov-sui-skeleton-wrap" aria-label="Loading dashboard">
+      <div className="ov-sui-sk-header">
+        <div className="ov-sui-sk-line" style={{ width: 140, height: 12 }} />
+        <div className="ov-sui-sk-line" style={{ width: 340, height: 38, marginTop: 12 }} />
+        <div className="ov-sui-sk-line" style={{ width: 260, height: 16, marginTop: 8 }} />
+      </div>
+
+      <div className="ov-sui-sk-grid">
+        <div className="ov-sui-sk-card" style={{ height: 140 }} />
+        <div className="ov-sui-sk-card" style={{ height: 140 }} />
+        <div className="ov-sui-sk-card" style={{ height: 140 }} />
+        <div className="ov-sui-sk-card" style={{ height: 140 }} />
+      </div>
+
+      <div className="ov-sui-sk-card" style={{ height: 220, marginTop: 24 }} />
+    </div>
+  );
+}
+
+export default function OverviewPage({ activeTab = 'Today', adminData = {}, dataStatus = 'ready', staffIdentity }) {
   const [now, setNow] = useState(Date.now);
-  const triggerRef = useRef(null);
+  const [activeSubTab, setActiveSubTab] = useState(activeTab);
   const [selected, setSelected] = useState(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
-  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
+  const triggerRef = useRef(null);
+
+  // 20s Polling interval for operational data freshness
   useEffect(() => {
-    if (!selected) return;
-    const trigger = triggerRef.current;
-    const close = event => { if (event.key === 'Escape') setSelected(null); };
-    document.addEventListener('keydown', close);
-    return () => { document.removeEventListener('keydown', close); trigger?.focus?.(); };
-  }, [selected]);
-  const data = buildOverview(adminData, activeTab, now);
-  const searchResults = buildOverview(adminData, 'Activity', now).activities.filter(item => `${item.title} ${item.detail} ${item.record.phone || ''} ${item.record.service || ''}`.toLowerCase().includes(query.trim().toLowerCase()));
+    const timer = setInterval(() => setNow(Date.now()), 20000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Keyboard shortcut listener (⌘K to toggle search, Escape to close)
+  useEffect(() => {
+    const handleKeyDown = e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(prev => !prev);
+      }
+      if (e.key === 'Escape') {
+        setSearchOpen(false);
+        setSelected(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const data = buildOverview(adminData || {}, activeSubTab, now);
+  const searchResults = buildOverview(adminData || {}, 'Activity', now).activities.filter(item =>
+    `${item.title} ${item.detail} ${item.record?.phone || ''} ${item.record?.service || ''}`
+      .toLowerCase()
+      .includes(query.trim().toLowerCase())
+  );
   const activities = data.activities.filter(item => filter === 'All' || item.kind === filter);
-  const priorities = [
-    { label: 'Overdue deliveries', detail: 'Review delivery estimates and follow up.', records: data.overdue, icon: Truck, urgent: true },
-    { label: 'Ready to leave', detail: 'Gifts packed and waiting for dispatch.', records: data.ready, icon: Package },
-    { label: 'Awaiting payment', detail: 'Confirm payment before preparation.', records: data.awaitingPayment, icon: Wallet },
-    { label: 'Requests awaiting a quote', detail: 'Open customer briefs and quotation details.', records: data.quotes, icon: MessageSquareText },
-  ];
-  const inspect = (title, records) => { triggerRef.current = document.activeElement; setSelected({ title, records }); };
-  return <div className="overview-v2">
-    <header className="ov-intro"><div><span className="ov-eyebrow">THE DAILY EDIT · {formatDate(now)} · ACCRA</span><h2>{activeTab === 'This week' ? 'A little perspective.' : activeTab === 'Activity' ? 'The latest from the factory.' : 'Make someone’s day.'}</h2><p>{activeTab === 'This week' ? 'Seven days of gifting, with the work ahead in view.' : 'A clear view of what’s moving, what’s waiting, and what needs you.'}</p></div><span className="ov-source">{dataStatus === 'loading' ? <span className="admin-skeleton admin-skeleton--text" style={{ width: 120, height: 14 }} /> : dataStatus === 'error' ? 'Shared orders unavailable' : adminData.ordersSource === 'supabase' ? 'Shared orders connected' : 'Local workspace'}</span></header>
-    <div className="ov-search-row"><label><Search size={18} /><input type="search" aria-label="Search available records" placeholder="Find an order, customer or request…" value={query} onChange={event => setQuery(event.target.value)} /></label><span>YOUR WORKSPACE, AT A GLANCE</span></div>
-    {query.trim() && <section className="ov-search-results" aria-label="Search results"><header><strong>{searchResults.length} matching records</strong><button onClick={() => setQuery('')}>Clear search</button></header>{searchResults.length ? searchResults.map(item => <button key={item.id} onClick={() => inspect(item.title, [item.record])}><span><strong>{item.title}</strong><small>{item.kind} · {item.detail}</small></span><FlowArrow size={17} /></button>) : <p>No matches in available records. Try a name, phone number or reference.</p>}</section>}
-    {dataStatus === 'error'  && <p className="ov-warning" role="alert">Shared orders could not be loaded. Figures below may only reflect locally available records.</p>}
-    {activeTab !== 'Activity' && <>
-      <div className="ov-feature-grid">
-        <section className="ov-revenue"><div className="ov-section-title"><span><Wallet size={18} /> Revenue</span><span>{activeTab === 'This week' ? 'LAST 7 DAYS' : 'TODAY'}</span></div><strong className="ov-revenue-value"><small>GHS</small>{dataStatus === 'loading' ? <span className="admin-skeleton admin-skeleton--val" /> : new Intl.NumberFormat('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(data.revenue)}</strong><p>{data.paid.length ? `${data.paid.length} confirmed paid ${data.paid.length === 1 ? 'order' : 'orders'}` : 'Your next paid order starts the story.'}</p>{data.paid.length ? <div className="ov-trend" aria-label="Revenue by time period">{data.trend.map(slot => <div key={slot.from} aria-label={`${new Date(slot.from).toISOString()}: ${money(slot.value)}`}><span className="ov-bar-space"><i style={{ height: `${data.revenue ? Math.max(3, slot.value / Math.max(...data.trend.map(point => point.value), 1) * 100) : 0}%` }} /></span><small>{activeTab === 'This week' ? new Date(slot.from).toLocaleDateString('en-GH', { weekday: 'short', timeZone: 'Africa/Accra' }) : `${new Date(slot.from).getUTCHours()}:00`}</small><span className="ov-bar-value">{money(slot.value)}</span></div>)}</div> : <div className="ov-revenue-empty"><Wallet size={20} /><span>{dataStatus === 'loading' ? <span className="admin-skeleton admin-skeleton--text" style={{ width: 130 }} /> : 'No paid orders in this period'}</span><small>Your revenue chart appears when payments are recorded.</small></div>}<small className="ov-revenue-footnote">Paid order totals. Order date is used when a payment date is unavailable.</small></section>
-        <section className="ov-priorities"><div className="ov-section-title"><span>Today’s priorities</span><Clock3 size={18} /></div><p className="ov-muted">A little attention goes a long way.</p><div>{priorities.map(({ label, detail, records, icon: Icon, urgent }) => <button key={label} onClick={() => inspect(label, records)} className={urgent && records.length ? 'needs-attention' : ''}><span className="ov-priority-icon"><Icon size={18} /></span><span><strong>{label}</strong><small>{detail}</small></span><b>{records.length}</b><FlowArrow size={16} /></button>)}</div></section>
+
+  const inspect = (title, records) => {
+    triggerRef.current = document.activeElement;
+    setSelected({ title, records });
+  };
+
+  if (dataStatus === 'loading' && !adminData?.orders?.length && !adminData?.requests?.length) {
+    return <DashboardSkeleton />;
+  }
+
+  return (
+    <div className="overview-v2 sui-sawada-theme">
+      {/* ─── Sui Sawada Top Navigation Bar ─────────────────────────── */}
+      <OverviewNavBar
+        activeTab={activeSubTab}
+        onTabChange={setActiveSubTab}
+        onOpenSearch={() => setSearchOpen(true)}
+        pendingCount={data.pending.length}
+      />
+
+      {/* ─── Editorial Header & Hero Section ───────────────────────── */}
+      <div className="ov-sui-top-row">
+        <WelcomeHeader
+          staffIdentity={staffIdentity}
+          activeTab={activeSubTab}
+          dataStatus={dataStatus}
+          ordersSource={adminData?.ordersSource}
+          now={now}
+        />
+        <HeroFloralBanner
+          totalOrders={data.orders.length}
+          revenueFormatted={money(data.revenue)}
+        />
       </div>
-      <div className="ov-metrics"><button onClick={() => inspect('Pending orders', data.pending)}><span><Package size={19} /> Pending orders</span><strong>{data.pending.length}<FlowArrow size={20} /></strong><p>Open orders across every stage.</p></button><button onClick={() => inspect('Overdue deliveries', data.overdue)} className={data.overdue.length ? 'is-warm' : ''}><span><Truck size={19} /> Overdue deliveries</span><strong>{data.overdue.length}<FlowArrow size={20} /></strong><p>{data.overdue.length ? 'These gifts need a delivery update.' : 'No missed estimates in available orders.'}</p></button><section className="ov-small-note"><span className="ov-note-mark"><Check size={22} /></span><div><h3>{data.pending.length ? 'One thoughtful step at a time.' : 'Room for something wonderful.'}</h3><p>{data.pending.length ? 'Open a priority to see the records behind it.' : 'New orders and requests will bring this workspace to life.'}</p></div></section></div>
-    </>}
-    <section className="ov-activity"><header><div><span className="ov-eyebrow">KEEPING YOU IN THE LOOP</span><h3>Recent activity</h3></div><div className="ov-filters" aria-label="Filter activity">{['All', 'Order', 'Request', 'Application'].map(kind => <button key={kind} aria-pressed={filter === kind} onClick={() => setFilter(kind)}>{kind === 'All' ? 'All updates' : `${kind}s`}</button>)}</div></header>{activities.length ? <div className="ov-activity-list">{activities.slice(0, activeTab === 'Activity' ? 50 : 6).map(item => <button key={item.id} onClick={() => inspect(item.title, [item.record])}><span className="ov-activity-icon"><Activity size={17} /></span><span><strong>{item.title}</strong><small>{item.detail}</small></span><span className="ov-activity-status">{ORDER_LABELS[item.status] || item.status || item.kind}</span><time>{formatDate(item.time)} · {new Date(item.time).toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Accra' })}</time><FlowArrow size={16} /></button>)}</div> : <div className="ov-quiet"><Activity size={23} /><div><strong>No {filter === 'All' ? '' : `${filter.toLowerCase()} `}activity {activeTab === 'Activity' ? 'yet' : 'in this period'}</strong><p>New orders, requests and applications will appear here.</p></div></div>}</section>
-    {selected && createPortal(<section className="ov-inspector" aria-label={selected.title}><header><button autoFocus onClick={() => setSelected(null)} aria-label="Close record details"><FlowArrow size={16} direction="left" /></button><h3>{selected.title}</h3><button onClick={() => setSelected(null)} aria-label="Dismiss details"><X size={18} /></button></header>{selected.records.length ? selected.records.map((record, index) => <article key={record.id || index}><strong>{record.tracking || record.reference || record.name || 'Record'}</strong><p>{record.customer || record.name || record.role}</p><dl>{record.reference && <><dt>Source</dt><dd>Customer request · {adminData.requestsSource === 'supabase' ? 'Shared data' : 'Saved in this browser'}</dd></>}{record.service && <><dt>Service</dt><dd>{record.service}</dd></>}{(record.note || record.notes) && <><dt>Brief</dt><dd>{record.note || record.notes}</dd></>}<dt>Status</dt><dd>{ORDER_LABELS[record.status] || record.status || 'Not recorded'}</dd>{record.total != null && <><dt>Total</dt><dd>{money(Number(record.total))}</dd></>}{record.delivery && <><dt>Delivery</dt><dd>{record.delivery}</dd></>}{record.estimatedDelivery && <><dt>Estimate</dt><dd>{new Date(record.estimatedDelivery).toLocaleString('en-GH', { timeZone: 'Africa/Accra' })}</dd></>}{record.phone && <><dt>Phone</dt><dd>{record.phone}</dd></>}</dl></article>) : <div className="ov-quiet"><Check size={24} /><p>Nothing waiting here. You’re up to date.</p></div>}</section>, document.body)}
-  </div>;
+
+      {/* ─── Floating Metrics Cards Grid (Indexed 01-04) ───────────── */}
+      <MetricsCards
+        data={data}
+        activeTab={activeSubTab}
+        onInspect={inspect}
+      />
+
+      {/* ─── Orders Thumbnail Preview Carousel Strip ────────────────── */}
+      <OrdersCarousel
+        orders={data.orders}
+        onInspect={inspect}
+      />
+
+      {/* ─── Recent Activity Feed ──────────────────────────────────── */}
+      <div className="ov-sui-bottom-row">
+        <RecentActivityFeed
+          activities={activities}
+          filter={filter}
+          onFilterChange={setFilter}
+          onInspect={inspect}
+        />
+
+        <QuickActions
+          onInspect={inspect}
+          data={data}
+        />
+      </div>
+
+      {/* ─── Search Overlay Modal (⌘K) ─────────────────────────────── */}
+      {searchOpen && (
+        <div className="ov-sui-search-backdrop" onClick={() => setSearchOpen(false)}>
+          <div className="ov-sui-search-modal" onClick={e => e.stopPropagation()}>
+            <div className="ov-sui-search-input-header">
+              <Search size={18} />
+              <input
+                type="search"
+                autoFocus
+                placeholder="Search orders by customer name, reference, or phone..."
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+              />
+              <button onClick={() => setSearchOpen(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {query.trim() && (
+              <div className="ov-sui-search-results">
+                {searchResults.length ? (
+                  searchResults.map(item => (
+                    <button
+                      key={item.id}
+                      className="ov-sui-search-item"
+                      onClick={() => {
+                        setSearchOpen(false);
+                        inspect(item.title, [item.record]);
+                      }}
+                    >
+                      <div>
+                        <strong>{item.title}</strong>
+                        <small>{item.kind} · {item.detail}</small>
+                      </div>
+                      <ArrowRight size={16} />
+                    </button>
+                  ))
+                ) : (
+                  <div className="ov-sui-no-results">
+                    <p>No matching orders or briefs found.</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Record Inspector Portal Drawer ────────────────────────── */}
+      {selected &&
+        createPortal(
+          <div className="ov-inspector-backdrop" onClick={() => setSelected(null)}>
+            <section
+              className="ov-inspector-panel"
+              aria-label={selected.title}
+              onClick={e => e.stopPropagation()}
+            >
+              <header className="ov-inspector-header">
+                <button
+                  className="ov-inspector-back"
+                  autoFocus
+                  onClick={() => setSelected(null)}
+                  aria-label="Back"
+                >
+                  <ArrowLeft size={16} />
+                </button>
+                <h3>{selected.title}</h3>
+                <button
+                  className="ov-inspector-close"
+                  onClick={() => setSelected(null)}
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+              </header>
+
+              <div className="ov-inspector-body">
+                {selected.records.length ? (
+                  selected.records.map((record, index) => (
+                    <article key={record.id || index} className="ov-inspector-card">
+                      <div className="ov-ins-title-row">
+                        <strong>
+                          {record.tracking || record.reference || record.name || 'Record'}
+                        </strong>
+                        <span className="ov-status-tag">
+                          {ORDER_LABELS[record.status] || record.status || 'Active'}
+                        </span>
+                      </div>
+
+                      <p className="ov-ins-customer">
+                        {record.customer || record.name || record.role || 'Customer'}
+                      </p>
+
+                      <dl className="ov-ins-details">
+                        {record.reference && (
+                          <>
+                            <dt>Source</dt>
+                            <dd>
+                              Customer request ·{' '}
+                              {adminData?.requestsSource === 'supabase'
+                                ? 'Shared database'
+                                : 'Local storage'}
+                            </dd>
+                          </>
+                        )}
+                        {record.service && (
+                          <>
+                            <dt>Service</dt>
+                            <dd>{record.service}</dd>
+                          </>
+                        )}
+                        {(record.note || record.notes) && (
+                          <>
+                            <dt>Brief</dt>
+                            <dd>{record.note || record.notes}</dd>
+                          </>
+                        )}
+                        {record.total != null && (
+                          <>
+                            <dt>Total Amount</dt>
+                            <dd>{money(Number(record.total))}</dd>
+                          </>
+                        )}
+                        {record.delivery && (
+                          <>
+                            <dt>Delivery Address</dt>
+                            <dd>{record.delivery}</dd>
+                          </>
+                        )}
+                        {record.estimatedDelivery && (
+                          <>
+                            <dt>Estimated Delivery</dt>
+                            <dd>
+                              {new Date(record.estimatedDelivery).toLocaleString('en-GH', {
+                                timeZone: 'Africa/Accra',
+                              })}
+                            </dd>
+                          </>
+                        )}
+                        {record.phone && (
+                          <>
+                            <dt>Phone Number</dt>
+                            <dd>{record.phone}</dd>
+                          </>
+                        )}
+                      </dl>
+                    </article>
+                  ))
+                ) : (
+                  <div className="ov-empty-activity">
+                    <Check size={28} />
+                    <p>Nothing pending in this category. Everything is up to date.</p>
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>,
+          document.body
+        )}
+    </div>
+  );
 }

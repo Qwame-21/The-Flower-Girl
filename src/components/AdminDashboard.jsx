@@ -216,12 +216,14 @@ export default function AdminDashboard({ staffIdentity }) {
       />
 
       <section className="admin-file" style={{ '--active-tab': tabIndex }}>
-        <nav className="admin-foundation__tabs" role="tablist" aria-label={`${activeNav} sections`}>
-          {tabs.map(([label, , Icon], index) => <button role="tab" id={`admin-tab-${activeNav}-${index}`} aria-controls="admin-active-panel" tabIndex={activeTab === label ? 0 : -1} key={label} className={activeTab === label ? 'is-active' : ''} aria-selected={activeTab === label} onKeyDown={event => { if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return; event.preventDefault(); const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length; selectTab(tabs[nextIndex][0]); event.currentTarget.parentElement.children[nextIndex]?.focus(); }} onClick={() => selectTab(label)}><span className="admin-foundation__tab-icon"><Icon size={16} strokeWidth={1.7} /></span><span>{label}</span></button>)}
-        </nav>
+        {activeNav !== 'Overview' && tabs.length > 0 && (
+          <nav className="admin-foundation__tabs" role="tablist" aria-label={`${activeNav} sections`}>
+            {tabs.map(([label, , Icon], index) => <button role="tab" id={`admin-tab-${activeNav}-${index}`} aria-controls="admin-active-panel" tabIndex={activeTab === label ? 0 : -1} key={label} className={activeTab === label ? 'is-active' : ''} aria-selected={activeTab === label} onKeyDown={event => { if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return; event.preventDefault(); const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length; selectTab(tabs[nextIndex][0]); event.currentTarget.parentElement.children[nextIndex]?.focus(); }} onClick={() => selectTab(label)}><span className="admin-foundation__tab-icon"><Icon size={16} strokeWidth={1.7} /></span><span>{label}</span></button>)}
+          </nav>
+        )}
         <section id="admin-active-panel" role="tabpanel" aria-labelledby={`admin-tab-${activeNav}-${Math.max(0, tabIndex)}`} key={`${activeNav}-${activeTab}`} className="admin-foundation__canvas" aria-label={`${activeTab} workspace`}>
           {/* Overview and operational workspaces share navigation; gallery controls retain their existing implementation. */}
-          {activeNav === 'Overview' ? <OverviewPage activeTab={activeTab} adminData={adminData} dataStatus={overviewDataStatus} /> : !['Gallery', 'Orders'].includes(activeNav) ? <WorkspacePages staffIdentity={staffIdentity} activeNav={activeNav} activeTab={activeTab} adminData={adminData} setAdminData={setAdminData} /> : activeNav === 'Orders' ? (
+          {activeNav === 'Overview' ? <OverviewPage staffIdentity={staffIdentity} activeTab={activeTab} adminData={adminData} dataStatus={overviewDataStatus} /> : !['Gallery', 'Orders'].includes(activeNav) ? <WorkspacePages staffIdentity={staffIdentity} activeNav={activeNav} activeTab={activeTab} adminData={adminData} setAdminData={setAdminData} /> : activeNav === 'Orders' ? (
             <OrdersPage
               activeTab={activeTab}
               filteredOrders={filteredOrders}

@@ -6,6 +6,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Playfair+Display:ital,wght@1,400;1,500&display=swap');
 
 /* ─── Page shell ────────────────────────────────────────────────────── */
+/* ─── Page shell ────────────────────────────────────────────────────── */
 .admin-login {
   min-height: 100dvh;
   box-sizing: border-box;
@@ -13,70 +14,71 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  /* cream – same paper tone the watercolour flowers were painted on   */
   background: #edeae4;
   color: #151515;
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   position: relative;
   overflow: hidden;
-  /* enough vertical room so corner flowers don't crowd content         */
-  padding: 120px 24px;
+  padding: 100px 24px;
+  animation: login-paint-in 180ms ease-out both;
+}
+
+@keyframes login-paint-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ─── Corner florals ────────────────────────────────────────────────── */
 /*
-  mix-blend-mode: multiply makes the white/near-white pixels in the PNG
-  disappear into the cream background — no visible rectangle or box.
-  No filter/grayscale — artwork keeps its original monochrome tones.
+  Reduced size by 5% with -95px corner anchor offsets
+  mix-blend-mode: multiply preserves artwork details and makes white background transparent
+  Layering: z-index: 0 stays behind central content
 */
 .lf-corner {
   position: absolute;
-  width: 380px;
+  width: clamp(390px, 35vw, 625px);
+  aspect-ratio: 1 / 1;
   height: auto;
   pointer-events: none;
   mix-blend-mode: multiply;
-  opacity: 0.92;
+  opacity: 0.85;
   z-index: 0;
+  content-visibility: auto;
 }
 
-/* top-left: slight inward tilt                                         */
+/* Top-left corner: place as-is (no rotation), pushed tight into top-left corner */
 .lf-corner--tl {
-  top: -60px;
-  left: -60px;
-  transform: rotate(-12deg);
-  transform-origin: top left;
+  top: -95px;
+  left: -95px;
+  transform: none;
 }
 
-/* top-right: mirror of top-left                                        */
+/* Top-right corner: mirror horizontally (flip on vertical axis) */
 .lf-corner--tr {
-  top: -60px;
-  right: -60px;
-  transform: scaleX(-1) rotate(-12deg);
-  transform-origin: top right;
+  top: -95px;
+  right: -95px;
+  transform: scaleX(-1);
 }
 
-/* bottom-left: flipped 180° so bouquet faces up into the page          */
+/* Bottom-left corner: mirror vertically (flip on horizontal axis) */
 .lf-corner--bl {
-  bottom: -60px;
-  left: -60px;
-  transform: rotate(168deg);
-  transform-origin: bottom left;
+  bottom: -95px;
+  left: -95px;
+  transform: scaleY(-1);
 }
 
-/* bottom-right: mirror of bottom-left                                  */
+/* Bottom-right corner: mirror both horizontally and vertically (180° rotation) */
 .lf-corner--br {
-  bottom: -60px;
-  right: -60px;
-  transform: scaleX(-1) rotate(168deg);
-  transform-origin: bottom right;
+  bottom: -95px;
+  right: -95px;
+  transform: scale(-1);
 }
 
 /* ─── Center column ─────────────────────────────────────────────────── */
-/* No card, no border, no shadow — just the centered content on cream   */
 .login-center {
   position: relative;
   z-index: 1;
-  width: min(560px, 100%);
+  width: min(504px, 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -84,7 +86,6 @@
 }
 
 /* ─── Eyebrow ───────────────────────────────────────────────────────── */
-/* Matches storefront .form-eyebrow: .62rem / 600 / .16em ls / #666    */
 .login-eyebrow {
   display: block;
   font-family: 'Outfit', sans-serif;
@@ -96,26 +97,26 @@
   margin: 0 0 20px;
 }
 
-/* ─── Heading – Playfair Display italic, unchanged typography ──────── */
+/* ─── Heading – matches Velvette high-contrast italic serif font ────── */
 .login-center h1 {
   font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
   font-style: italic;
   font-weight: 400;
   font-size: 46px;
-  line-height: 1.1;
+  line-height: 1.12;
   letter-spacing: -0.01em;
   color: #111;
   margin: 0 0 12px;
 }
 
-/* ─── Subtext – Playfair Display italic, unchanged typography ───────── */
+/* ─── Subtext – Velvette italic serif style ─────────────────────────── */
 .login-subtext {
   font-family: 'Playfair Display', Georgia, serif;
   font-style: italic;
   font-weight: 400;
   font-size: 16px;
   color: #666;
-  margin: 0 0 44px;
+  margin: 0 0 40px;
   line-height: 1.5;
 }
 
@@ -124,62 +125,58 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 24px;
   text-align: left;
 }
 
 .login-field {
   display: flex;
   flex-direction: column;
-  gap: .5rem;  /* matches storefront .flow-modal label gap: .5rem      */
+  gap: .35rem;  /* tight gap like Image 1 */
 }
 
 /*
-  Field label — exact match to storefront .flow-modal label:
-    font-size: .68rem  (from index.css line 1349)
-    color: #555        (from index.css line 1348)
-  +  letter-spacing / uppercase to keep the "small caps" feel already present
+  Field label — matches "BY FLOWER GIRL" font style from Image 2:
+  Outfit, uppercase, 600 weight, tracked letter-spacing
 */
 .login-field-label {
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: .68rem;
+  font-size: .75rem;
   font-weight: 600;
-  letter-spacing: .14em;
+  letter-spacing: .16em;
   text-transform: uppercase;
-  color: #555;
+  color: #333;
 }
 
-/* ─── Inputs ────────────────────────────────────────────────────────── */
-/*
-  Storefront inputs inside flow-modal are underline-only.
-  For a standalone full-page login, a contained bordered field reads
-  better and is more accessible — so we keep a light border but match
-  every font property from the storefront.
-*/
+/* ─── Inputs – underline style matching storefront form inputs ──────── */
 .login-form input {
   width: 100%;
   box-sizing: border-box;
-  min-height: 48px;
-  padding: .75rem 1rem;
-  border: 1px solid rgba(17, 17, 17, .22);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.68);
-  /* font: inherit matches storefront's `font: inherit` on inputs       */
-  font: inherit;
-  font-size: .92rem;          /* ≈ 14.7px at 16px root — storefront feel */
+  min-height: 44px;
+  padding: .75rem 0;
+  border: none;
+  border-bottom: 1px solid rgba(17, 17, 17, .38);
+  border-radius: 0;
+  background: transparent;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 1.08rem;
+  font-weight: 400;
   color: #111;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  letter-spacing: 0.01em;
+  transition: border-color 150ms ease;
   outline: 0;
 }
 
 .login-form input::placeholder {
   color: #aaa;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 1.08rem;
 }
 
 .login-form input:focus {
-  border-color: rgba(17, 17, 17, .6);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 0 0 3px rgba(17, 17, 17, .06);
+  border-bottom-color: #111;
+  background: transparent;
+  box-shadow: none;
 }
 
 /* ─── Password eye wrapper ───────────────────────────────────────────── */
@@ -188,12 +185,12 @@
 }
 
 .login-password-wrap input {
-  padding-right: 48px;
+  padding-right: 36px;
 }
 
 .login-eye-btn {
   position: absolute;
-  right: 12px;
+  right: 0;
   top: 50%;
   transform: translateY(-50%);
   width: 32px;
@@ -201,7 +198,7 @@
   border: none;
   background: transparent;
   cursor: pointer;
-  color: #888;
+  color: #777;
   display: grid;
   place-items: center;
   border-radius: 6px;
@@ -211,22 +208,54 @@
 
 .login-eye-btn:hover { color: #111; }
 
-/* ─── Submit button ──────────────────────────────────────────────────── */
+.login-field--has-error input {
+  border-bottom-color: #dc2626 !important;
+}
+
+.login-field-err-msg {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'Outfit', sans-serif;
+  font-size: .75rem;
+  color: #dc2626;
+  margin-top: 4px;
+}
+
+/* ─── Submit button – increased width by 30% (260px -> 338px) ──────── */
 .login-submit {
-  width: 100%;
-  min-height: 50px;
-  padding: 13px 24px;
+  width: min(338px, 100%);
+  align-self: center;
+  min-height: 48px;
+  padding: 12px 28px;
   background: #111;
   color: #fff;
   border: none;
   border-radius: 999px;
-  font-family: 'Outfit', sans-serif;
-  font-size: .9rem;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: .78rem;
   font-weight: 600;
-  letter-spacing: .04em;
+  letter-spacing: .12em;
+  text-transform: uppercase;
   cursor: pointer;
   transition: background 150ms ease, transform 80ms ease;
-  margin-top: 4px;
+  margin-top: 10px;
+}
+
+.login-submit-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.login-spinner-icon {
+  animation: login-spin 0.8s linear infinite;
+}
+
+@keyframes login-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .login-submit:hover:not(:disabled) { background: #000; }
@@ -234,14 +263,13 @@
 .login-submit:disabled { opacity: 0.42; cursor: not-allowed; }
 .login-submit:focus-visible { outline: 2px solid #111; outline-offset: 3px; }
 
-/* ─── Helper text ────────────────────────────────────────────────────── */
-/* Playfair italic — unchanged from existing design                     */
+/* ─── Helper text – Velvette italic serif style ──────────────────────── */
 .login-help {
   font-family: 'Playfair Display', Georgia, serif;
   font-style: italic;
   font-size: 13px;
-  color: #888;
-  margin: 30px 0 0;
+  color: #777;
+  margin: 32px 0 0;
   line-height: 1.65;
   text-align: center;
 }
@@ -303,19 +331,41 @@
 .login-recovery button:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
 
 /* ─── Responsive ─────────────────────────────────────────────────────── */
-@media (max-width: 960px) {
-  .lf-corner { width: 280px; }
-  .admin-login { padding: 100px 24px; }
+
+/* Tablet (768px - 1023px) */
+@media (max-width: 1023px) {
+  .admin-login { padding: 80px 24px; }
+  .login-center h1 { font-size: 38px; }
+  .lf-corner { width: clamp(240px, 26vw, 340px); opacity: 0.80; }
+  .lf-corner--tl { top: -55px; left: -55px; }
+  .lf-corner--tr { top: -55px; right: -55px; }
+  .lf-corner--bl { bottom: -55px; left: -55px; }
+  .lf-corner--br { bottom: -55px; right: -55px; }
 }
 
-@media (max-width: 600px) {
-  .admin-login { padding: 80px 20px; }
-  .login-center h1 { font-size: 34px; }
-  .lf-corner { width: 180px; opacity: 0.7; }
+/* Mobile (< 768px) – Increased floral size slightly for better visibility */
+@media (max-width: 767px) {
+  .admin-login { padding: 60px 20px; }
+  .login-center { width: 100%; }
+  .login-center h1 { font-size: 30px; line-height: 1.15; }
+  .login-subtext { font-size: 14px; margin-bottom: 28px; }
+  .lf-corner { width: clamp(165px, 42vw, 215px); opacity: 0.76; }
   .lf-corner--tl { top: -30px; left: -30px; }
   .lf-corner--tr { top: -30px; right: -30px; }
   .lf-corner--bl { bottom: -30px; left: -30px; }
   .lf-corner--br { bottom: -30px; right: -30px; }
+}
+
+/* Small Mobile (< 400px - 375px) */
+@media (max-width: 399px) {
+  .admin-login { padding: 48px 16px; }
+  .login-center h1 { font-size: 26px; }
+  .login-eyebrow { margin-bottom: 12px; }
+  .lf-corner { width: 145px; opacity: 0.70; }
+  .lf-corner--tl { top: -25px; left: -25px; }
+  .lf-corner--tr { top: -25px; right: -25px; }
+  .lf-corner--bl { bottom: -25px; left: -25px; }
+  .lf-corner--br { bottom: -25px; right: -25px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -324,4 +374,44 @@
   .login-submit,
   .login-recovery button { transition: none; }
   .login-submit:active:not(:disabled) { transform: none; }
+}
+
+/* ─── Two-Stage Loading Sequence ────────────────────────────────────── */
+.admin-loading-stage-wrap {
+  transition: opacity 220ms ease;
+}
+
+.admin-stage-content {
+  transition: opacity 200ms ease, transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.admin-stage--1 {
+  opacity: 0.94;
+  transform: scale(0.99);
+}
+
+.admin-stage--2 {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.admin-stage-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.admin-stage-pill {
+  width: 28px;
+  height: 3px;
+  border-radius: 99px;
+  background: rgba(17, 17, 17, 0.14);
+  transition: background 200ms ease, width 200ms ease;
+}
+
+.admin-stage-pill.is-active {
+  background: #111;
+  width: 36px;
 }
