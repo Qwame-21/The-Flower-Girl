@@ -3,6 +3,7 @@ import Navigation from './components/Navigation';
 import DrawerMenu from './components/DrawerMenu';
 import SearchModal from './components/SearchModal';
 import AdminAccess, { AdminLoadingFallback } from './admin/components/AdminAccess';
+import { logoutToLogin } from './admin/utils/logout';
 const AboutPage = lazy(() => import('./storefront/pages/AboutPage'));
 const CareersPage = lazy(() => import('./storefront/pages/CareersPage'));
 const CustomizePage = lazy(() => import('./storefront/pages/CustomizePage'));
@@ -154,7 +155,7 @@ function SiteApp() {
           <AdminAccess>
             {identity => (
               <Suspense fallback={<AdminLoadingFallback message="Loading dashboard…" />}>
-                <DashboardEntry />
+                <DashboardEntry onSignOut={logoutToLogin} />
               </Suspense>
             )}
           </AdminAccess>

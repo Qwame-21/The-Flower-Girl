@@ -2,8 +2,9 @@ import { useEffect } from 'react';
 import './index.css';
 import './App.css';
 import DashboardApp from './DashboardApp';
+import { DashboardProvider } from './contexts/DashboardContext';
 
-export default function DashboardEntry() {
+export default function DashboardEntry({ onSignOut }) {
   useEffect(() => {
     // Inject Google Fonts
     const preconnect1 = document.createElement('link');
@@ -47,7 +48,9 @@ export default function DashboardEntry() {
 
   return (
     <div className="dashboard-viewport">
-      <DashboardApp />
+      <DashboardProvider onSignOut={onSignOut}>
+        <DashboardApp />
+      </DashboardProvider>
     </div>
   );
 }

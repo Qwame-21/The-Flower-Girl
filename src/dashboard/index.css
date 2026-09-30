@@ -954,6 +954,42 @@
   color: var(--text-primary);
 }
 
+.clear-all-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.clear-all-btn:disabled:hover {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.mute-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.mute-toggle-btn:hover {
+  background-color: rgba(26, 26, 26, 0.06);
+}
+
+.mute-toggle-btn svg {
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+
+.mute-toggle-btn:hover svg {
+  color: var(--text-primary);
+}
+
 .notif-body {
   min-height: 80px;
   max-height: 400px;
@@ -997,6 +1033,20 @@
 
 .notif-body::-webkit-scrollbar-thumb:hover {
   background: rgba(26, 26, 26, 0.3);
+}
+
+.notif-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(26, 26, 26, 0.06);
+  transition: background-color 0.15s ease;
+}
+
+.notif-item:hover {
+  background-color: rgba(26, 26, 26, 0.03);
+}
+
+.notif-item:last-child {
+  border-bottom: none;
 }
 
 .notif-skeleton {

@@ -1,5 +1,30 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
+import { useDashboard } from '../contexts/DashboardContext';
+
+// Single notification sound function that respects mute state
+let audioInstance = null;
+export function playNotificationSound() {
+  const isMuted = localStorage.getItem('notifications-muted') === 'true';
+  if (isMuted) return;
+  
+  if (!audioInstance) {
+    audioInstance = new Audio('/notification.mp3');
+    audioInstance.volume = 0.5;
+  }
+  audioInstance.currentTime = 0;
+  audioInstance.play().catch(() => {
+    // Audio play failed (browser policy or missing file) - silent fail
+  });
+}
+
+// Function to add a notification (for testing and future use)
+export function addNotification(message) {
+  const notifications = JSON.parse(localStorage.getItem('dashboard-notifications') || '[]');
+  notifications.unshift({ message, timestamp: Date.now() });
+  localStorage.setItem('dashboard-notifications', JSON.stringify(notifications));
+  playNotificationSound();
+}
 
 const ROUTE_TITLE_MAP = {
   '/overview': 'OVERVIEW',
@@ -63,9 +88,17 @@ function positionDropdown(trigger, dropdown, options = {}) {
 export default function Header({ onToggleMobile }) {
   const location = useLocation();
   const activeTitle = ROUTE_TITLE_MAP[location.pathname] || 'OVERVIEW';
+  const { onSignOut } = useDashboard();
 
   // Live top bar clock state
   const [clockText, setClockText] = useState('');
+
+  // Notification state
+  const [isMuted, setIsMuted] = useState(() => localStorage.getItem('notifications-muted') === 'true');
+  const [notifications, setNotifications] = useState(() => {
+    const saved = localStorage.getItem('dashboard-notifications');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   useEffect(() => {
     function updateClock() {
@@ -143,6 +176,25 @@ export default function Header({ onToggleMobile }) {
     };
   }, [isNotifOpen, isProfileOpen]);
 
+  // Persist notifications to localStorage
+  useEffect(() => {
+    localStorage.setItem('dashboard-notifications', JSON.stringify(notifications));
+  }, [notifications]);
+
+  // Persist mute state to localStorage
+  useEffect(() => {
+    localStorage.setItem('notifications-muted', String(isMuted));
+  }, [isMuted]);
+
+  // Notification handlers
+  const handleToggleMute = () => {
+    setIsMuted(prev => !prev);
+  };
+
+  const handleClearAll = () => {
+    setNotifications([]);
+  };
+
   return (
     <>
     <div className="top-title-bar">
@@ -210,21 +262,47 @@ export default function Header({ onToggleMobile }) {
             <div className="dropdown-header">
               <span className="meta-label">NOTIFICATIONS</span>
               <div className="dropdown-header-actions">
-                <button className="mute-toggle-btn" id="muteToggleBtn" title="Mute notifications">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-                  </svg>
+                <button 
+                  className="mute-toggle-btn" 
+                  id="muteToggleBtn" 
+                  title={isMuted ? "Unmute notifications" : "Mute notifications"}
+                  onClick={handleToggleMute}
+                >
+                  {isMuted ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                      <line x1="23" y1="9" x2="17" y2="15" />
+                      <line x1="17" y1="9" x2="23" y2="15" />
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                    </svg>
+                  )}
                 </button>
-                <button className="btn-capsule clear-all-btn" id="clearNotifBtn">
+                <button 
+                  className="btn-capsule clear-all-btn" 
+                  id="clearNotifBtn"
+                  onClick={handleClearAll}
+                  disabled={notifications.length === 0}
+                >
                   Clear All
                 </button>
               </div>
             </div>
             <div className="notif-body" id="notifBody">
-              <div className="notif-empty" id="notifEmpty" style={{ display: 'block' }}>
-                <span className="meta-label">NO NEW NOTIFICATIONS</span>
-              </div>
+              {notifications.length === 0 ? (
+                <div className="notif-empty" id="notifEmpty" style={{ display: 'block' }}>
+                  <span className="meta-label">NO NEW NOTIFICATIONS</span>
+                </div>
+              ) : (
+                notifications.map((notif, idx) => (
+                  <div key={idx} className="notif-item">
+                    <span className="meta-label">{notif.message}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -389,9 +467,13 @@ export default function Header({ onToggleMobile }) {
             <button type="button" className="btn d"
               onClick={() => {
                 setShowSignOutModal(false);
-                // dispatch toast then reload, matching monolith lines 19633-19634
-                window.dispatchEvent(new CustomEvent('xa12:toast', { detail: { message: 'Signed out.' } }));
-                setTimeout(() => window.location.reload(), 400);
+                if (onSignOut) {
+                  onSignOut();
+                } else {
+                  // Fallback if no signOut prop provided
+                  window.dispatchEvent(new CustomEvent('xa12:toast', { detail: { message: 'Signed out.' } }));
+                  setTimeout(() => window.location.reload(), 400);
+                }
               }}>Sign Out</button>
           </div>
         </div>
