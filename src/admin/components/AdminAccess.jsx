@@ -232,11 +232,6 @@ export default function AdminAccess({ children }) {
   const [loadingStage, setLoadingStage] = useState(1);
   const [revision, setRevision] = useState(0);
 
-  // Pre-fetch AdminDashboard component chunk as soon as AdminAccess mounts
-  useEffect(() => {
-    import('../../components/AdminDashboard');
-  }, []);
-
   // Stage 1 -> Stage 2 smooth visual transition
   useEffect(() => {
     if (access.status !== 'loading') {

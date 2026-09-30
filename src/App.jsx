@@ -2,8 +2,8 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import Navigation from './components/Navigation';
 import DrawerMenu from './components/DrawerMenu';
 import SearchModal from './components/SearchModal';
-const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 import AdminAccess, { AdminLoadingFallback } from './admin/components/AdminAccess';
+import DashboardPlaceholder from './admin/components/DashboardPlaceholder';
 const AboutPage = lazy(() => import('./storefront/pages/AboutPage'));
 const CareersPage = lazy(() => import('./storefront/pages/CareersPage'));
 const CustomizePage = lazy(() => import('./storefront/pages/CustomizePage'));
@@ -21,9 +21,8 @@ import { pages, pageForPath } from './site/routes';
 
 export default function App() { return <Suspense fallback={null}><SiteApp /></Suspense>; }
 function SiteApp() {
-  // Pre-fetch storefront lazy route chunks and admin dashboard chunk immediately on mount for instant navigation
+  // Pre-fetch storefront lazy route chunks immediately on mount for instant navigation
   useEffect(() => {
-    import('./components/AdminDashboard');
     import('./storefront/pages/AboutPage');
     import('./storefront/pages/CareersPage');
     import('./storefront/pages/CustomizePage');
@@ -36,12 +35,6 @@ function SiteApp() {
 
   const returningFromPayment = new URLSearchParams(window.location.search).get('payment') === 'return';
   const [adminMode, setAdminMode] = useState(() => /^\/admin(?:\/login)?\/?$/.test(window.location.pathname));
-
-  useEffect(() => {
-    if (adminMode) {
-      import('./components/AdminDashboard');
-    }
-  }, [adminMode]);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [activeTab, updateActiveTab] = useState(() => returningFromPayment ? 'shop' : pageForPath(window.location.pathname));
   const setActiveTab = tab => { updateActiveTab(tab); if (pages[tab] && window.location.pathname !== pages[tab][0]) window.history.pushState({}, '', pages[tab][0]); };
@@ -157,7 +150,7 @@ function SiteApp() {
         <PageMetadata admin />
         <Suspense fallback={<AdminLoadingFallback message="Loading staff workspace…" />}>
           <AdminAccess>
-            {identity => <AdminDashboard staffIdentity={identity} onExit={() => { window.history.pushState({}, '', '/'); setAdminMode(false); }} />}
+            {identity => <DashboardPlaceholder />}
           </AdminAccess>
         </Suspense>
       </>
