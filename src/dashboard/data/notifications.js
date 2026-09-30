@@ -10,6 +10,7 @@ export async function listNotifications() {
   const { data, error } = await supabase
     .from('admin_notifications')
     .select('*')
+    .is('read_at', null)
     .order('created_at', { ascending: false })
     .limit(50);
 

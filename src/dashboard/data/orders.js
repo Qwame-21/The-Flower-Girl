@@ -1,6 +1,17 @@
 import { supabase } from '../../config/supabase';
 import { DASHBOARD_TO_DB_FULFILLMENT, DB_TO_DASHBOARD_FULFILLMENT, STEPPER_TO_EVENT_STAGE } from './statusMap';
 
+// Generate tracking number and order code matching paystack-init format
+function generateTrackingNumber() {
+  const timestamp = Date.now();
+  return `GF-${String(timestamp).slice(-6)}`;
+}
+
+function generateOrderCode() {
+  const timestamp = Date.now();
+  return `GF-${String(timestamp).slice(-6)}`;
+}
+
 // List all orders with items and events
 export async function listOrders() {
   if (!supabase) {
@@ -118,44 +129,62 @@ export async function createStaffOrder(orderData) {
     return null;
   }
 
-  // Use DB generator functions for tracking number and order code
-  const { data: trackingData } = await supabase.rpc('generate_tracking_number');
-  const { data: codeData } = await supabase.rpc('generate_order_code');
-  const trackingNumber = trackingData || `GF-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-  const orderCode = codeData || `GF-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
+  // Generate tracking number and order code with retry on unique violation
+  let order = null;
+  let lastError = null;
 
-  // Create order
-  const { data: order, error } = await supabase
-    .from('orders')
-    .insert({
-      tracking_number: trackingNumber,
-      order_code: orderCode,
-      customer_name: orderData.customerName,
-      customer_email: orderData.customerEmail || null,
-      customer_phone: orderData.customerPhone,
-      recipient_name: orderData.recipientName || orderData.customerName,
-      delivery_address: orderData.deliveryAddress,
-      landmark: orderData.landmark || null,
-      location_link: orderData.locationLink || null,
-      customer_note: orderData.customerNote || null,
-      card_message: orderData.cardMessage || null,
-      card_style: orderData.cardStyle || null,
-      requested_delivery_date: orderData.requestedDeliveryDate || null,
-      subtotal: orderData.subtotal,
-      total: orderData.total,
-      payment_provider: 'staff',
-      payment_reference: null,
-      payment_status: 'paid', // Staff orders are considered paid
-      fulfillment_status: 'packaging', // Start in packaging stage
-      estimated_delivery: orderData.estimatedDelivery || null,
-      admin_note: orderData.adminNote || null,
-      staff_order: true
-    })
-    .select()
-    .single();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const trackingNumber = generateTrackingNumber();
+    const orderCode = generateOrderCode();
 
-  if (error) {
-    console.error('Error creating staff order:', error);
+    const { data: insertedOrder, error } = await supabase
+      .from('orders')
+      .insert({
+        tracking_number: trackingNumber,
+        order_code: orderCode,
+        customer_name: orderData.customerName,
+        customer_email: orderData.customerEmail || null,
+        customer_phone: orderData.customerPhone,
+        recipient_name: orderData.recipientName || orderData.customerName,
+        delivery_address: orderData.deliveryAddress,
+        landmark: orderData.landmark || null,
+        location_link: orderData.locationLink || null,
+        customer_note: orderData.customerNote || null,
+        card_message: orderData.cardMessage || null,
+        card_style: orderData.cardStyle || null,
+        requested_delivery_date: orderData.requestedDeliveryDate || null,
+        subtotal: orderData.subtotal,
+        total: orderData.total,
+        payment_provider: 'staff',
+        payment_reference: null,
+        payment_status: 'paid', // Staff orders are considered paid
+        fulfillment_status: 'packaging', // Start in packaging stage
+        estimated_delivery: orderData.estimatedDelivery || null,
+        admin_note: orderData.adminNote || null,
+        staff_order: true
+      })
+      .select()
+      .single();
+
+    if (!error) {
+      order = insertedOrder;
+      break;
+    }
+
+    lastError = error;
+    // Check if it's a unique violation - if so, retry with new values
+    if (error.code === '23505' || error.message.includes('unique')) {
+      console.warn(`Unique violation on attempt ${attempt + 1}, retrying...`);
+      // Small delay to avoid timestamp collision
+      await new Promise(resolve => setTimeout(resolve, 10));
+      continue;
+    }
+    // If it's not a unique violation, don't retry
+    break;
+  }
+
+  if (!order) {
+    console.error('Error creating staff order after retries:', lastError);
     return null;
   }
 

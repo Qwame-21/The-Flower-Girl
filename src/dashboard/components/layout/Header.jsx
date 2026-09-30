@@ -407,7 +407,7 @@ export default function Header({ onToggleMobile }) {
               ) : (
                 notifications.map((notif, idx) => (
                   <div key={idx} className="notif-item">
-                    <span className="meta-label">{notif.message}</span>
+                    <span className="meta-label">{notif.title}</span>
                   </div>
                 ))
               )}

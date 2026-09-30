@@ -1,13 +1,10 @@
 // src/pages/CustomersPage.jsx
 // Ported 1-for-1 from admin-monolith.html renderCustomersView() (lines 22244–22470)
-// Storage key: 'xa12-customers-data-v1'
 
 import { useState, useEffect } from 'react';
 import { formatGHS } from '../lib/ordersModel';
 import { listOrders } from '../data/orders';
 import CustomDropdown from '../components/shared/CustomDropdown';
-
-const CUSTOMERS_KEY = 'xa12-customers-data-v1';
 
 // ── SVG Icons matching monolith lines 18462–18464 ─────────────────────────────
 const SVG_ICONS = {
@@ -35,17 +32,6 @@ function showToast(msg) {
 
 // ── Load Customers ── (Monolith lines 21853–21860)
 function loadCustomersData(orders) {
-  let overridesMap = {};
-  try {
-    const stored = localStorage.getItem(CUSTOMERS_KEY);
-    if (stored) {
-      const arr = JSON.parse(stored);
-      if (Array.isArray(arr)) {
-        arr.forEach(c => { overridesMap[c.id || c.email || c.phone] = c; });
-      }
-    }
-  } catch {}
-
   const customerGroupMap = new Map();
 
   orders.forEach(ord => {
@@ -59,8 +45,6 @@ function loadCustomersData(orders) {
         orderCount: 0,
         totalSpend: 0,
         lastOrderDate: ord.orderDate ? ord.orderDate.split('T')[0] : 'N/A',
-        isVip: false,
-        notes: '',
         orderHistory: []
       });
     }
@@ -77,20 +61,7 @@ function loadCustomersData(orders) {
     }
   });
 
-  return Array.from(customerGroupMap.values()).map(c => {
-    const ov = overridesMap[c.id] || overridesMap[c.email] || overridesMap[c.phone] || {};
-    return {
-      ...c,
-      isVip: Boolean(ov.isVip),
-      notes: ov.notes || ''
-    };
-  });
-}
-
-function saveCustomersData(list) {
-  try {
-    localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(list));
-  } catch {}
+  return Array.from(customerGroupMap.values());
 }
 
 export default function CustomersPage() {
@@ -98,7 +69,6 @@ export default function CustomersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [vipFilter, setVipFilter] = useState('all'); // 'all' | 'vip'
   const [activeCustomer, setActiveCustomer] = useState(null);
 
   // Load orders from Supabase on mount
@@ -112,17 +82,9 @@ export default function CustomersPage() {
     }
     loadOrders();
   }, []);
-  const [notesInput, setNotesInput] = useState('');
-
-  useEffect(() => {
-    if (activeCustomer) {
-      setNotesInput(activeCustomer.notes || '');
-    }
-  }, [activeCustomer]);
 
   // Filter customers (Monolith lines 22245–22255)
   const filteredCustomers = customers.filter(c => {
-    if (vipFilter === 'vip' && !c.isVip) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const matchName = (c.name || '').toLowerCase().includes(q);
@@ -132,30 +94,6 @@ export default function CustomersPage() {
     }
     return true;
   });
-
-  // Toggle VIP (Monolith lines 22444–22452)
-  function handleToggleVip() {
-    if (!activeCustomer) return;
-    const updatedIsVip = !activeCustomer.isVip;
-    const updatedList = customers.map(c =>
-      c.id === activeCustomer.id ? { ...c, isVip: updatedIsVip } : c
-    );
-    saveCustomersData(updatedList);
-    setCustomers(updatedList);
-    setActiveCustomer(prev => (prev ? { ...prev, isVip: updatedIsVip } : null));
-  }
-
-  // Save Notes (Monolith lines 22454–22464)
-  function handleSaveNotes() {
-    if (!activeCustomer) return;
-    const updatedList = customers.map(c =>
-      c.id === activeCustomer.id ? { ...c, notes: notesInput } : c
-    );
-    saveCustomersData(updatedList);
-    setCustomers(updatedList);
-    setActiveCustomer(prev => (prev ? { ...prev, notes: notesInput } : null));
-    showToast('Staff notes saved successfully!');
-  }
 
   return (
     <div className="page-container">
@@ -176,17 +114,6 @@ export default function CustomersPage() {
               placeholder="Search by name, email, phone..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-            />
-          </div>
-          {/* Custom Dropdown for VIP filter — Monolith lines 22269 & 22348–22360 */}
-          <div id="vipFilterDropdownContainer">
-            <CustomDropdown
-              options={[
-                { value: 'all', label: 'All Customers' },
-                { value: 'vip', label: 'VIP Only' }
-              ]}
-              value={vipFilter}
-              onChange={setVipFilter}
             />
           </div>
         </div>
@@ -212,7 +139,6 @@ export default function CustomersPage() {
                 <tr key={c.id} className="customer-row" data-id={c.id} onClick={() => setActiveCustomer(c)}>
                   <td style={{ fontWeight: 600 }}>
                     {c.name}
-                    {c.isVip && <span className="vip-tag">VIP</span>}
                   </td>
                   <td style={{ color: 'var(--text-muted)' }}>{c.email}</td>
                   <td>{c.phone}</td>
@@ -270,7 +196,7 @@ export default function CustomersPage() {
             <div className="drawer-header">
               <div>
                 <h3 id="drawerCustName" style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
-                  {activeCustomer.name} {activeCustomer.isVip && <span className="vip-tag">VIP</span>}
+                  {activeCustomer.name}
                 </h3>
                 <span id="drawerCustSub" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                   {activeCustomer.email} • {activeCustomer.phone}
@@ -288,45 +214,12 @@ export default function CustomersPage() {
             </div>
 
             <div className="drawer-body" id="drawerBody">
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <span className="drawer-section-title">LIFETIME SPEND</span>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '18px', fontWeight: 700, color: '#1a1a1a' }}>
-                    GHS {activeCustomer.totalSpend.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </p>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{activeCustomer.orderCount} total orders</span>
-                </div>
-
-                <button
-                  type="button"
-                  className={`btn-capsule ${activeCustomer.isVip ? 'active-flag' : ''}`}
-                  id="toggleVipBtn"
-                  onClick={handleToggleVip}
-                >
-                  {activeCustomer.isVip ? 'VIP Status Active' : 'Mark as VIP'}
-                </button>
-              </div>
-
               <div>
-                <span className="drawer-section-title">STAFF NOTES</span>
-                <textarea
-                  className="notes-textarea"
-                  id="custNotesInput"
-                  placeholder="Add confidential customer preferences or delivery instructions..."
-                  value={notesInput}
-                  onChange={e => setNotesInput(e.target.value)}
-                />
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
-                  <button
-                    type="button"
-                    className="btn-capsule"
-                    id="saveNotesBtn"
-                    style={{ background: '#1a1a1a', color: '#fff' }}
-                    onClick={handleSaveNotes}
-                  >
-                    Save Notes
-                  </button>
-                </div>
+                <span className="drawer-section-title">LIFETIME SPEND</span>
+                <p style={{ margin: '4px 0 0 0', fontSize: '18px', fontWeight: 700, color: '#1a1a1a' }}>
+                  GHS {activeCustomer.totalSpend.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </p>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{activeCustomer.orderCount} total orders</span>
               </div>
 
               <div>
