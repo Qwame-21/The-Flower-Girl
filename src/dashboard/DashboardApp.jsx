@@ -1,5 +1,5 @@
 // App.jsx — Stage 2: Layout shell integrated with page stubs
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 
 // Page stubs
@@ -18,7 +18,7 @@ import CareersPage    from './pages/CareersPage';
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Navigate to="/overview" replace />} />
@@ -37,6 +37,6 @@ export default function App() {
           <Route path="*" element={<Navigate to="/overview" replace />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }

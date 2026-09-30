@@ -3,7 +3,6 @@ import Navigation from './components/Navigation';
 import DrawerMenu from './components/DrawerMenu';
 import SearchModal from './components/SearchModal';
 import AdminAccess, { AdminLoadingFallback } from './admin/components/AdminAccess';
-import DashboardPlaceholder from './admin/components/DashboardPlaceholder';
 const AboutPage = lazy(() => import('./storefront/pages/AboutPage'));
 const CareersPage = lazy(() => import('./storefront/pages/CareersPage'));
 const CustomizePage = lazy(() => import('./storefront/pages/CustomizePage'));
@@ -18,6 +17,9 @@ import HomePage from './storefront/home/HomePage';
 
 import PageMetadata from './site/PageMetadata';
 import { pages, pageForPath } from './site/routes';
+
+// Lazy load dashboard
+const DashboardEntry = lazy(() => import('./dashboard/DashboardEntry'));
 
 export default function App() { return <Suspense fallback={null}><SiteApp /></Suspense>; }
 function SiteApp() {
@@ -150,7 +152,11 @@ function SiteApp() {
         <PageMetadata admin />
         <Suspense fallback={<AdminLoadingFallback message="Loading staff workspace…" />}>
           <AdminAccess>
-            {identity => <DashboardPlaceholder />}
+            {identity => (
+              <Suspense fallback={<AdminLoadingFallback message="Loading dashboard…" />}>
+                <DashboardEntry />
+              </Suspense>
+            )}
           </AdminAccess>
         </Suspense>
       </>

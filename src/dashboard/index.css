@@ -120,16 +120,16 @@
   --z-tooltip: 3000;
 }
 
-/* Reset & Box Sizing */
-*, *::before, *::after {
+/* Reset & Box Sizing - Scoped to dashboard container */
+.dashboard-viewport *, .dashboard-viewport *::before, .dashboard-viewport *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-html, body {
+.dashboard-viewport {
   width: 100%;
-  height: 100%;
+  height: 100vh;
   font-family: var(--font-family-base);
   background-color: var(--bg-gradient-start);
   color: var(--text-primary);
