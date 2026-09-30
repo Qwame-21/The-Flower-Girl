@@ -228,16 +228,20 @@ export default function LogPage() {
 
   // ── Reopen Order Action ── (Monolith lines 24745–24776)
   const handleReopenOrder = async (orderId) => {
-    // This would need a Supabase update call
-    // For now, just refresh from Supabase
-    const refreshedOrders = await listOrders();
-    setOrders(refreshedOrders);
-    setExpandedOrderIds(prev => {
-      const next = new Set(prev);
-      next.delete(orderId);
-      return next;
-    });
-    showToast(`Order #${orderId} reopen not yet implemented via Supabase.`);
+    // Reopen order: change status from 'completed' to 'delivery' (dispatched)
+    const success = await updateOrderStatus(orderId, 'dispatched', 'Order reopened from delivery history');
+    if (success) {
+      const refreshedOrders = await listOrders();
+      setOrders(refreshedOrders);
+      setExpandedOrderIds(prev => {
+        const next = new Set(prev);
+        next.delete(orderId);
+        return next;
+      });
+      showToast('Order reopened successfully.');
+    } else {
+      showToast('Failed to reopen order.');
+    }
   };
 
   // ── Export CSV ── (Monolith lines 24620–24644)

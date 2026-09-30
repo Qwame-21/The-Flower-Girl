@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatGHS, CATEGORY_MAP } from '../lib/ordersModel';
 import { listOrders } from '../data/orders';
+import { getInventorySummary } from '../data/products';
 
 // SVG Icons matching monolith
 const SVG = {
@@ -426,6 +427,7 @@ export default function OverviewPage() {
   const [deliveryFilter, setDeliveryFilter] = useState('all');
 
   const [orders, setOrders] = useState([]);
+  const [inventory, setInventory] = useState({ healthy: 0, low: 0, out: 0, products: [] });
   const [loading, setLoading] = useState(true);
 
   // Load orders from Supabase on mount
@@ -437,6 +439,15 @@ export default function OverviewPage() {
       setLoading(false);
     }
     loadOrders();
+  }, []);
+
+  // Load inventory from Supabase on mount
+  useEffect(() => {
+    async function loadInventory() {
+      const invData = await getInventorySummary();
+      setInventory(invData);
+    }
+    loadInventory();
   }, []);
 
   // Compute stats from real orders
@@ -504,13 +515,13 @@ export default function OverviewPage() {
     pending: { key: 'pending', label: 'Pending Payment', value: orders.filter(o => o.paymentStatus === 'pending' && o.fulfillmentStatus !== 'cancelled').length, color: 'var(--chart-bad, #B9645C)' }
   };
 
-  // Inventory data - derived from products (not orders)
-  // For now, show empty since we're not connecting to products table
+  // Inventory data - derived from products table
   const inventoryData = {
-    healthy: { key: 'healthy', label: 'In Stock', value: 0, color: 'var(--chart-good, #5E9470)' },
-    low: { key: 'low', label: 'Low Stock', value: 0, color: 'var(--chart-progress, #D0A24A)' },
-    out: { key: 'out', label: 'Out of Stock', value: 0, color: 'var(--chart-bad, #B9645C)' }
+    healthy: { key: 'healthy', label: 'In Stock', value: inventory.healthy, color: 'var(--chart-good, #5E9470)' },
+    low: { key: 'low', label: 'Low Stock', value: inventory.low, color: 'var(--chart-progress, #D0A24A)' },
+    out: { key: 'out', label: 'Out of Stock', value: inventory.out, color: 'var(--chart-bad, #B9645C)' }
   };
+  const totalProducts = inventory.healthy + inventory.low + inventory.out;
 
   // Delivery data - derived from orders
   const deliveredOrders = orders.filter(o => o.fulfillmentStatus === 'delivered');
@@ -769,20 +780,29 @@ export default function OverviewPage() {
         />
 
         {/* Inventory Health Ring */}
-        <DonutRingCard
-          title="Inventory Health"
-          icon={SVG.package}
-          totalLabel="Now (Total Products)"
-          type="inventory"
-          filter={inventoryFilter}
-          onFilterChange={setInventoryFilter}
-          filterOptions={[
-            { val: 'all', label: 'All' },
-            { val: 'low', label: 'Low' },
-            { val: 'out', label: 'Out' }
-          ]}
-          data={inventoryData}
-        />
+        {totalProducts > 0 ? (
+          <DonutRingCard
+            title="Inventory Health"
+            icon={SVG.package}
+            totalLabel="Now (Total Products)"
+            type="inventory"
+            filter={inventoryFilter}
+            onFilterChange={setInventoryFilter}
+            filterOptions={[
+              { val: 'all', label: 'All' },
+              { val: 'low', label: 'Low' },
+              { val: 'out', label: 'Out' }
+            ]}
+            data={inventoryData}
+          />
+        ) : (
+          <div className="overview-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '200px' }}>
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px' }}>No inventory data</div>
+              <div style={{ fontSize: '12px' }}>Products table is empty or not connected</div>
+            </div>
+          </div>
+        )}
 
         {/* Delivery Status Ring */}
         <DonutRingCard

@@ -1,7 +1,7 @@
 import { useState, useEffect, useTransition } from 'react';
 import CustomDropdown from '../components/shared/CustomDropdown';
 import { ORDER_CATEGORIES, formatGHS } from '../lib/ordersModel';
-import { listOrders, updateOrderStatus, deleteOrder } from '../data/orders';
+import { listOrders, updateOrderStatus, deleteOrder, updateOrderNote } from '../data/orders';
 import { supabase } from '../../config/supabase';
 import { DASHBOARD_TO_DB_FULFILLMENT, DB_TO_DASHBOARD_FULFILLMENT, STEPPER_TO_EVENT_STAGE } from '../data/statusMap';
 
@@ -235,10 +235,6 @@ export default function OrdersPage() {
 
   const handleSaveNote = async (order) => {
     const draft = panelDrafts[order.id] || {};
-    // Note: For now, admin notes are stored in Supabase orders.admin_note
-    // We would need to add a separate API call for this
-    // For now, we'll skip the Supabase update and just keep it local
-    // TODO: Add updateOrderNote() to orders.js
     const nextOrders = ordersList.map(o => {
       if (o.id !== order.id) return o;
       const updated = { ...o };
@@ -257,7 +253,11 @@ export default function OrdersPage() {
       return updated;
     });
     setOrdersList(nextOrders);
-    // TODO: Call Supabase update when function is available
+
+    // Update admin note in Supabase
+    if (draft.note !== undefined) {
+      await updateOrderNote(order.id, draft.note);
+    }
   };
 
   // Stats helpers

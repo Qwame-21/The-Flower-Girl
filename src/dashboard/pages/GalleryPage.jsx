@@ -1,33 +1,102 @@
 // src/pages/GalleryPage.jsx
-// Ported 1-for-1 from admin-monolith.html renderGalleryView() (lines 25151–25272)
-// galleryItems is session-only (in-memory) — monolith never persists it to localStorage.
+// Admin gallery manager with storefront gallery display and Supabase uploaded photos
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { readAdminData, subscribeAdminData } from '../../data/adminStore';
+import { supabase } from '../../config/supabase';
+import CustomDropdown from '../components/shared/CustomDropdown';
 
-// ── seed data: exact 4 items from monolith line 22617–22621 ──────────────────
-const SEED_ITEMS = [
-  { id: 'GAL-01', title: 'Elysian Bridal Arch',              category: 'Weddings',             date: '2026-09-10', featured: true,  image: 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=600&auto=format&fit=crop&q=80' },
-  { id: 'GAL-02', title: 'Velvet Rose Executive Box',         category: 'Corporate Gifting',    date: '2026-09-08', featured: true,  image: 'https://images.unsplash.com/photo-1563241527-3004b7be0ffd?w=600&auto=format&fit=crop&q=80' },
-  { id: 'GAL-03', title: 'Golden Hour Sunflower Arrangement', category: 'Everyday Arrangements',date: '2026-09-05', featured: false, image: 'https://images.unsplash.com/photo-1526047932273-341f2a7631f9?w=600&auto=format&fit=crop&q=80' },
-  { id: 'GAL-04', title: 'White Orchid Sympathy Wreath',      category: 'Sympathy',             date: '2026-09-02', featured: true,  image: 'https://images.unsplash.com/photo-1582794543139-8ac9cb0f7b11?w=600&auto=format&fit=crop&q=80' },
-];
-
-const FALLBACK_IMG = 'https://images.unsplash.com/photo-1508610048659-a06b669e3321?w=600&auto=format&fit=crop&q=80';
-
-// ── toast helper (uses the xa12:toast event App.jsx listens to) ───────────────
+// Toast helper
 function showToast(msg) {
   window.dispatchEvent(new CustomEvent('xa12:toast', { detail: { message: msg } }));
 }
 
-// ── Add Photo modal ───────────────────────────────────────────────────────────
-function AddPhotoModal({ onCancel, onSubmit }) {
-  const [title,    setTitle]    = useState('');
-  const [category, setCategory] = useState('');
-  const [url,      setUrl]      = useState('');
+// Category options from storefront products
+const CATEGORY_OPTIONS = [
+  { value: 'hampers', label: 'Hampers' },
+  { value: 'flowers', label: 'Flowers' },
+  { value: 'care', label: 'Care' },
+  { value: 'personalized', label: 'Personalized' },
+  { value: 'bundles', label: 'Bundles' },
+  { value: 'Other', label: 'Other' }
+];
 
-  function handleSubmit() {
-    if (!title.trim()) { showToast('Photo title is required.'); return; }
-    onSubmit({ title: title.trim(), category: category.trim(), url: url.trim() });
+// Add Photo modal with file upload
+function AddPhotoModal({ onCancel, onSubmit }) {
+  const [title, setTitle] = useState('');
+  const [category, setCategory] = useState('');
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  function handleFileChange(e) {
+    const selected = e.target.files[0];
+    if (!selected) return;
+
+    // Validate file type
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(selected.type)) {
+      setError('Only JPEG, PNG, and WebP images are allowed');
+      setFile(null);
+      setPreview(null);
+      return;
+    }
+
+    // Validate file size (5 MB max)
+    if (selected.size > 5 * 1024 * 1024) {
+      setError('File size must be less than 5 MB');
+      setFile(null);
+      setPreview(null);
+      return;
+    }
+
+    setError('');
+    setFile(selected);
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => setPreview(e.target.result);
+    reader.readAsDataURL(selected);
+  }
+
+  function handleClearFile() {
+    setFile(null);
+    setPreview(null);
+    setError('');
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (loading) return;
+
+    if (!title.trim()) {
+      setError('Title is required');
+      return;
+    }
+    if (!category) {
+      setError('Category is required');
+      return;
+    }
+    if (!file) {
+      setError('Please select an image');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      await onSubmit({ title: title.trim(), category, file });
+      setTitle('');
+      setCategory('');
+      setFile(null);
+      setPreview(null);
+      onCancel();
+    } catch (err) {
+      setError(err.message || 'Failed to upload photo');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -37,35 +106,124 @@ function AddPhotoModal({ onCancel, onSubmit }) {
     }}>
       <div style={{
         background: '#ffffff', borderRadius: '16px', padding: '24px',
-        maxWidth: '440px', width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+        maxWidth: '480px', width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
       }}>
         <div style={{ marginBottom: '16px' }}>
           <div style={{ fontSize: '18px', fontWeight: 700 }}>Add Photo to Gallery</div>
-          <div style={{ fontSize: '12px', color: 'var(--mute,#747471)', marginTop: '2px' }}>Enter photo title and image URL.</div>
-        </div>
-        {[
-          { label: 'Photo Title',  val: title,    set: setTitle,    ph: 'e.g. Grand Reception Showcase', type: 'text' },
-          { label: 'Category',     val: category, set: setCategory, ph: 'e.g. Weddings', type: 'text' },
-          { label: 'Image URL',    val: url,       set: setUrl,     ph: 'https://...', type: 'url'  },
-        ].map(({ label, val, set, ph, type }) => (
-          <div key={label} style={{ marginBottom: '14px' }}>
-            <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
-              color: 'var(--mute,#747471)', display: 'block', marginBottom: '6px' }}>{label}</label>
-            <input type={type} value={val} onChange={e => set(e.target.value)} placeholder={ph}
-              style={{ width: '100%', border: '0', borderBottom: '1.5px solid rgba(28,28,27,.15)',
-                background: 'transparent', font: '500 14px Outfit, system-ui', padding: '6px 0', outline: 0, boxSizing: 'border-box' }} />
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+            Upload a photo to the gallery (JPEG, PNG, WebP, max 5 MB)
           </div>
-        ))}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-          <button type="button" className="btn" onClick={onCancel}>Cancel</button>
-          <button type="button" className="btn p" onClick={handleSubmit}>Add Photo</button>
         </div>
+
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
+              color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Title *</label>
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="e.g. Grand Reception Showcase"
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid rgba(26,26,26,0.14)',
+                borderRadius: '8px', fontSize: '14px', outline: 0, boxSizing: 'border-box' }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
+              color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Category *</label>
+            <CustomDropdown
+              options={CATEGORY_OPTIONS}
+              value={category}
+              onChange={setCategory}
+            />
+          </div>
+
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
+              color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Image *</label>
+            {!preview ? (
+              <button
+                type="button"
+                onClick={() => document.getElementById('gallery-file-input').click()}
+                style={{
+                  width: '100%', padding: '12px', border: '2px dashed rgba(26,26,26,0.2)',
+                  borderRadius: '8px', background: 'rgba(26,26,26,0.02)', cursor: 'pointer',
+                  fontSize: '13px', color: 'var(--text-muted)', transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.target.style.borderColor = 'rgba(26,26,26,0.4)'}
+                onMouseLeave={(e) => e.target.style.borderColor = 'rgba(26,26,26,0.2)'}
+              >
+                Choose image
+              </button>
+            ) : (
+              <div style={{ position: 'relative' }}>
+                <img
+                  src={preview}
+                  alt="Preview"
+                  style={{ width: '100%', maxHeight: '200px', objectFit: 'contain',
+                    borderRadius: '8px', border: '1px solid rgba(26,26,26,0.1)' }}
+                />
+                <button
+                  type="button"
+                  onClick={handleClearFile}
+                  style={{
+                    position: 'absolute', top: '8px', right: '8px',
+                    width: '28px', height: '28px', borderRadius: '50%',
+                    background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+            <input
+              id="gallery-file-input"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
+            />
+          </div>
+
+          {error && (
+            <div style={{ fontSize: '12px', color: '#dc2626', marginBottom: '14px' }}>
+              {error}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={loading}
+              style={{
+                padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(26,26,26,0.14)',
+                background: 'transparent', cursor: 'pointer', fontSize: '13px'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                padding: '8px 16px', borderRadius: '8px', border: 'none',
+                background: '#1a1a1a', color: '#fff', cursor: 'pointer', fontSize: '13px',
+                opacity: loading ? 0.6 : 1
+              }}
+            >
+              {loading ? 'Uploading...' : 'Save'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
 }
 
-// ── Delete confirm modal ──────────────────────────────────────────────────────
+// Delete confirm modal
 function DeleteModal({ item, onCancel, onConfirm }) {
   return (
     <div style={{
@@ -77,78 +235,137 @@ function DeleteModal({ item, onCancel, onConfirm }) {
         maxWidth: '400px', width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
       }}>
         <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600 }}>Delete Photo</h3>
-        <p style={{ fontSize: '13px', color: 'var(--mute,#747471)', margin: '0 0 16px 0' }}>
-          Are you sure you want to remove &ldquo;{item.title || 'this photo'}&rdquo; from the gallery?
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 16px 0' }}>
+          Are you sure you want to remove &ldquo;{item.label || 'this photo'}&rdquo; from the gallery?
         </p>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-          <button type="button" className="btn" onClick={onCancel}>Cancel</button>
-          <button type="button" className="btn d" onClick={onConfirm}>Delete</button>
+          <button type="button" className="btn" onClick={onCancel}>No</button>
+          <button type="button" className="btn d" onClick={onConfirm}>Yes</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Main GalleryPage ──────────────────────────────────────────────────────────
 export default function GalleryPage() {
-  const [items,       setItems]       = useState(SEED_ITEMS);
+  const [storefrontGallery, setStorefrontGallery] = useState([]);
+  const [uploadedPhotos, setUploadedPhotos] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null); // item to delete
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
-  // ── Featured toggle ─────────────────────────────────────────────────────────
-  // monolith lines 25222-25228: toggles item.featured in-place
-  function handleFeaturedChange(id, checked) {
-    setItems(prev => prev.map(item => item.id === id ? { ...item, featured: checked } : item));
-  }
-
-  // ── Move up ──────────────────────────────────────────────────────────────────
-  // monolith lines 25230-25238: swap idx-1 and idx
-  function handleMoveUp(id) {
-    setItems(prev => {
-      const idx = prev.findIndex(g => g.id === id);
-      if (idx <= 0) return prev;
-      const next = [...prev];
-      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
-      return next;
+  // Load storefront gallery from adminStore (read-only)
+  useEffect(() => {
+    const data = readAdminData();
+    setStorefrontGallery(data.gallery || []);
+    const unsubscribe = subscribeAdminData((newData) => {
+      setStorefrontGallery(newData.gallery || []);
     });
-  }
+    return unsubscribe;
+  }, []);
 
-  // ── Move down ────────────────────────────────────────────────────────────────
-  // monolith lines 25241-25249: swap idx and idx+1
-  function handleMoveDown(id) {
-    setItems(prev => {
-      const idx = prev.findIndex(g => g.id === id);
-      if (idx < 0 || idx >= prev.length - 1) return prev;
-      const next = [...prev];
-      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
-      return next;
-    });
-  }
+  // Load uploaded photos from Supabase
+  useEffect(() => {
+    async function loadUploadedPhotos() {
+      if (!supabase) {
+        setLoading(false);
+        return;
+      }
 
-  // ── Delete confirmed ─────────────────────────────────────────────────────────
-  // monolith lines 25252-25271: remove by id, toast
-  function handleDeleteConfirmed() {
-    if (!deleteTarget) return;
-    setItems(prev => prev.filter(g => g.id !== deleteTarget.id));
-    showToast('Photo removed from gallery.');
-    setDeleteTarget(null);
-  }
+      const { data, error } = await supabase
+        .from('gallery_items')
+        .select('*')
+        .order('sort_order', { ascending: true });
 
-  // ── Add photo submitted ───────────────────────────────────────────────────────
-  // monolith lines 25201-25216: push new item with generated id, toast, re-render
-  function handleAddPhoto({ title, category, url }) {
-    const today = new Date().toISOString().slice(0, 10);
-    const newItem = {
-      id: 'GAL-' + String(items.length + 1).padStart(2, '0'),
-      title,
-      category,
-      date: today,
-      featured: false,
-      image: url || '',
-    };
-    setItems(prev => [...prev, newItem]);
+      if (error) {
+        console.error('Error loading gallery items:', error);
+      } else {
+        setUploadedPhotos(data || []);
+      }
+      setLoading(false);
+    }
+
+    loadUploadedPhotos();
+  }, []);
+
+  // Handle add photo upload
+  async function handleAddPhoto({ title, category, file }) {
+    if (!supabase) {
+      throw new Error('Supabase not configured');
+    }
+
+    // Generate unique filename
+    const ext = file.name.split('.').pop();
+    const filename = `${crypto.randomUUID()}.${ext}`;
+    const filePath = `gallery/${filename}`;
+
+    // Upload to storage
+    const { error: uploadError } = await supabase
+      .storage
+      .from('storefront-media')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      throw new Error(`Upload failed: ${uploadError.message}`);
+    }
+
+    // Get max sort_order
+    const maxSort = uploadedPhotos.length > 0
+      ? Math.max(...uploadedPhotos.map(p => p.sort_order || 0))
+      : 0;
+
+    // Insert into gallery_items
+    const { error: insertError } = await supabase
+      .from('gallery_items')
+      .insert({
+        image_path: filePath,
+        label: title,
+        category,
+        visible: true,
+        sort_order: maxSort + 1
+      });
+
+    if (insertError) {
+      throw new Error(`Database insert failed: ${insertError.message}`);
+    }
+
+    // Reload photos
+    const { data } = await supabase
+      .from('gallery_items')
+      .select('*')
+      .order('sort_order', { ascending: true });
+
+    setUploadedPhotos(data || []);
     showToast('Photo added to gallery!');
-    setShowAddModal(false);
+  }
+
+  // Handle delete photo
+  async function handleDeleteConfirmed() {
+    if (!deleteTarget || !supabase) return;
+
+    // Delete from storage
+    if (deleteTarget.image_path) {
+      await supabase
+        .storage
+        .from('storefront-media')
+        .remove([deleteTarget.image_path]);
+    }
+
+    // Delete from database
+    const { error } = await supabase
+      .from('gallery_items')
+      .delete()
+      .eq('id', deleteTarget.id);
+
+    if (error) {
+      console.error('Error deleting photo:', error);
+      showToast('Failed to delete photo');
+    } else {
+      setUploadedPhotos(prev => prev.filter(p => p.id !== deleteTarget.id));
+      showToast('Photo removed from gallery.');
+    }
+
+    setDeleteTarget(null);
   }
 
   return (
@@ -157,12 +374,11 @@ export default function GalleryPage() {
       <div className="page-header-row">
         <div className="page-title-group">
           <h2>Gallery &amp; Showcase Manager</h2>
-          <p>Organize portfolio photography and feature highlights.</p>
+          <p>Manage storefront gallery and uploaded photos.</p>
         </div>
         <div className="header-actions">
           <button className="xp-pill xp-solid" id="addPhotoBtn" type="button"
             onClick={() => setShowAddModal(true)}>
-            {/* Plus SVG matching monolith SVG_ICONS.plus */}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -172,72 +388,89 @@ export default function GalleryPage() {
         </div>
       </div>
 
-      {/* Gallery showcase grid */}
-      <div className="gallery-showcase">
-        {items.map((item, idx) => (
-          <div key={item.id} className="gallery-item" data-id={item.id}>
-            <img
-              src={item.image || FALLBACK_IMG}
-              className="gallery-image"
-              alt={item.title || ''}
-              onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = FALLBACK_IMG; }}
-            />
-            <div className="gallery-caption">— {(item.title || 'UNTITLED').toUpperCase()}</div>
-            <hr className="gallery-divider" />
-            <div className="gallery-actions">
-              {/* Featured checkbox — monolith lines 25173-25176 */}
-              <label className="gal-featured-label" title="Featured photo">
-                <input
-                  type="checkbox"
-                  className="gal-featured-toggle"
-                  data-id={item.id}
-                  checked={item.featured}
-                  onChange={e => handleFeaturedChange(item.id, e.target.checked)}
+      {/* Storefront gallery section (read-only) */}
+      <div style={{ marginBottom: '32px' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>Storefront gallery</h3>
+        {storefrontGallery.length > 0 ? (
+          <div className="gallery-showcase">
+            {storefrontGallery.map((item) => (
+              <div key={item.id} className="gallery-item" data-id={item.id}>
+                <img
+                  src={item.src}
+                  className="gallery-image"
+                  alt={item.label || ''}
                 />
-                <span>Featured</span>
-              </label>
-              {/* Up / Down / Delete — monolith lines 25177-25181 */}
-              <div className="gal-btn-group">
-                <button
-                  className="btn-icon-action gal-up-btn"
-                  data-id={item.id}
-                  title="Move up"
-                  type="button"
-                  disabled={idx === 0}
-                  onClick={() => handleMoveUp(item.id)}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
-                  </svg>
-                </button>
-                <button
-                  className="btn-icon-action gal-down-btn"
-                  data-id={item.id}
-                  title="Move down"
-                  type="button"
-                  disabled={idx === items.length - 1}
-                  onClick={() => handleMoveDown(item.id)}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
-                  </svg>
-                </button>
-                <button
-                  className="btn-icon-action gal-del-btn"
-                  data-id={item.id}
-                  title="Delete photo"
-                  type="button"
-                  onClick={() => setDeleteTarget(item)}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6"/>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                  </svg>
-                </button>
+                <div className="gallery-caption">— {(item.label || 'UNTITLED').toUpperCase()}</div>
+                <hr className="gallery-divider" />
+                <div className="gallery-actions">
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Read-only (managed in storefront)
+                  </span>
+                </div>
               </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            background: 'var(--card-bg, #f2f1ef)', borderRadius: '12px',
+            border: '1px solid rgba(26,26,26,0.08)', padding: '48px', textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>
+              No storefront gallery photos
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Storefront gallery is empty
             </div>
           </div>
-        ))}
+        )}
+      </div>
+
+      {/* Uploaded photos section */}
+      <div>
+        <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>Uploaded photos</h3>
+        {uploadedPhotos.length > 0 ? (
+          <div className="gallery-showcase">
+            {uploadedPhotos.map((item) => (
+              <div key={item.id} className="gallery-item" data-id={item.id}>
+                <img
+                  src={`${supabase.storage.from('storefront-media').getPublicUrl(item.image_path)}`}
+                  className="gallery-image"
+                  alt={item.label || ''}
+                />
+                <div className="gallery-caption">— {(item.label || 'UNTITLED').toUpperCase()}</div>
+                <hr className="gallery-divider" />
+                <div className="gallery-actions">
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: 'auto' }}>
+                    {item.category || 'Uncategorized'}
+                  </span>
+                  <button
+                    className="btn-icon-action gal-del-btn"
+                    title="Delete photo"
+                    type="button"
+                    onClick={() => setDeleteTarget(item)}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            background: 'var(--card-bg, #f2f1ef)', borderRadius: '12px',
+            border: '1px solid rgba(26,26,26,0.08)', padding: '48px', textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>
+              No uploaded photos
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Click "Add Photo" to upload photos to the gallery
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add Photo modal */}

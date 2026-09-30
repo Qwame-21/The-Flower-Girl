@@ -118,6 +118,7 @@ export default function Header({ onToggleMobile }) {
   // Modal states — ported from admin-monolith.html lines 19588-19636
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [showClearAllModal, setShowClearAllModal] = useState(false);
 
   // Refs for trigger & dropdown positioning
   const notifBtnRef = useRef(null);
@@ -246,9 +247,11 @@ export default function Header({ onToggleMobile }) {
     const success = await clearAllNotifications();
     if (success) {
       setNotifications([]);
+      setShowClearAllModal(false);
     } else {
       // If delete failed, mark all as read instead
       await handleMarkAllRead();
+      setShowClearAllModal(false);
     }
   };
 
@@ -338,10 +341,10 @@ export default function Header({ onToggleMobile }) {
                     </svg>
                   )}
                 </button>
-                <button 
-                  className="btn-capsule clear-all-btn" 
+                <button
+                  className="btn-capsule clear-all-btn"
                   id="clearNotifBtn"
-                  onClick={handleClearAll}
+                  onClick={() => setShowClearAllModal(true)}
                   disabled={notifications.length === 0}
                 >
                   Clear All
@@ -532,6 +535,30 @@ export default function Header({ onToggleMobile }) {
                   setTimeout(() => window.location.reload(), 400);
                 }
               }}>Sign Out</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Clear All confirm modal */}
+    {showClearAllModal && (
+      <div style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000
+      }}>
+        <div style={{
+          background: '#ffffff', borderRadius: '16px', padding: '24px',
+          maxWidth: '400px', width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+        }}>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600 }}>Clear All Notifications</h3>
+          <p style={{ fontSize: '13px', color: 'var(--mute,#747471)', margin: '0 0 16px 0' }}>
+            Are you sure you want to clear all notifications? This will mark them as read.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <button type="button" className="btn"
+              onClick={() => setShowClearAllModal(false)}>No</button>
+            <button type="button" className="btn d"
+              onClick={handleClearAll}>Yes</button>
           </div>
         </div>
       </div>

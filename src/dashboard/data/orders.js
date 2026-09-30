@@ -156,7 +156,7 @@ export async function createStaffOrder(orderData) {
       payment_provider: 'staff',
       payment_reference: null,
       payment_status: 'paid', // Staff orders are considered paid
-      fulfillment_status: 'paid', // Start in production
+      fulfillment_status: 'packaging', // Start in packaging stage
       estimated_delivery: orderData.estimatedDelivery || null,
       admin_note: orderData.adminNote || null,
       staff_order: true
@@ -194,7 +194,7 @@ export async function createStaffOrder(orderData) {
     .from('order_events')
     .insert({
       order_id: order.id,
-      stage: 'paid',
+      stage: 'packaging',
       customer_note: 'Staff order created',
       created_by: orderData.createdBy || null
     });
@@ -245,4 +245,26 @@ export async function deleteOrder(orderId) {
   }
 
   return true;
+}
+
+// Update order admin note
+export async function updateOrderNote(orderId, adminNote) {
+  if (!supabase) {
+    console.warn('Supabase not configured');
+    return null;
+  }
+
+  const { data: order, error } = await supabase
+    .from('orders')
+    .update({ admin_note: adminNote })
+    .eq('id', orderId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating order note:', error);
+    return null;
+  }
+
+  return order;
 }
