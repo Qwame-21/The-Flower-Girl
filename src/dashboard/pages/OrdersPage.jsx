@@ -41,6 +41,8 @@ export default function OrdersPage() {
   const [ordersList, setOrdersList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // Per-order inline error (e.g. stage button write failure)
+  const [orderErrors, setOrderErrors] = useState({});
 
   // Load orders from Supabase on mount
   useEffect(() => {
@@ -81,9 +83,8 @@ export default function OrdersPage() {
     }
     if (filters.status !== 'all') {
       if (filters.status === 'pending_payment') {
-        if (!isPendingPayment(order)) return false;
-      } else if (filters.status === 'paid') {
-        if (order.fulfillmentStatus !== 'paid') return false;
+        // pending_payment is a fulfillmentStatus value on mapped orders
+        if (order.fulfillmentStatus !== 'pending_payment') return false;
       } else if (order.fulfillmentStatus !== filters.status) {
         return false;
       }
@@ -108,12 +109,17 @@ export default function OrdersPage() {
 
 
 
-  // Helper update wrapper - now refreshes from Supabase
+  // Silent background refresh — merges by id without remounting the list
   const refreshOrders = async () => {
-    setLoading(true);
-    const orders = await listOrders();
-    setOrdersList(orders);
-    setLoading(false);
+    const fresh = await listOrders();
+    setOrdersList(prev => {
+      // Merge: update existing items in-place, append new ones, keep order
+      const byId = new Map(fresh.map(o => [o.id, o]));
+      const merged = prev.map(o => byId.get(o.id) || o);
+      const existingIds = new Set(prev.map(o => o.id));
+      fresh.forEach(o => { if (!existingIds.has(o.id)) merged.push(o); });
+      return merged;
+    });
   };
 
   // Checkbox toggle
@@ -130,7 +136,7 @@ export default function OrdersPage() {
     }
   };
 
-  // Stepper box status update — now uses Supabase
+  // Stepper box status update — optimistic local update, silent background write
   const handleStepperClick = async (orderId, stage) => {
     const order = ordersList.find(o => o.id === orderId);
     if (!order) return;
@@ -140,23 +146,24 @@ export default function OrdersPage() {
 
     // Special case 1: clicking "Paid" on unpaid order -> mark paid
     if (stage === 'paid' && order.paymentStatus === 'pending') {
-      newStatus = 'preparing'; // Move to preparing when paid
+      newStatus = 'packaging'; // DB 'packaging' = dashboard processing
       note = 'Payment confirmed';
     }
-    // Special case 2: clicking "Paid" on already paid order -> unmark paid (revert to pending_payment)
+    // Special case 2: clicking "Paid" on already paid order -> revert
     else if (stage === 'paid' && order.paymentStatus === 'paid') {
       newStatus = 'pending_payment';
       note = 'Payment reverted';
     }
-    // Stage to status mapping
+    // Stage to fulfillmentStatus (dashboard values from DB_TO_DASHBOARD_FULFILLMENT)
     else {
       const stageToStatus = {
-        processing: 'preparing',
-        packed: 'ready',
+        paid: 'paid',
+        packaging: 'packaging',
+        ready: 'ready',
         dispatched: 'dispatched',
         delivered: 'delivered'
       };
-      const statusOrder = ['preparing', 'ready', 'dispatched', 'delivered'];
+      const statusOrder = ['paid', 'packaging', 'ready', 'dispatched', 'delivered'];
       const currentStatus = order.fulfillmentStatus;
       const targetStatus = stageToStatus[stage] || stage;
 
@@ -165,33 +172,60 @@ export default function OrdersPage() {
         const currentIndex = statusOrder.indexOf(currentStatus);
         if (currentIndex > 0) {
           newStatus = statusOrder[currentIndex - 1];
-        } else if (currentIndex === 0) {
+        } else {
           newStatus = 'pending_payment';
         }
       } else {
-        // Advance to target stage
         newStatus = targetStatus;
       }
     }
 
-    if (newStatus) {
-      await updateOrderStatus(orderId, newStatus, note);
-      await refreshOrders();
+    if (!newStatus) return;
+
+    // Snapshot for rollback
+    const prevOrder = { ...order };
+
+    // Optimistic update — only touch this one order, no loading state
+    setOrdersList(prev => prev.map(o =>
+      o.id === orderId ? { ...o, fulfillmentStatus: newStatus, paymentStatus: newStatus === 'pending_payment' ? 'pending' : o.paymentStatus } : o
+    ));
+    setOrderErrors(prev => ({ ...prev, [orderId]: null }));
+
+    // Background write
+    const result = await updateOrderStatus(orderId, newStatus, note);
+    if (!result) {
+      // Rollback on failure
+      setOrdersList(prev => prev.map(o => o.id === orderId ? prevOrder : o));
+      setOrderErrors(prev => ({ ...prev, [orderId]: 'Update failed. Please try again.' }));
+    } else {
+      // Silent background merge — no spinner, no remount
+      refreshOrders();
     }
   };
 
 
   // Restore order
   const handleRestoreOrder = async (orderId) => {
-    await updateOrderStatus(orderId, 'preparing', 'Order reopened');
-    await refreshOrders();
+    const prevOrder = ordersList.find(o => o.id === orderId);
+    // Optimistic: set to 'packaging' (processing)
+    setOrdersList(prev => prev.map(o =>
+      o.id === orderId ? { ...o, fulfillmentStatus: 'packaging' } : o
+    ));
+    const result = await updateOrderStatus(orderId, 'packaging', 'Order reopened');
+    if (!result) {
+      // Rollback
+      if (prevOrder) setOrdersList(prev => prev.map(o => o.id === orderId ? prevOrder : o));
+      setOrderErrors(prev => ({ ...prev, [orderId]: 'Restore failed. Please try again.' }));
+    } else {
+      refreshOrders();
+    }
   };
 
   // Single delete order
   const handleConfirmDeleteOrder = async (orderId) => {
     const success = await deleteOrder(orderId);
     if (success) {
-      await refreshOrders();
+      setOrdersList(prev => prev.filter(o => o.id !== orderId));
       setConfirmingDeleteId(null);
       if (expandedId === orderId) setExpandedId(null);
     }
@@ -283,11 +317,11 @@ export default function OrdersPage() {
 
     const statusCounts = {
       all: liveOrders.length,
-      pending_payment: liveOrders.filter(o => o.paymentStatus === 'pending').length,
+      pending_payment: liveOrders.filter(o => o.fulfillmentStatus === 'pending_payment').length,
       paid: liveOrders.filter(o => o.fulfillmentStatus === 'paid').length,
       packaging: liveOrders.filter(o => o.fulfillmentStatus === 'packaging').length,
       ready: liveOrders.filter(o => o.fulfillmentStatus === 'ready').length,
-      delivery: liveOrders.filter(o => o.fulfillmentStatus === 'delivery').length,
+      dispatched: liveOrders.filter(o => o.fulfillmentStatus === 'dispatched').length,
       cancelled: liveOrders.filter(o => o.fulfillmentStatus === 'cancelled').length
     };
 
@@ -312,13 +346,16 @@ export default function OrdersPage() {
     }))
   ];
 
+  // Status chips: ids match fulfillmentStatus values on mapped orders.
+  // 'delivered' is excluded from chips — it lives in LogPage (listed separately).
+  // Chips sum == statusCounts.all (verified by /tmp/parity/out/status_counts.txt)
   const statusOptions = [
     { id: 'all', name: 'All statuses', count: statusCounts.all },
     { id: 'pending_payment', name: 'Pending payment', count: statusCounts.pending_payment },
     { id: 'paid', name: 'Paid', count: statusCounts.paid },
     { id: 'packaging', name: 'Processing', count: statusCounts.packaging },
     { id: 'ready', name: 'Packed', count: statusCounts.ready },
-    { id: 'delivery', name: 'Dispatched', count: statusCounts.delivery },
+    { id: 'dispatched', name: 'Dispatched', count: statusCounts.dispatched },
     { id: 'cancelled', name: 'Cancelled', count: statusCounts.cancelled }
   ];
 
@@ -631,6 +668,9 @@ export default function OrdersPage() {
                         >
                           {SVG.restore} Restore order
                         </button>
+                        {orderErrors[order.id] && (
+                          <span style={{ fontSize: '11px', color: '#b9645c', marginLeft: '8px' }}>{orderErrors[order.id]}</span>
+                        )}
                       </div>
                     ) : (
                       <div className="order-stepper-boxes" onClick={(e) => e.stopPropagation()}>
@@ -645,6 +685,7 @@ export default function OrdersPage() {
                           return (
                             <button
                               key={step.key}
+                              data-stage={step.key}
                               className={`stepper-box ${stateClass}`}
                               disabled={disabled}
                               onClick={() => handleStepperClick(order.id, step.actionStage)}
@@ -654,6 +695,9 @@ export default function OrdersPage() {
                             </button>
                           );
                         })}
+                        {orderErrors[order.id] && (
+                          <span style={{ fontSize: '11px', color: '#b9645c', whiteSpace: 'nowrap', alignSelf: 'center', marginLeft: '4px' }}>{orderErrors[order.id]}</span>
+                        )}
                       </div>
                     )}
 
