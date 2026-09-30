@@ -9,7 +9,7 @@ function generateTrackingNumber() {
 
 function generateOrderCode() {
   const timestamp = Date.now();
-  return `GF-${String(timestamp).slice(-6)}`;
+  return `WEB-${String(timestamp).slice(-6)}`;
 }
 
 // List all orders with items and events

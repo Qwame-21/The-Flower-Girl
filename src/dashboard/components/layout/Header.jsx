@@ -4,26 +4,48 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { listNotifications, markNotificationRead, markAllNotificationsRead, clearAllNotifications, subscribeToNotifications, startNotificationPolling } from '../../data/notifications';
 import { supabase } from '../../../config/supabase';
 
-// Single notification sound function that respects mute state
-let audioInstance = null;
+// Audio context for Web Audio API (created on first user interaction)
+let audioContext = null;
+
+// Initialize AudioContext on first user interaction
+function initAudioContext() {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioContext.state === 'suspended') {
+    audioContext.resume();
+  }
+}
+
+// Single notification sound function using Web Audio API (matches HOPESON original)
 export function playNotificationSound() {
   const isMuted = localStorage.getItem('notifications-muted') === 'true';
   if (isMuted) return;
 
-  if (!audioInstance) {
-    audioInstance = new Audio('/notification.mp3');
-    audioInstance.volume = 0.5;
+  try {
+    initAudioContext();
+    const ctx = audioContext;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.15);
+  } catch (e) {
+    // Audio play failed - silent fail
   }
-  audioInstance.currentTime = 0;
-  audioInstance.play().catch(() => {
-    // Audio play failed (browser policy or missing file) - silent fail
-  });
 }
 
 // Synthesized audio feedback for mute toggle (matches HOPESON original)
 function playMuteSound() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    initAudioContext();
+    const ctx = audioContext;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
@@ -40,7 +62,8 @@ function playMuteSound() {
 
 function playUnmuteSound() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    initAudioContext();
+    const ctx = audioContext;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
@@ -215,6 +238,18 @@ export default function Header({ onToggleMobile }) {
       setLoading(false);
     }
     loadNotifications();
+  }, []);
+
+  // Initialize AudioContext on first user interaction
+  useEffect(() => {
+    function handleFirstInteraction() {
+      initAudioContext();
+      document.removeEventListener('pointerdown', handleFirstInteraction);
+    }
+    document.addEventListener('pointerdown', handleFirstInteraction);
+    return () => {
+      document.removeEventListener('pointerdown', handleFirstInteraction);
+    };
   }, []);
 
   // Set up realtime or polling for new notifications
@@ -406,8 +441,18 @@ export default function Header({ onToggleMobile }) {
                 </div>
               ) : (
                 notifications.map((notif, idx) => (
-                  <div key={idx} className="notif-item">
+                  <div key={notif.id} className={`notif-item ${notif.readAt ? 'read' : ''}`}>
                     <span className="meta-label">{notif.title}</span>
+                    <button
+                      className="notif-clear-item-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMarkRead(notif.id);
+                      }}
+                      title="Mark as read"
+                    >
+                      ×
+                    </button>
                   </div>
                 ))
               )}

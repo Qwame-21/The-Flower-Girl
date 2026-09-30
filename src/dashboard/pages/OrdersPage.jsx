@@ -82,6 +82,8 @@ export default function OrdersPage() {
     if (filters.status !== 'all') {
       if (filters.status === 'pending_payment') {
         if (!isPendingPayment(order)) return false;
+      } else if (filters.status === 'paid') {
+        if (order.fulfillmentStatus !== 'paid') return false;
       } else if (order.fulfillmentStatus !== filters.status) {
         return false;
       }
@@ -282,9 +284,10 @@ export default function OrdersPage() {
     const statusCounts = {
       all: liveOrders.length,
       pending_payment: liveOrders.filter(o => o.paymentStatus === 'pending').length,
-      preparing: liveOrders.filter(o => o.fulfillmentStatus === 'preparing').length,
+      paid: liveOrders.filter(o => o.fulfillmentStatus === 'paid').length,
+      packaging: liveOrders.filter(o => o.fulfillmentStatus === 'packaging').length,
       ready: liveOrders.filter(o => o.fulfillmentStatus === 'ready').length,
-      dispatched: liveOrders.filter(o => o.fulfillmentStatus === 'dispatched').length,
+      delivery: liveOrders.filter(o => o.fulfillmentStatus === 'delivery').length,
       cancelled: liveOrders.filter(o => o.fulfillmentStatus === 'cancelled').length
     };
 
@@ -312,9 +315,10 @@ export default function OrdersPage() {
   const statusOptions = [
     { id: 'all', name: 'All statuses', count: statusCounts.all },
     { id: 'pending_payment', name: 'Pending payment', count: statusCounts.pending_payment },
-    { id: 'preparing', name: 'Processing', count: statusCounts.preparing },
+    { id: 'paid', name: 'Paid', count: statusCounts.paid },
+    { id: 'packaging', name: 'Processing', count: statusCounts.packaging },
     { id: 'ready', name: 'Packed', count: statusCounts.ready },
-    { id: 'dispatched', name: 'Dispatched', count: statusCounts.dispatched },
+    { id: 'delivery', name: 'Dispatched', count: statusCounts.delivery },
     { id: 'cancelled', name: 'Cancelled', count: statusCounts.cancelled }
   ];
 
@@ -525,23 +529,18 @@ export default function OrdersPage() {
             const hasCodes = productCodesDisplay.length > 0;
 
             const sourceTag = order.source === 'staff' ? 'Staff' : 'Online';
-            const amount = order.amount || 0;
+            const amount = order.total || 0;
             const deliveryInfo = order.estimatedDelivery ? ` · ${order.estimatedDelivery}` : '';
 
             const isPaid = order.paymentStatus === 'paid';
             const stepperSteps = [
               { key: 'paid', label: 'Paid', actionStage: 'paid' },
-              { key: 'packed', label: 'Packed', actionStage: 'packed' },
-              { key: 'dispatched', label: 'Dispatched', actionStage: 'dispatched' },
-              { key: 'delivered', label: 'Delivered', actionStage: 'delivered' }
+              { key: 'packaging', label: 'Processing', actionStage: 'packaging' },
+              { key: 'ready', label: 'Packed', actionStage: 'ready' },
+              { key: 'delivery', label: 'Dispatched', actionStage: 'delivery' }
             ];
-            const statusOrder = ['paid', 'packed', 'dispatched', 'delivered'];
-            const currentIndex = statusOrder.indexOf(
-              order.fulfillmentStatus === 'preparing' ? 'paid' :
-              order.fulfillmentStatus === 'ready' ? 'packed' :
-              order.fulfillmentStatus === 'dispatched' ? 'dispatched' :
-              order.fulfillmentStatus === 'delivered' ? 'delivered' : -1
-            );
+            const statusOrder = ['paid', 'packaging', 'ready', 'delivery'];
+            const currentIndex = statusOrder.indexOf(order.fulfillmentStatus);
 
             const draft = panelDrafts[order.id] || {};
             const draftDate = draft.date !== undefined ? draft.date : '';
@@ -585,9 +584,9 @@ export default function OrdersPage() {
 
             let nextStageLabel = 'MARK PACKAGED FIRST';
             if (order.paymentStatus === 'pending') nextStageLabel = 'MARK AS PAID FIRST';
-            else if (order.fulfillmentStatus === 'preparing') nextStageLabel = 'MARK PACKAGED FIRST';
+            else if (order.fulfillmentStatus === 'packaging') nextStageLabel = 'MARK PACKAGED FIRST';
             else if (order.fulfillmentStatus === 'ready') nextStageLabel = 'DISPATCH ORDER';
-            else if (order.fulfillmentStatus === 'dispatched') nextStageLabel = 'MARK DELIVERED';
+            else if (order.fulfillmentStatus === 'delivery') nextStageLabel = 'MARK DELIVERED';
 
             return (
               <div key={order.id} className={`order-card ${isExpanded ? 'expanded' : ''} ${isSelected ? 'selected' : ''}`}>

@@ -863,8 +863,10 @@
   justify-content: center;
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.38s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .mute-toggle-btn:hover {
