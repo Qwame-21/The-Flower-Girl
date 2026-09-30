@@ -863,7 +863,14 @@
   justify-content: center;
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+  /* Safe transitions — no size/transform so capsule text never wraps or clips mid-transition */
+  transition: background-color 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+              color 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+              width 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+              border-radius 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+              padding 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.38s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -5182,8 +5189,11 @@ input:checked + .toggle-slider:before {
   align-items: center;
   gap: 5px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  /* Safe transitions: only color/background/border — no size or transform */
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  /* Fixed dimensions so state changes never move anything */
   min-height: 34px;
+  min-width: 72px;
   box-sizing: border-box;
 }
 
@@ -5280,7 +5290,9 @@ input:checked + .toggle-slider:before {
   font-size: 10px;
   font-weight: 700;
   color: var(--status-tick-orange);
-  transition: all 0.15s ease;
+  /* Only color/border transitions — no size changes */
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+  flex-shrink: 0;
 }
 
 .stepper-label {
