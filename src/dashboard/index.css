@@ -879,6 +879,34 @@
   color: var(--accent-signal);
 }
 
+/* Smooth expanding capsule animation on mute/unmute click */
+.mute-toggle-btn.expanding-capsule {
+  width: 84px;
+  border-radius: 14px;
+  padding: 0 10px;
+  gap: 5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.mute-toggle-btn .mute-btn-text {
+  font-family: var(--font-family-base);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  max-width: 0;
+  opacity: 0;
+  transition: max-width 0.38s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease;
+  overflow: hidden;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.mute-toggle-btn.expanding-capsule .mute-btn-text {
+  max-width: 58px;
+  opacity: 1;
+}
+
 .text-action-btn {
   background: none;
   border: none;

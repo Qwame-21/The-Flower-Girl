@@ -20,6 +20,41 @@ export function playNotificationSound() {
   });
 }
 
+// Synthesized audio feedback for mute toggle (matches HOPESON original)
+function playMuteSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(320, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(160, ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+  } catch (e) {}
+}
+
+function playUnmuteSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(220, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+  } catch (e) {}
+}
+
 const ROUTE_TITLE_MAP = {
   '/overview': 'OVERVIEW',
   '/orders': 'ORDERS',
@@ -92,6 +127,7 @@ export default function Header({ onToggleMobile }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [usingPolling, setUsingPolling] = useState(false);
+  const [isExpanding, setIsExpanding] = useState(false);
 
   useEffect(() => {
     function updateClock() {
@@ -228,7 +264,19 @@ export default function Header({ onToggleMobile }) {
 
   // Notification handlers
   const handleToggleMute = () => {
-    setIsMuted(prev => !prev);
+    const newMutedState = !isMuted;
+    setIsMuted(newMutedState);
+
+    // Play sound
+    if (newMutedState) {
+      playMuteSound();
+    } else {
+      playUnmuteSound();
+    }
+
+    // Trigger expanding capsule animation
+    setIsExpanding(true);
+    setTimeout(() => setIsExpanding(false), 1600);
   };
 
   const handleMarkRead = async (notifId) => {
@@ -322,24 +370,24 @@ export default function Header({ onToggleMobile }) {
             <div className="dropdown-header">
               <span className="meta-label">NOTIFICATIONS</span>
               <div className="dropdown-header-actions">
-                <button 
-                  className="mute-toggle-btn" 
-                  id="muteToggleBtn" 
+                <button
+                  className={`mute-toggle-btn ${isMuted ? 'muted' : ''} ${isExpanding ? 'expanding-capsule' : ''}`}
+                  id="muteToggleBtn"
                   title={isMuted ? "Unmute notifications" : "Mute notifications"}
                   onClick={handleToggleMute}
                 >
                   {isMuted ? (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                      <line x1="23" y1="9" x2="17" y2="15" />
-                      <line x1="17" y1="9" x2="23" y2="15" />
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                      <path d="M9 9v6a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6l-3 3a3 3 0 0 0 1.06 5.94M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path>
                     </svg>
                   ) : (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
                     </svg>
                   )}
+                  <span className="mute-btn-text">{isMuted ? 'Muted' : 'Unmuted'}</span>
                 </button>
                 <button
                   className="btn-capsule clear-all-btn"

@@ -1,19 +1,6 @@
 import { supabase } from '../../config/supabase';
 import { DASHBOARD_TO_DB_FULFILLMENT, DB_TO_DASHBOARD_FULFILLMENT, STEPPER_TO_EVENT_STAGE } from './statusMap';
 
-// Generate tracking number and order code (similar to schema defaults)
-function generateTrackingNumber() {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `GF-${timestamp}-${random}`;
-}
-
-function generateOrderCode() {
-  const year = new Date().getFullYear();
-  const random = Math.floor(10000 + Math.random() * 90000);
-  return `GF-${year}-${random}`;
-}
-
 // List all orders with items and events
 export async function listOrders() {
   if (!supabase) {
@@ -131,8 +118,11 @@ export async function createStaffOrder(orderData) {
     return null;
   }
 
-  const trackingNumber = generateTrackingNumber();
-  const orderCode = generateOrderCode();
+  // Use DB generator functions for tracking number and order code
+  const { data: trackingData } = await supabase.rpc('generate_tracking_number');
+  const { data: codeData } = await supabase.rpc('generate_order_code');
+  const trackingNumber = trackingData || `GF-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  const orderCode = codeData || `GF-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
 
   // Create order
   const { data: order, error } = await supabase
