@@ -1,13 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  getCombinedStats,
-  getOrders,
-  getActivityLog,
-  formatGHS,
-  CATEGORY_MAP,
-  overviewDemoData
-} from '../lib/ordersModel';
+import { formatGHS, CATEGORY_MAP } from '../lib/ordersModel';
+import { listOrders } from '../data/orders';
 
 // SVG Icons matching monolith
 const SVG = {
@@ -43,9 +37,9 @@ function getCatmullRomSplinePath(pts) {
 }
 
 // Donut Ring Chart component
-function DonutRingCard({ title, icon, totalLabel, type, filter, onFilterChange, filterOptions }) {
+function DonutRingCard({ title, icon, totalLabel, type, filter, onFilterChange, filterOptions, data }) {
   const [highlightedKey, setHighlightedKey] = useState(null);
-  const src = overviewDemoData[type] || {};
+  const src = data || {};
   const segments = Object.values(src);
 
   let active = segments;
@@ -431,9 +425,67 @@ export default function OverviewPage() {
   const [inventoryFilter, setInventoryFilter] = useState('all');
   const [deliveryFilter, setDeliveryFilter] = useState('all');
 
-  const combinedStats = getCombinedStats(period);
-  const prevStats = getCombinedStats(period === '7d' ? '30d' : 'all');
-  const orders = getOrders();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load orders from Supabase on mount
+  useEffect(() => {
+    async function loadOrders() {
+      setLoading(true);
+      const loadedOrders = await listOrders();
+      setOrders(loadedOrders);
+      setLoading(false);
+    }
+    loadOrders();
+  }, []);
+
+  // Compute stats from real orders
+  const calculateStats = (ordersList, periodDays) => {
+    const now = new Date();
+    const cutoffDate = periodDays !== Infinity ? new Date(now.getTime() - periodDays * 86400000) : null;
+    const cutoffStr = cutoffDate ? cutoffDate.toISOString().split('T')[0] : '0000-00-00';
+
+    let totalRevenue = 0;
+    let totalOrdersCount = 0;
+    let paidNonCancelledCount = 0;
+
+    const categoryRevenue = { hampers: 0, personalized: 0, bundles: 0, care: 0, flowers: 0 };
+
+    ordersList.forEach(o => {
+      const oDateStr = (o.orderDate || '').split('T')[0];
+      if (cutoffStr && oDateStr < cutoffStr) return;
+
+      if (o.fulfillmentStatus !== 'cancelled') {
+        totalOrdersCount++;
+        if (o.paymentStatus === 'paid') {
+          totalRevenue += o.total || 0;
+          paidNonCancelledCount++;
+        }
+
+        (o.items || []).forEach(item => {
+          const catKey = (item.category || '').toLowerCase();
+          if (categoryRevenue[catKey] !== undefined) {
+            categoryRevenue[catKey] += (item.unitPrice * item.qty);
+          }
+        });
+      }
+    });
+
+    const avgOrderValue = paidNonCancelledCount > 0 ? (totalRevenue / paidNonCancelledCount) : 0;
+
+    return {
+      totalRevenue,
+      totalOrdersCount,
+      paidNonCancelledCount,
+      avgOrderValue,
+      categoryRevenue
+    };
+  };
+
+  const periodDays = period === '7d' ? 7 : period === '30d' ? 30 : Infinity;
+  const combinedStats = calculateStats(orders, periodDays);
+  const prevPeriodDays = period === '7d' ? 30 : Infinity;
+  const prevStats = calculateStats(orders, prevPeriodDays);
 
   const activeOrdersCount = orders.filter(o => o.fulfillmentStatus !== 'delivered' && o.fulfillmentStatus !== 'cancelled').length;
   const pendingPaymentCount = orders.filter(o => o.paymentStatus === 'pending' && o.fulfillmentStatus !== 'cancelled').length;
@@ -442,13 +494,52 @@ export default function OverviewPage() {
   const ordersDelta = prevStats.totalOrdersCount > 0 ? Math.round(((combinedStats.totalOrdersCount - prevStats.totalOrdersCount) / prevStats.totalOrdersCount) * 100) : null;
 
   const hasData = combinedStats.totalRevenue > 0 || combinedStats.totalOrdersCount > 0;
+
+  // Compute order status distribution from real orders
+  const orderStatusData = {
+    delivered: { key: 'delivered', label: 'Delivered', value: orders.filter(o => o.fulfillmentStatus === 'delivered').length, color: 'var(--chart-good, #5E9470)' },
+    preparing: { key: 'preparing', label: 'Processing', value: orders.filter(o => o.fulfillmentStatus === 'preparing').length, color: 'var(--chart-progress, #D0A24A)' },
+    ready: { key: 'ready', label: 'Packed', value: orders.filter(o => o.fulfillmentStatus === 'ready').length, color: 'var(--chart-info, #5F82A6)' },
+    dispatched: { key: 'dispatched', label: 'Dispatched', value: orders.filter(o => o.fulfillmentStatus === 'dispatched').length, color: 'var(--chart-sage, #6E9C7B)' },
+    pending: { key: 'pending', label: 'Pending Payment', value: orders.filter(o => o.paymentStatus === 'pending' && o.fulfillmentStatus !== 'cancelled').length, color: 'var(--chart-bad, #B9645C)' }
+  };
+
+  // Inventory data - derived from products (not orders)
+  // For now, show empty since we're not connecting to products table
+  const inventoryData = {
+    healthy: { key: 'healthy', label: 'In Stock', value: 0, color: 'var(--chart-good, #5E9470)' },
+    low: { key: 'low', label: 'Low Stock', value: 0, color: 'var(--chart-progress, #D0A24A)' },
+    out: { key: 'out', label: 'Out of Stock', value: 0, color: 'var(--chart-bad, #B9645C)' }
+  };
+
+  // Delivery data - derived from orders
+  const deliveredOrders = orders.filter(o => o.fulfillmentStatus === 'delivered');
+  const deliveryData = {
+    onTime: { key: 'onTime', label: 'On Time', value: deliveredOrders.length, color: 'var(--chart-good, #5E9470)' },
+    runningLate: { key: 'runningLate', label: 'Running Late', value: 0, color: 'var(--chart-bad, #B9645C)' }
+  };
+
   const trendSeries = {
     dates: ['Day 1', 'Day 5', 'Day 10', 'Day 15', 'Day 20', 'Day 25', 'Day 30'],
     currentValues: hasData ? [1200, 2400, 1800, 3100, 2800, 3900, combinedStats.totalRevenue] : [0, 0, 0, 0, 0, 0, 0],
     previousValues: hasData ? [1000, 2000, 1500, 2600, 2400, 3200, 3500] : [0, 0, 0, 0, 0, 0, 0]
   };
 
-  const activityLog = getActivityLog().slice(0, 6);
+  // Derive activity log from order_events
+  const activityLog = [];
+  orders.slice(0, 6).forEach(order => {
+    if (order.auditLog && order.auditLog.length > 0) {
+      order.auditLog.slice(0, 2).forEach(event => {
+        activityLog.push({
+          id: `${order.id}-${event.time}`,
+          type: 'order',
+          text: `Order #${order.orderCode || order.id}: ${event.stage}`,
+          timestamp: event.time,
+          timeRelative: event.time
+        });
+      });
+    }
+  });
 
   return (
     <div className="overview-page-container">
@@ -674,6 +765,7 @@ export default function OverviewPage() {
             { val: 'open', label: 'Open' },
             { val: 'closed', label: 'Closed' }
           ]}
+          data={orderStatusData}
         />
 
         {/* Inventory Health Ring */}
@@ -689,6 +781,7 @@ export default function OverviewPage() {
             { val: 'low', label: 'Low' },
             { val: 'out', label: 'Out' }
           ]}
+          data={inventoryData}
         />
 
         {/* Delivery Status Ring */}
@@ -704,6 +797,7 @@ export default function OverviewPage() {
             { val: 'on time', label: 'On time' },
             { val: 'delayed', label: 'Late' }
           ]}
+          data={deliveryData}
         />
       </div>
     </div>

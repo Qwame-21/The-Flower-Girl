@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { getOrders, RAW_SNAPSHOT_PRODUCTS, formatGHS } from '../lib/ordersModel';
+import { useState, useEffect } from 'react';
+import { formatGHS } from '../lib/ordersModel';
+import { listOrders } from '../data/orders';
 
 // Category color map for Insights category breakdown
 const CATEGORY_COLORS = {
@@ -37,7 +38,7 @@ function filterOrdersByDateRange(orders, range) {
 }
 
 function calculateInsightsStats(orders) {
-  const totalRevenue = orders.reduce((sum, order) => sum + (order.amount || 0), 0);
+  const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0);
   const totalOrders = orders.length;
   const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
@@ -133,13 +134,13 @@ function InsightsTrendChart({ orders, mode }) {
 
   const dateMap = {};
   orders.forEach(order => {
-    const d = new Date(order.orderDate || order.createdAt || Date.now());
+    const d = new Date(order.orderDate || Date.now());
     const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const key = d.toISOString().split('T')[0];
     if (!dateMap[key]) {
       dateMap[key] = { key, label, revenue: 0, orders: 0 };
     }
-    dateMap[key].revenue += order.amount || 0;
+    dateMap[key].revenue += order.total || 0;
     dateMap[key].orders += 1;
   });
 
@@ -321,8 +322,20 @@ function InsightsTrendChart({ orders, mode }) {
 export default function InsightsPage() {
   const [dateRange, setDateRange] = useState('all');
   const [chartMode, setChartMode] = useState('revenue');
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const orders = getOrders();
+  // Load orders from Supabase on mount
+  useEffect(() => {
+    async function loadOrders() {
+      setLoading(true);
+      const loadedOrders = await listOrders();
+      setOrders(loadedOrders);
+      setLoading(false);
+    }
+    loadOrders();
+  }, []);
+
   const filteredOrders = filterOrdersByDateRange(orders, dateRange);
   const stats = calculateInsightsStats(filteredOrders);
   const topProducts = getTopProductsByUnits(filteredOrders);
@@ -332,7 +345,7 @@ export default function InsightsPage() {
   const handleExportCSV = () => {
     let csvContent = "data:text/csv;charset=utf-8,Order ID,Customer Name,Amount (GHS),Status,Date\n";
     filteredOrders.forEach(o => {
-      csvContent += `"${o.id}","${o.customerName}",${o.amount},"${o.fulfillmentStatus}","${o.orderDate}"\n`;
+      csvContent += `"${o.id}","${o.customerName}",${o.total || 0},"${o.fulfillmentStatus}","${o.orderDate}"\n`;
     });
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");

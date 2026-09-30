@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { useDashboard } from '../contexts/DashboardContext';
+import { useDashboard } from '../../contexts/DashboardContext';
+import { listNotifications, markNotificationRead, markAllNotificationsRead, clearAllNotifications, subscribeToNotifications, startNotificationPolling } from '../../data/notifications';
+import { supabase } from '../../../config/supabase';
 
 // Single notification sound function that respects mute state
 let audioInstance = null;
 export function playNotificationSound() {
   const isMuted = localStorage.getItem('notifications-muted') === 'true';
   if (isMuted) return;
-  
+
   if (!audioInstance) {
     audioInstance = new Audio('/notification.mp3');
     audioInstance.volume = 0.5;
@@ -16,14 +18,6 @@ export function playNotificationSound() {
   audioInstance.play().catch(() => {
     // Audio play failed (browser policy or missing file) - silent fail
   });
-}
-
-// Function to add a notification (for testing and future use)
-export function addNotification(message) {
-  const notifications = JSON.parse(localStorage.getItem('dashboard-notifications') || '[]');
-  notifications.unshift({ message, timestamp: Date.now() });
-  localStorage.setItem('dashboard-notifications', JSON.stringify(notifications));
-  playNotificationSound();
 }
 
 const ROUTE_TITLE_MAP = {
@@ -95,10 +89,9 @@ export default function Header({ onToggleMobile }) {
 
   // Notification state
   const [isMuted, setIsMuted] = useState(() => localStorage.getItem('notifications-muted') === 'true');
-  const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem('dashboard-notifications');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [usingPolling, setUsingPolling] = useState(false);
 
   useEffect(() => {
     function updateClock() {
@@ -176,10 +169,56 @@ export default function Header({ onToggleMobile }) {
     };
   }, [isNotifOpen, isProfileOpen]);
 
-  // Persist notifications to localStorage
+  // Load notifications from Supabase on mount
   useEffect(() => {
-    localStorage.setItem('dashboard-notifications', JSON.stringify(notifications));
-  }, [notifications]);
+    async function loadNotifications() {
+      setLoading(true);
+      const loaded = await listNotifications();
+      setNotifications(loaded);
+      setLoading(false);
+    }
+    loadNotifications();
+  }, []);
+
+  // Set up realtime or polling for new notifications
+  useEffect(() => {
+    if (!supabase) {
+      console.warn('Supabase not configured, notifications polling disabled');
+      return;
+    }
+
+    const pageLoadTime = new Date().toISOString();
+
+    // Try realtime subscription first
+    let unsubscribe;
+    try {
+      unsubscribe = subscribeToNotifications((newNotif) => {
+        // Only play sound and add if notification arrived after page load
+        if (newNotif.created_at > pageLoadTime) {
+          if (!isMuted) {
+            playNotificationSound();
+          }
+          setNotifications(prev => [newNotif, ...prev]);
+        }
+      });
+      console.log('Using realtime subscription for notifications');
+    } catch (e) {
+      console.warn('Realtime subscription failed, falling back to polling:', e);
+      setUsingPolling(true);
+      unsubscribe = startNotificationPolling((newNotif) => {
+        if (newNotif.created_at > pageLoadTime) {
+          if (!isMuted) {
+            playNotificationSound();
+          }
+          setNotifications(prev => [newNotif, ...prev]);
+        }
+      });
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [isMuted]);
 
   // Persist mute state to localStorage
   useEffect(() => {
@@ -191,8 +230,26 @@ export default function Header({ onToggleMobile }) {
     setIsMuted(prev => !prev);
   };
 
-  const handleClearAll = () => {
-    setNotifications([]);
+  const handleMarkRead = async (notifId) => {
+    await markNotificationRead(notifId);
+    setNotifications(prev => prev.map(n =>
+      n.id === notifId ? { ...n, readAt: new Date().toISOString() } : n
+    ));
+  };
+
+  const handleMarkAllRead = async () => {
+    await markAllNotificationsRead();
+    setNotifications(prev => prev.map(n => ({ ...n, readAt: new Date().toISOString() })));
+  };
+
+  const handleClearAll = async () => {
+    const success = await clearAllNotifications();
+    if (success) {
+      setNotifications([]);
+    } else {
+      // If delete failed, mark all as read instead
+      await handleMarkAllRead();
+    }
   };
 
   return (

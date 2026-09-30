@@ -3,7 +3,8 @@
 // Storage key: 'xa12-customers-data-v1'
 
 import { useState, useEffect } from 'react';
-import { getOrders, formatGHS } from '../lib/ordersModel';
+import { formatGHS } from '../lib/ordersModel';
+import { listOrders } from '../data/orders';
 import CustomDropdown from '../components/shared/CustomDropdown';
 
 const CUSTOMERS_KEY = 'xa12-customers-data-v1';
@@ -33,8 +34,7 @@ function showToast(msg) {
 }
 
 // ── Load Customers ── (Monolith lines 21853–21860)
-function loadCustomersData() {
-  const orders = getOrders();
+function loadCustomersData(orders) {
   let overridesMap = {};
   try {
     const stored = localStorage.getItem(CUSTOMERS_KEY);
@@ -49,13 +49,13 @@ function loadCustomersData() {
   const customerGroupMap = new Map();
 
   orders.forEach(ord => {
-    const key = (ord.customerEmail || ord.email || ord.customerPhone || ord.phone || ord.customerName).toLowerCase().trim();
+    const key = (ord.customerEmail || ord.customerPhone || ord.customerName).toLowerCase().trim();
     if (!customerGroupMap.has(key)) {
       customerGroupMap.set(key, {
         id: `cust-${key.replace(/[^a-z0-9]/g, '')}`,
         name: ord.customerName || 'Customer',
-        email: ord.customerEmail || ord.email || 'N/A',
-        phone: ord.customerPhone || ord.phone || 'N/A',
+        email: ord.customerEmail || 'N/A',
+        phone: ord.customerPhone || 'N/A',
         orderCount: 0,
         totalSpend: 0,
         lastOrderDate: ord.orderDate ? ord.orderDate.split('T')[0] : 'N/A',
@@ -68,7 +68,7 @@ function loadCustomersData() {
     const c = customerGroupMap.get(key);
     c.orderCount += 1;
     if (ord.paymentStatus === 'paid') {
-      c.totalSpend += Number(ord.amount || 0);
+      c.totalSpend += Number(ord.total || 0);
     }
     c.orderHistory.push(ord);
 
@@ -94,10 +94,24 @@ function saveCustomersData(list) {
 }
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState(loadCustomersData);
+  const [customers, setCustomers] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [vipFilter, setVipFilter] = useState('all'); // 'all' | 'vip'
   const [activeCustomer, setActiveCustomer] = useState(null);
+
+  // Load orders from Supabase on mount
+  useEffect(() => {
+    async function loadOrders() {
+      setLoading(true);
+      const loadedOrders = await listOrders();
+      setOrders(loadedOrders);
+      setCustomers(loadCustomersData(loadedOrders));
+      setLoading(false);
+    }
+    loadOrders();
+  }, []);
   const [notesInput, setNotesInput] = useState('');
 
   useEffect(() => {
