@@ -1,0 +1,402 @@
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { useLocation, Link } from 'react-router-dom';
+
+const ROUTE_TITLE_MAP = {
+  '/overview': 'OVERVIEW',
+  '/orders': 'ORDERS',
+  '/log': 'LOG',
+  '/products': 'PRODUCTS',
+  '/shop-pos': 'SHOP/POS',
+  '/insights': 'INSIGHTS',
+  '/customers': 'CUSTOMERS',
+  '/reviews': 'REVIEWS',
+  '/requests': 'REQUESTS',
+  '/careers': 'CAREERS',
+  '/gallery': 'GALLERY',
+  '/settings': 'SETTINGS',
+};
+
+// Architectural standard for dropdown positioning matching admin-monolith.html line 19136
+function positionDropdown(trigger, dropdown, options = {}) {
+  if (!trigger || !dropdown) return;
+
+  const triggerRect = trigger.getBoundingClientRect();
+  const dropdownRect = dropdown.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  const { offset = 8, align = 'right', verticalAlign = 'bottom' } = options;
+
+  let top, left, right;
+
+  if (verticalAlign === 'bottom') {
+    top = triggerRect.bottom + offset;
+  } else {
+    top = triggerRect.top - dropdownRect.height - offset;
+  }
+
+  if (align === 'right') {
+    right = Math.max(offset, viewportWidth - triggerRect.right);
+    left = 'auto';
+  } else if (align === 'left') {
+    left = triggerRect.left;
+    right = 'auto';
+  } else {
+    left = triggerRect.left + triggerRect.width / 2 - dropdownRect.width / 2;
+    right = 'auto';
+  }
+
+  if (left !== 'auto' && left + dropdownRect.width > viewportWidth - offset) {
+    left = viewportWidth - dropdownRect.width - offset;
+  }
+
+  if (top + dropdownRect.height > viewportHeight - offset) {
+    top = viewportHeight - dropdownRect.height - offset;
+  }
+
+  dropdown.style.position = 'fixed';
+  dropdown.style.top = `${top}px`;
+  dropdown.style.left = left === 'auto' ? 'auto' : `${left}px`;
+  dropdown.style.right = right === 'auto' ? 'auto' : `${right}px`;
+}
+
+export default function Header({ onToggleMobile }) {
+  const location = useLocation();
+  const activeTitle = ROUTE_TITLE_MAP[location.pathname] || 'OVERVIEW';
+
+  // Live top bar clock state
+  const [clockText, setClockText] = useState('');
+
+  useEffect(() => {
+    function updateClock() {
+      const now = new Date();
+      const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+      const dayName = days[now.getDay()];
+      const dateNum = now.getDate();
+      const monthName = months[now.getMonth()];
+      const year = now.getFullYear();
+      const hrs = String(now.getHours()).padStart(2, '0');
+      const mins = String(now.getMinutes()).padStart(2, '0');
+      const secs = String(now.getSeconds()).padStart(2, '0');
+      setClockText(`${dayName}, ${dateNum} ${monthName} ${year} • ${hrs}:${mins}:${secs}`);
+    }
+    updateClock();
+    const timer = setInterval(updateClock, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Dropdown states
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  // Modal states — ported from admin-monolith.html lines 19588-19636
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
+
+  // Refs for trigger & dropdown positioning
+  const notifBtnRef = useRef(null);
+  const notifDropdownRef = useRef(null);
+  const adminProfileBtnRef = useRef(null);
+  const profileDropdownRef = useRef(null);
+
+  // Position notification dropdown when active
+  useLayoutEffect(() => {
+    if (isNotifOpen && notifBtnRef.current && notifDropdownRef.current) {
+      positionDropdown(notifBtnRef.current, notifDropdownRef.current, { align: 'right', verticalAlign: 'bottom' });
+    }
+  }, [isNotifOpen]);
+
+  // Position profile dropdown when active
+  useLayoutEffect(() => {
+    if (isProfileOpen && adminProfileBtnRef.current && profileDropdownRef.current) {
+      positionDropdown(adminProfileBtnRef.current, profileDropdownRef.current, { align: 'right', verticalAlign: 'bottom' });
+    }
+  }, [isProfileOpen]);
+
+  // Close dropdowns on outside click or scroll/resize
+  useEffect(() => {
+    function handleOutsideClick(e) {
+      if (notifBtnRef.current && !notifBtnRef.current.contains(e.target) && notifDropdownRef.current && !notifDropdownRef.current.contains(e.target)) {
+        setIsNotifOpen(false);
+      }
+      if (adminProfileBtnRef.current && !adminProfileBtnRef.current.contains(e.target) && profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) {
+        setIsProfileOpen(false);
+      }
+    }
+
+    function handleReposition() {
+      if (isNotifOpen && notifBtnRef.current && notifDropdownRef.current) {
+        positionDropdown(notifBtnRef.current, notifDropdownRef.current, { align: 'right', verticalAlign: 'bottom' });
+      }
+      if (isProfileOpen && adminProfileBtnRef.current && profileDropdownRef.current) {
+        positionDropdown(adminProfileBtnRef.current, profileDropdownRef.current, { align: 'right', verticalAlign: 'bottom' });
+      }
+    }
+
+    document.addEventListener('click', handleOutsideClick);
+    window.addEventListener('resize', handleReposition);
+    window.addEventListener('scroll', handleReposition, true);
+    return () => {
+      document.removeEventListener('click', handleOutsideClick);
+      window.removeEventListener('resize', handleReposition);
+      window.removeEventListener('scroll', handleReposition, true);
+    };
+  }, [isNotifOpen, isProfileOpen]);
+
+  return (
+    <>
+    <div className="top-title-bar">
+      <div className="title-bar-left">
+        <button
+          className="icon-btn mobile-menu-btn"
+          id="mobileMenuBtn"
+          aria-label="Open Navigation Menu"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleMobile();
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" strokeWidth="1.75">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+
+        <span className="meta-label active-page-title" id="activePageTitle">
+          {activeTitle}
+        </span>
+      </div>
+
+      <div className="title-bar-right">
+        {/* Current Live Date and Time */}
+        <div className="top-bar-clock-box">
+          <span className="meta-label top-bar-clock" id="topBarClock">
+            {clockText}
+          </span>
+        </div>
+
+        {/* Notification Bell Icon Button & Accent Badge */}
+        <div className="notif-wrapper">
+          <button
+            ref={notifBtnRef}
+            className="notif-btn"
+            id="notifBtn"
+            aria-expanded={isNotifOpen}
+            aria-label="Notifications"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsProfileOpen(false);
+              setIsNotifOpen((prev) => !prev);
+            }}
+          >
+            <div className="notif-icon-box">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+            </div>
+            <span className="notif-accent-badge" id="notifAccentBadge" style={{ display: 'none' }}></span>
+            <span className="notif-btn-label" id="notifBtnLabel" aria-hidden="true"></span>
+          </button>
+
+          {/* Notification Dropdown Panel */}
+          <div
+            ref={notifDropdownRef}
+            className={`notif-dropdown ${isNotifOpen ? 'active' : ''}`}
+            id="notifDropdown"
+            aria-hidden={!isNotifOpen}
+          >
+            <div className="dropdown-header">
+              <span className="meta-label">NOTIFICATIONS</span>
+              <div className="dropdown-header-actions">
+                <button className="mute-toggle-btn" id="muteToggleBtn" title="Mute notifications">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  </svg>
+                </button>
+                <button className="btn-capsule clear-all-btn" id="clearNotifBtn">
+                  Clear All
+                </button>
+              </div>
+            </div>
+            <div className="notif-body" id="notifBody">
+              <div className="notif-empty" id="notifEmpty" style={{ display: 'block' }}>
+                <span className="meta-label">NO NEW NOTIFICATIONS</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Prominent Admin Profile Capsule */}
+        <div className="admin-profile-pill-wrapper">
+          <button
+            ref={adminProfileBtnRef}
+            className="admin-profile-pill prominent"
+            id="adminProfileBtn"
+            aria-expanded={isProfileOpen}
+            aria-label="Admin Profile Menu"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsNotifOpen(false);
+              setIsProfileOpen((prev) => !prev);
+            }}
+          >
+            <div className="avatar-flat-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </div>
+            <span className="meta-label admin-name">ADMIN</span>
+          </button>
+
+          <div
+            ref={profileDropdownRef}
+            className={`profile-dropdown ${isProfileOpen ? 'active' : ''}`}
+            id="profileDropdown"
+            aria-hidden={!isProfileOpen}
+          >
+            <a
+              href="#profile"
+              className="dropdown-item"
+              onClick={(e) => {
+                e.preventDefault();
+                setIsProfileOpen(false);
+                // Monolith: href="#profile" opens XModal.custom() with Admin User info card
+                // admin-monolith.html lines 19588-19619
+                setShowProfileModal(true);
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              <span className="meta-label">PROFILE</span>
+            </a>
+            <Link
+              to="/settings"
+              className="dropdown-item"
+              onClick={() => setIsProfileOpen(false)}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              <span className="meta-label">ACCOUNT SETTINGS</span>
+            </Link>
+            <div className="dropdown-divider"></div>
+            <a
+              href="#signout"
+              className="dropdown-item signout-item"
+              onClick={(e) => {
+                e.preventDefault();
+                setIsProfileOpen(false);
+                // Monolith: href="#signout" fires XModal.confirm() — admin-monolith.html lines 19626-19636
+                setShowSignOutModal(true);
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span className="meta-label">SIGN OUT</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* Admin Profile modal — ported from admin-monolith.html lines 19588-19619 */}
+    {showProfileModal && (
+      <div style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000
+      }}>
+        <div style={{
+          background: '#ffffff', borderRadius: '16px', padding: '24px',
+          maxWidth: '400px', width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+        }}>
+          <div style={{ marginBottom: '6px' }}>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--ink,#1c1c1b)' }}>Admin Profile</div>
+            <div style={{ fontSize: '12px', color: 'var(--mute,#747471)' }}>Display Name &amp; Account Details</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', paddingTop: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px',
+              background: 'var(--soft,#eeeeeb)', padding: '14px', borderRadius: '12px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '50%',
+                background: 'var(--ink,#1c1c1b)', color: 'var(--card,#fbfbf9)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 700, fontSize: '16px' }}>AD</div>
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--ink,#1c1c1b)' }}>Admin User</div>
+                <div style={{ fontSize: '12px', color: 'var(--mute,#747471)' }}>Store Administrator</div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '12px' }}>
+              <div>
+                <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
+                  color: 'var(--mute,#747471)', display: 'block' }}>Display Name</label>
+                Admin User
+              </div>
+              <div>
+                <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
+                  color: 'var(--mute,#747471)', display: 'block' }}>Role</label>
+                Administrator (Owner)
+              </div>
+              <div>
+                <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
+                  color: 'var(--mute,#747471)', display: 'block' }}>Email</label>
+                admin@thegiftingfactory.com
+              </div>
+              <div>
+                <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
+                  color: 'var(--mute,#747471)', display: 'block' }}>Status</label>
+                Active
+              </div>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--mute,#747471)', fontStyle: 'italic', marginTop: '8px' }}>
+              Note: Profile editing will be enabled when connected to live auth backend.
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+              <button type="button" className="btn p"
+                onClick={() => setShowProfileModal(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Sign Out confirm modal — ported from admin-monolith.html lines 19626-19636 */}
+    {showSignOutModal && (
+      <div style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000
+      }}>
+        <div style={{
+          background: '#ffffff', borderRadius: '16px', padding: '24px',
+          maxWidth: '400px', width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+        }}>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600 }}>Sign Out</h3>
+          <p style={{ fontSize: '13px', color: 'var(--mute,#747471)', margin: '0 0 16px 0' }}>
+            Are you sure you want to sign out?
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <button type="button" className="btn"
+              onClick={() => setShowSignOutModal(false)}>Cancel</button>
+            <button type="button" className="btn d"
+              onClick={() => {
+                setShowSignOutModal(false);
+                // dispatch toast then reload, matching monolith lines 19633-19634
+                window.dispatchEvent(new CustomEvent('xa12:toast', { detail: { message: 'Signed out.' } }));
+                setTimeout(() => window.location.reload(), 400);
+              }}>Sign Out</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
+  );
+}
