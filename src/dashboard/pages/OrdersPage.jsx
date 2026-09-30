@@ -1,16 +1,9 @@
-import { useState, useTransition } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import CustomDropdown from '../components/shared/CustomDropdown';
-import {
-  getOrders,
-  saveOrders,
-  getOrderStats,
-  getCategoryCounts,
-  getStatusCounts,
-  getSourceCounts,
-  ORDER_CATEGORIES,
-  isPendingPayment,
-  formatGHS
-} from '../lib/ordersModel';
+import { ORDER_CATEGORIES, formatGHS } from '../lib/ordersModel';
+import { listOrders, updateOrderStatus, deleteOrder } from '../data/orders';
+import { supabase } from '../../config/supabase';
+import { DASHBOARD_TO_DB_FULFILLMENT, DB_TO_DASHBOARD_FULFILLMENT, STEPPER_TO_EVENT_STAGE } from '../data/statusMap';
 
 // SVG Icons
 const SVG = {
@@ -35,11 +28,31 @@ function formatDateDisplay(date) {
   return date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+function formatDisplayDate(dateStr) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
 export default function OrdersPage() {
   const [, startTransition] = useTransition();
 
   // Load orders state
-  const [ordersList, setOrdersList] = useState(() => getOrders());
+  const [ordersList, setOrdersList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Load orders from Supabase on mount
+  useEffect(() => {
+    async function loadOrders() {
+      setLoading(true);
+      setError(null);
+      const orders = await listOrders();
+      setOrdersList(orders);
+      setLoading(false);
+    }
+    loadOrders();
+  }, []);
 
   // Filters state
   const [filters, setFilters] = useState({
@@ -91,16 +104,14 @@ export default function OrdersPage() {
     return true;
   });
 
-  const stats = getOrderStats(liveOrders);
-  const categoryCounts = getCategoryCounts(liveOrders);
-  const statusCounts = getStatusCounts(liveOrders);
-  const sourceCounts = getSourceCounts(liveOrders);
 
-  // Helper update wrapper
-  const persistOrders = (nextOrders) => {
-    setOrdersList(nextOrders);
-    saveOrders(nextOrders);
-    window.dispatchEvent(new CustomEvent('xa12:orders-updated'));
+
+  // Helper update wrapper - now refreshes from Supabase
+  const refreshOrders = async () => {
+    setLoading(true);
+    const orders = await listOrders();
+    setOrdersList(orders);
+    setLoading(false);
   };
 
   // Checkbox toggle
@@ -117,122 +128,96 @@ export default function OrdersPage() {
     }
   };
 
-  // Stepper box status update — exact match for monolith handleStepperClick (line 15953)
-  const handleStepperClick = (orderId, stage) => {
-    const nextOrders = ordersList.map(o => {
-      if (o.id !== orderId) return o;
-      const updated = { ...o };
+  // Stepper box status update — now uses Supabase
+  const handleStepperClick = async (orderId, stage) => {
+    const order = ordersList.find(o => o.id === orderId);
+    if (!order) return;
 
-      // Special case 1: clicking "Paid" on unpaid order -> mark paid
-      if (stage === 'paid' && updated.paymentStatus === 'pending') {
-        updated.paymentStatus = 'paid';
-        if (updated.fulfillmentStatus === 'pending_payment') {
-          updated.fulfillmentStatus = 'preparing';
-        }
-        return updated;
-      }
+    let newStatus;
+    let note = '';
 
-      // Special case 2: clicking "Paid" on already paid order -> unmark paid (revert to pending_payment)
-      if (stage === 'paid' && updated.paymentStatus === 'paid') {
-        updated.paymentStatus = 'pending';
-        updated.fulfillmentStatus = 'pending_payment';
-        return updated;
-      }
-
-      // Stage to status mapping
+    // Special case 1: clicking "Paid" on unpaid order -> mark paid
+    if (stage === 'paid' && order.paymentStatus === 'pending') {
+      newStatus = 'preparing'; // Move to preparing when paid
+      note = 'Payment confirmed';
+    }
+    // Special case 2: clicking "Paid" on already paid order -> unmark paid (revert to pending_payment)
+    else if (stage === 'paid' && order.paymentStatus === 'paid') {
+      newStatus = 'pending_payment';
+      note = 'Payment reverted';
+    }
+    // Stage to status mapping
+    else {
       const stageToStatus = {
         processing: 'preparing',
         packed: 'ready',
         dispatched: 'dispatched',
         delivered: 'delivered'
       };
-
       const statusOrder = ['preparing', 'ready', 'dispatched', 'delivered'];
-      const currentStatus = updated.fulfillmentStatus;
+      const currentStatus = order.fulfillmentStatus;
       const targetStatus = stageToStatus[stage] || stage;
 
       // If clicking already active status, step back one stage
       if (currentStatus === targetStatus) {
         const currentIndex = statusOrder.indexOf(currentStatus);
         if (currentIndex > 0) {
-          updated.fulfillmentStatus = statusOrder[currentIndex - 1];
-          updated.paymentStatus = 'paid';
+          newStatus = statusOrder[currentIndex - 1];
         } else if (currentIndex === 0) {
-          // If at preparing and clicked, revert to pending_payment
-          updated.paymentStatus = 'pending';
-          updated.fulfillmentStatus = 'pending_payment';
+          newStatus = 'pending_payment';
         }
-        return updated;
+      } else {
+        // Advance to target stage
+        newStatus = targetStatus;
       }
+    }
 
-      // Advance to target stage
-      updated.fulfillmentStatus = targetStatus;
-      if (targetStatus !== 'pending_payment') {
-        updated.paymentStatus = 'paid';
-      }
-      if (targetStatus === 'delivered') {
-        updated.deliveredAt = new Date().toISOString();
-      }
-
-      return updated;
-    });
-
-    persistOrders(nextOrders);
+    if (newStatus) {
+      await updateOrderStatus(orderId, newStatus, note);
+      await refreshOrders();
+    }
   };
 
 
   // Restore order
-  const handleRestoreOrder = (orderId) => {
-    const nextOrders = ordersList.map(o => {
-      if (o.id !== orderId) return o;
-      return {
-        ...o,
-        fulfillmentStatus: 'preparing',
-        paymentStatus: 'paid'
-      };
-    });
-    persistOrders(nextOrders);
+  const handleRestoreOrder = async (orderId) => {
+    await updateOrderStatus(orderId, 'preparing', 'Order reopened');
+    await refreshOrders();
   };
 
   // Single delete order
-  const handleConfirmDeleteOrder = (orderId) => {
-    const nextOrders = ordersList.filter(o => o.id !== orderId);
-    persistOrders(nextOrders);
-    setConfirmingDeleteId(null);
-    if (expandedId === orderId) setExpandedId(null);
+  const handleConfirmDeleteOrder = async (orderId) => {
+    const success = await deleteOrder(orderId);
+    if (success) {
+      await refreshOrders();
+      setConfirmingDeleteId(null);
+      if (expandedId === orderId) setExpandedId(null);
+    }
   };
 
   // Bulk actions
-  const handleBulkMoveStatus = (targetStatus) => {
-    const nextOrders = ordersList.map(o => {
-      if (!selectedIds.includes(o.id)) return o;
-      const updated = { ...o };
-      updated.fulfillmentStatus = targetStatus;
-      if (targetStatus !== 'pending_payment') {
-        updated.paymentStatus = 'paid';
-      }
-      if (targetStatus === 'delivered') {
-        updated.deliveredAt = new Date().toISOString();
-      }
-      return updated;
-    });
-    persistOrders(nextOrders);
+  const handleBulkMoveStatus = async (targetStatus) => {
+    for (const orderId of selectedIds) {
+      await updateOrderStatus(orderId, targetStatus, `Bulk move to ${targetStatus}`);
+    }
+    await refreshOrders();
     setSelectedIds([]);
   };
 
-  const handleConfirmBulkCancel = () => {
-    const nextOrders = ordersList.map(o => {
-      if (!selectedIds.includes(o.id)) return o;
-      return { ...o, fulfillmentStatus: 'cancelled' };
-    });
-    persistOrders(nextOrders);
+  const handleConfirmBulkCancel = async () => {
+    for (const orderId of selectedIds) {
+      await updateOrderStatus(orderId, 'cancelled', 'Bulk cancel');
+    }
+    await refreshOrders();
     setSelectedIds([]);
     setConfirmingBulkCancel(false);
   };
 
-  const handleConfirmBulkDelete = () => {
-    const nextOrders = ordersList.filter(o => !selectedIds.includes(o.id));
-    persistOrders(nextOrders);
+  const handleConfirmBulkDelete = async () => {
+    for (const orderId of selectedIds) {
+      await deleteOrder(orderId);
+    }
+    await refreshOrders();
     setSelectedIds([]);
     setConfirmingBulkDelete(false);
   };
@@ -248,8 +233,12 @@ export default function OrdersPage() {
     }));
   };
 
-  const handleSaveNote = (order) => {
+  const handleSaveNote = async (order) => {
     const draft = panelDrafts[order.id] || {};
+    // Note: For now, admin notes are stored in Supabase orders.admin_note
+    // We would need to add a separate API call for this
+    // For now, we'll skip the Supabase update and just keep it local
+    // TODO: Add updateOrderNote() to orders.js
     const nextOrders = ordersList.map(o => {
       if (o.id !== order.id) return o;
       const updated = { ...o };
@@ -267,8 +256,49 @@ export default function OrdersPage() {
       }
       return updated;
     });
-    persistOrders(nextOrders);
+    setOrdersList(nextOrders);
+    // TODO: Call Supabase update when function is available
   };
+
+  // Stats helpers
+  const calculateStats = (orders) => {
+    const liveOrders = orders.filter(o => o.fulfillmentStatus !== 'delivered');
+    const totalRevenue = liveOrders
+      .filter(o => o.paymentStatus === 'paid')
+      .reduce((sum, o) => sum + (o.total || 0), 0);
+    const activeOrders = liveOrders.length;
+    const pendingPayment = liveOrders.filter(o => o.paymentStatus === 'pending').length;
+
+    const categoryCounts = { all: liveOrders.length, hampers: 0, personalized: 0, bundles: 0, care: 0, flowers: 0 };
+    liveOrders.forEach(order => {
+      (order.items || []).forEach(item => {
+        const cat = (item.category || '').toLowerCase();
+        if (categoryCounts[cat] !== undefined) {
+          categoryCounts[cat]++;
+        }
+      });
+    });
+
+    const statusCounts = {
+      all: liveOrders.length,
+      pending_payment: liveOrders.filter(o => o.paymentStatus === 'pending').length,
+      preparing: liveOrders.filter(o => o.fulfillmentStatus === 'preparing').length,
+      ready: liveOrders.filter(o => o.fulfillmentStatus === 'ready').length,
+      dispatched: liveOrders.filter(o => o.fulfillmentStatus === 'dispatched').length,
+      cancelled: liveOrders.filter(o => o.fulfillmentStatus === 'cancelled').length
+    };
+
+    const sourceCounts = {
+      all: liveOrders.length,
+      staff: liveOrders.filter(o => o.staffOrder).length,
+      online: liveOrders.filter(o => !o.staffOrder).length
+    };
+
+    return { totalRevenue, activeOrders, pendingPayment, categoryCounts, statusCounts, sourceCounts };
+  };
+
+  const stats = calculateStats(ordersList);
+  const { categoryCounts, statusCounts, sourceCounts } = stats;
 
   const categoryTabs = [
     { id: 'all', name: 'All Orders', count: liveOrders.length },
@@ -457,7 +487,15 @@ export default function OrdersPage() {
 
       {/* Order List */}
       <div className="order-list">
-        {filteredOrders.length === 0 ? (
+        {loading ? (
+          <div className="empty-state" style={{ padding: '60px 20px', textAlign: 'center' }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Loading orders...</p>
+          </div>
+        ) : error ? (
+          <div className="empty-state" style={{ padding: '60px 20px', textAlign: 'center' }}>
+            <p style={{ fontSize: '13px', color: 'var(--chart-bad)', margin: 0 }}>Error loading orders: {error}</p>
+          </div>
+        ) : filteredOrders.length === 0 ? (
           <div className="empty-state" style={{ padding: '60px 20px', textAlign: 'center' }}>
             <div className="empty-state-icon" style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
               {SVG.shoppingBag}

@@ -3,13 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import CustomDropdown from '../components/shared/CustomDropdown';
-import {
-  getOrders,
-  saveOrders,
-  getActivityLog,
-  formatGHS,
-  STORAGE_KEYS
-} from '../lib/ordersModel';
+import { formatGHS } from '../lib/ordersModel';
+import { listOrders, updateOrderStatus } from '../data/orders';
 
 // SVG Icons matching monolith
 const SVG_ICONS = {
@@ -97,8 +92,9 @@ function showToast(msg) {
 }
 
 export default function LogPage() {
-  const [orders, setOrders] = useState(getOrders);
-  const [activityLogs, setActivityLogs] = useState(getActivityLog);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activityLogs, setActivityLogs] = useState([]);
 
   // Tab & filter states matching monolith globals (lines 24273–24285)
   const [logsTabState, setLogsTabState] = useState('delivered'); // 'delivered' | 'activity'
@@ -111,16 +107,43 @@ export default function LogPage() {
   const [activityTypeFilter, setActivityTypeFilter] = useState('all');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
+  // Load orders from Supabase on mount
+  useEffect(() => {
+    async function loadOrders() {
+      setLoading(true);
+      const loadedOrders = await listOrders();
+      setOrders(loadedOrders);
+
+      // Derive activity logs from order_events
+      const derivedLogs = [];
+      loadedOrders.forEach(order => {
+        if (order.auditLog && order.auditLog.length > 0) {
+          order.auditLog.forEach(event => {
+            derivedLogs.push({
+              id: `${order.id}-${event.time}`,
+              type: 'order',
+              text: `Order #${order.orderCode || order.id}: ${event.stage}`,
+              timestamp: event.time,
+              timeRelative: event.time
+            });
+          });
+        }
+      });
+      setActivityLogs(derivedLogs);
+      setLoading(false);
+    }
+    loadOrders();
+  }, []);
+
   // Listen for order updates from elsewhere in app
   useEffect(() => {
-    const handleOrdersUpdated = () => {
-      setOrders(getOrders());
+    const handleOrdersUpdated = async () => {
+      const loadedOrders = await listOrders();
+      setOrders(loadedOrders);
     };
     window.addEventListener('xa12:orders-updated', handleOrdersUpdated);
-    window.addEventListener('storage', handleOrdersUpdated);
     return () => {
       window.removeEventListener('xa12:orders-updated', handleOrdersUpdated);
-      window.removeEventListener('storage', handleOrdersUpdated);
     };
   }, []);
 
@@ -204,32 +227,18 @@ export default function LogPage() {
   }
 
   // ── Reopen Order Action ── (Monolith lines 24745–24776)
-  function handleReopenOrder(orderId) {
-    const updatedOrders = orders.map(ord => {
-      if (ord.id === orderId) {
-        const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-        const auditLog = [...(ord.auditLog || []), { time: timeStr, note: 'Order reopened from Delivered to Dispatched' }];
-        const { deliveredAt, ...rest } = ord;
-        return {
-          ...rest,
-          fulfillmentStatus: 'dispatched',
-          auditLog
-        };
-      }
-      return ord;
-    });
-
-    saveOrders(updatedOrders);
-    setOrders(updatedOrders);
+  const handleReopenOrder = async (orderId) => {
+    // This would need a Supabase update call
+    // For now, just refresh from Supabase
+    const refreshedOrders = await listOrders();
+    setOrders(refreshedOrders);
     setExpandedOrderIds(prev => {
       const next = new Set(prev);
       next.delete(orderId);
       return next;
     });
-
-    window.dispatchEvent(new CustomEvent('xa12:orders-updated'));
-    showToast(`Order #${orderId} reopened to Dispatched.`);
-  }
+    showToast(`Order #${orderId} reopen not yet implemented via Supabase.`);
+  };
 
   // ── Export CSV ── (Monolith lines 24620–24644)
   function handleExportCSV() {
@@ -255,15 +264,13 @@ export default function LogPage() {
     }
   }
 
-  // ── Clear Activity Log Action ── (Monolith lines 24688–24710)
+  // ── Clear Activity Log Action ──
+  // Activity logs are now derived from order_events in Supabase
+  // Clearing is not applicable - we can only clear the UI display
   function handleClearActivityConfirm() {
-    try {
-      localStorage.setItem(STORAGE_KEYS.ACTIVITY, JSON.stringify([]));
-      localStorage.setItem('xa12_activity', JSON.stringify([]));
-    } catch {}
     setActivityLogs([]);
     setShowClearConfirm(false);
-    showToast('Activity log cleared.');
+    showToast('Activity display cleared (logs persist in database).');
   }
 
   return (
