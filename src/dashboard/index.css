@@ -13,7 +13,7 @@
    --type-index-md: 20px                      -> Structural Index Numbers
    -------------------------------------------------------------------------- */
 
-.dashboard-viewport {
+.dashboard-viewport:root {
   --xp-r-pill: 9999px;
   /* Color Palette System (Style Lock 001) */
   --bg-gradient-start: #e4e4e2;
