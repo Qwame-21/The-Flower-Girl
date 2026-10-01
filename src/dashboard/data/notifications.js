@@ -50,6 +50,26 @@ export async function markNotificationRead(notificationId) {
   return true;
 }
 
+// Delete a single notification row (optimistic; caller must rollback on false)
+export async function deleteNotification(notificationId) {
+  if (!supabase) {
+    console.warn('Supabase not configured');
+    return false;
+  }
+
+  const { error } = await supabase
+    .from('admin_notifications')
+    .delete()
+    .eq('id', notificationId);
+
+  if (error) {
+    console.error('Error deleting notification:', error);
+    return false;
+  }
+
+  return true;
+}
+
 // Mark all notifications as read
 export async function markAllNotificationsRead() {
   if (!supabase) {
@@ -92,7 +112,9 @@ export async function clearAllNotifications() {
   return true;
 }
 
-// Subscribe to new notifications via realtime
+// Subscribe to new notifications via realtime.
+// Any INSERT received after subscribing is treated as new — no created_at comparison
+// (avoids clock skew and format differences). Deduplication by id is caller responsibility.
 export function subscribeToNotifications(callback) {
   if (!supabase) {
     console.warn('Supabase not configured, notifications not available');
@@ -131,23 +153,27 @@ export function startNotificationPolling(callback, intervalMs = 30000) {
     return () => {};
   }
 
-  let lastCheckedAt = new Date().toISOString();
+  let seenIds = new Set();
   let intervalId = null;
 
   const poll = async () => {
     const { data, error } = await supabase
       .from('admin_notifications')
       .select('*')
-      .gt('created_at', lastCheckedAt)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (!error && data && data.length > 0) {
-      lastCheckedAt = new Date().toISOString();
-      data.forEach(notif => callback(notif));
+      data.forEach(notif => {
+        if (!seenIds.has(notif.id)) {
+          seenIds.add(notif.id);
+          callback(notif);
+        }
+      });
     }
   };
 
-  // Initial poll
+  // Initial poll to seed seenIds
   poll();
 
   // Start interval

@@ -1,82 +1,9 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { listNotifications, markNotificationRead, markAllNotificationsRead, clearAllNotifications, subscribeToNotifications, startNotificationPolling } from '../../data/notifications';
+import { listNotifications, deleteNotification, markAllNotificationsRead, clearAllNotifications, subscribeToNotifications, startNotificationPolling } from '../../data/notifications';
 import { supabase } from '../../../config/supabase';
-
-// Audio context for Web Audio API (created on first user interaction)
-let audioContext = null;
-
-// Initialize AudioContext on first user interaction
-function initAudioContext() {
-  if (!audioContext) {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  if (audioContext.state === 'suspended') {
-    audioContext.resume();
-  }
-}
-
-// Single notification sound function using Web Audio API (matches HOPESON original)
-export function playNotificationSound() {
-  const isMuted = localStorage.getItem('notifications-muted') === 'true';
-  if (isMuted) return;
-
-  try {
-    initAudioContext();
-    const ctx = audioContext;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.15);
-    gain.gain.setValueAtTime(0.1, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.15);
-  } catch (e) {
-    // Audio play failed - silent fail
-  }
-}
-
-// Synthesized audio feedback for mute toggle (matches HOPESON original)
-function playMuteSound() {
-  try {
-    initAudioContext();
-    const ctx = audioContext;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(320, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(160, ctx.currentTime + 0.12);
-    gain.gain.setValueAtTime(0.08, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.12);
-  } catch (e) {}
-}
-
-function playUnmuteSound() {
-  try {
-    initAudioContext();
-    const ctx = audioContext;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(220, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.12);
-    gain.gain.setValueAtTime(0.08, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.12);
-  } catch (e) {}
-}
+import { playNotificationSound, playMuteSound, playUnmuteSound } from '../../lib/sounds';
 
 const ROUTE_TITLE_MAP = {
   '/overview': 'OVERVIEW',
@@ -152,6 +79,10 @@ export default function Header({ onToggleMobile }) {
   const [usingPolling, setUsingPolling] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
 
+  // Clear All inline confirm state (replaces modal)
+  const [clearAllConfirm, setClearAllConfirm] = useState(false);
+  const clearAllTimerRef = useRef(null);
+
   useEffect(() => {
     function updateClock() {
       const now = new Date();
@@ -177,7 +108,6 @@ export default function Header({ onToggleMobile }) {
   // Modal states — ported from admin-monolith.html lines 19588-19636
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
-  const [showClearAllModal, setShowClearAllModal] = useState(false);
 
   // Refs for trigger & dropdown positioning
   const notifBtnRef = useRef(null);
@@ -240,50 +170,57 @@ export default function Header({ onToggleMobile }) {
     loadNotifications();
   }, []);
 
-  // Initialize AudioContext on first user interaction
-  useEffect(() => {
-    function handleFirstInteraction() {
-      initAudioContext();
-      document.removeEventListener('pointerdown', handleFirstInteraction);
-    }
-    document.addEventListener('pointerdown', handleFirstInteraction);
-    return () => {
-      document.removeEventListener('pointerdown', handleFirstInteraction);
-    };
-  }, []);
-
-  // Set up realtime or polling for new notifications
+  // Set up realtime or polling for new notifications.
+  // Any INSERT received is treated as new — no created_at comparison (avoids clock skew).
+  // Deduplication by id prevents duplicates.
   useEffect(() => {
     if (!supabase) {
       console.warn('Supabase not configured, notifications polling disabled');
       return;
     }
 
-    const pageLoadTime = new Date().toISOString();
-
     // Try realtime subscription first
     let unsubscribe;
     try {
       unsubscribe = subscribeToNotifications((newNotif) => {
-        // Only play sound and add if notification arrived after page load
-        if (newNotif.created_at > pageLoadTime) {
+        // Dedupe by id
+        setNotifications(prev => {
+          if (prev.some(n => n.id === newNotif.id)) return prev;
           if (!isMuted) {
             playNotificationSound();
           }
-          setNotifications(prev => [newNotif, ...prev]);
-        }
+          return [{
+            id: newNotif.id,
+            type: newNotif.type,
+            title: newNotif.title,
+            body: newNotif.body,
+            route: newNotif.route,
+            recordId: newNotif.record_id,
+            readAt: newNotif.read_at,
+            createdAt: newNotif.created_at
+          }, ...prev];
+        });
       });
-      console.log('Using realtime subscription for notifications');
     } catch (e) {
       console.warn('Realtime subscription failed, falling back to polling:', e);
       setUsingPolling(true);
       unsubscribe = startNotificationPolling((newNotif) => {
-        if (newNotif.created_at > pageLoadTime) {
+        setNotifications(prev => {
+          if (prev.some(n => n.id === newNotif.id)) return prev;
           if (!isMuted) {
             playNotificationSound();
           }
-          setNotifications(prev => [newNotif, ...prev]);
-        }
+          return [{
+            id: newNotif.id,
+            type: newNotif.type,
+            title: newNotif.title,
+            body: newNotif.body,
+            route: newNotif.route,
+            recordId: newNotif.record_id,
+            readAt: newNotif.read_at,
+            createdAt: newNotif.created_at
+          }, ...prev];
+        });
       });
     }
 
@@ -297,12 +234,19 @@ export default function Header({ onToggleMobile }) {
     localStorage.setItem('notifications-muted', String(isMuted));
   }, [isMuted]);
 
+  // Cleanup clear-all timer on unmount
+  useEffect(() => {
+    return () => {
+      if (clearAllTimerRef.current) clearTimeout(clearAllTimerRef.current);
+    };
+  }, []);
+
   // Notification handlers
   const handleToggleMute = () => {
     const newMutedState = !isMuted;
     setIsMuted(newMutedState);
 
-    // Play sound
+    // Play sound (always — this is the mute toggle confirmation itself)
     if (newMutedState) {
       playMuteSound();
     } else {
@@ -314,28 +258,42 @@ export default function Header({ onToggleMobile }) {
     setTimeout(() => setIsExpanding(false), 1600);
   };
 
-  const handleMarkRead = async (notifId) => {
-    await markNotificationRead(notifId);
-    setNotifications(prev => prev.map(n =>
-      n.id === notifId ? { ...n, readAt: new Date().toISOString() } : n
-    ));
-  };
-
-  const handleMarkAllRead = async () => {
-    await markAllNotificationsRead();
-    setNotifications(prev => prev.map(n => ({ ...n, readAt: new Date().toISOString() })));
-  };
-
-  const handleClearAll = async () => {
-    const success = await clearAllNotifications();
-    if (success) {
-      setNotifications([]);
-      setShowClearAllModal(false);
-    } else {
-      // If delete failed, mark all as read instead
-      await handleMarkAllRead();
-      setShowClearAllModal(false);
+  // × button: optimistic delete from list, rollback on error
+  const handleDismissNotif = async (notifId) => {
+    const prev = notifications;
+    setNotifications(n => n.filter(x => x.id !== notifId));
+    const ok = await deleteNotification(notifId);
+    if (!ok) {
+      // Rollback
+      setNotifications(prev);
     }
+  };
+
+  // Clear All — inline two-step confirm, auto-reverts after 4 s
+  const handleClearAllFirst = () => {
+    setClearAllConfirm(true);
+    if (clearAllTimerRef.current) clearTimeout(clearAllTimerRef.current);
+    clearAllTimerRef.current = setTimeout(() => {
+      setClearAllConfirm(false);
+    }, 4000);
+  };
+
+  const handleClearAllConfirm = async () => {
+    if (clearAllTimerRef.current) clearTimeout(clearAllTimerRef.current);
+    setClearAllConfirm(false);
+    const prevNotifs = notifications;
+    // Optimistic clear
+    setNotifications([]);
+    const success = await clearAllNotifications();
+    if (!success) {
+      // Rollback
+      setNotifications(prevNotifs);
+    }
+  };
+
+  const handleClearAllCancel = () => {
+    if (clearAllTimerRef.current) clearTimeout(clearAllTimerRef.current);
+    setClearAllConfirm(false);
   };
 
   return (
@@ -405,6 +363,7 @@ export default function Header({ onToggleMobile }) {
             <div className="dropdown-header">
               <span className="meta-label">NOTIFICATIONS</span>
               <div className="dropdown-header-actions">
+                {/* Mute toggle: speaker-with-X when muted (Feather volume-x), speaker-with-waves when unmuted */}
                 <button
                   className={`mute-toggle-btn ${isMuted ? 'muted' : ''} ${isExpanding ? 'expanding-capsule' : ''}`}
                   id="muteToggleBtn"
@@ -412,11 +371,14 @@ export default function Header({ onToggleMobile }) {
                   onClick={handleToggleMute}
                 >
                   {isMuted ? (
+                    /* Feather volume-x — speaker with X */
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="1" y1="1" x2="23" y2="23"></line>
-                      <path d="M9 9v6a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6l-3 3a3 3 0 0 0 1.06 5.94M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path>
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                      <line x1="23" y1="9" x2="17" y2="15"></line>
+                      <line x1="17" y1="9" x2="23" y2="15"></line>
                     </svg>
                   ) : (
+                    /* Feather volume-2 — speaker with waves (unmuted) */
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
                       <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
@@ -424,32 +386,52 @@ export default function Header({ onToggleMobile }) {
                   )}
                   <span className="mute-btn-text">{isMuted ? 'Muted' : 'Unmuted'}</span>
                 </button>
-                <button
-                  className="btn-capsule clear-all-btn"
-                  id="clearNotifBtn"
-                  onClick={() => setShowClearAllModal(true)}
-                  disabled={notifications.length === 0}
-                >
-                  Clear All
-                </button>
+
+                {/* Clear All — inline two-step, no modal */}
+                {clearAllConfirm ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      className="btn-capsule clear-all-btn"
+                      style={{ background: '#dc2626', color: '#fff', borderColor: 'transparent', fontSize: '10px', padding: '0 12px' }}
+                      onClick={handleClearAllConfirm}
+                    >
+                      Yes, clear
+                    </button>
+                    <button
+                      className="btn-capsule clear-all-btn"
+                      onClick={handleClearAllCancel}
+                    >
+                      Cancel
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    className="btn-capsule clear-all-btn"
+                    id="clearNotifBtn"
+                    onClick={handleClearAllFirst}
+                    disabled={notifications.length === 0}
+                  >
+                    Clear all?
+                  </button>
+                )}
               </div>
             </div>
             <div className="notif-body" id="notifBody">
               {notifications.length === 0 ? (
                 <div className="notif-empty" id="notifEmpty" style={{ display: 'block' }}>
-                  <span className="meta-label">NO NEW NOTIFICATIONS</span>
+                  <span className="meta-label">No notifications</span>
                 </div>
               ) : (
-                notifications.map((notif, idx) => (
+                notifications.map((notif) => (
                   <div key={notif.id} className={`notif-item ${notif.readAt ? 'read' : ''}`}>
                     <span className="meta-label">{notif.title}</span>
                     <button
                       className="notif-clear-item-btn"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleMarkRead(notif.id);
+                        handleDismissNotif(notif.id);
                       }}
-                      title="Mark as read"
+                      title="Dismiss notification"
                     >
                       ×
                     </button>
@@ -495,8 +477,6 @@ export default function Header({ onToggleMobile }) {
               onClick={(e) => {
                 e.preventDefault();
                 setIsProfileOpen(false);
-                // Monolith: href="#profile" opens XModal.custom() with Admin User info card
-                // admin-monolith.html lines 19588-19619
                 setShowProfileModal(true);
               }}
             >
@@ -524,7 +504,6 @@ export default function Header({ onToggleMobile }) {
               onClick={(e) => {
                 e.preventDefault();
                 setIsProfileOpen(false);
-                // Monolith: href="#signout" fires XModal.confirm() — admin-monolith.html lines 19626-19636
                 setShowSignOutModal(true);
               }}
             >
@@ -623,35 +602,10 @@ export default function Header({ onToggleMobile }) {
                 if (onSignOut) {
                   onSignOut();
                 } else {
-                  // Fallback if no signOut prop provided
                   window.dispatchEvent(new CustomEvent('xa12:toast', { detail: { message: 'Signed out.' } }));
                   setTimeout(() => window.location.reload(), 400);
                 }
               }}>Sign Out</button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* Clear All confirm modal */}
-    {showClearAllModal && (
-      <div style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000
-      }}>
-        <div style={{
-          background: '#ffffff', borderRadius: '16px', padding: '24px',
-          maxWidth: '400px', width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-        }}>
-          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600 }}>Clear All Notifications</h3>
-          <p style={{ fontSize: '13px', color: 'var(--mute,#747471)', margin: '0 0 16px 0' }}>
-            Are you sure you want to clear all notifications? This will mark them as read.
-          </p>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-            <button type="button" className="btn"
-              onClick={() => setShowClearAllModal(false)}>No</button>
-            <button type="button" className="btn d"
-              onClick={handleClearAll}>Yes</button>
           </div>
         </div>
       </div>
