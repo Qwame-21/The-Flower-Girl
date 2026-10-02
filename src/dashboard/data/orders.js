@@ -78,48 +78,136 @@ export async function listOrders() {
   }));
 }
 
-// Update order fulfillment status and add event
-export async function updateOrderStatus(orderId, newStatus, customerNote = '', userId = null) {
+// Update order fulfillment status and add/delete event
+export async function updateOrderStatus(orderId, action, customerNote = '', userId = null) {
   if (!supabase) {
     console.warn('Supabase not configured');
-    return null;
+    return { success: false, error: 'Supabase not configured' };
   }
 
-  const dbStatus = DASHBOARD_TO_DB_FULFILLMENT[newStatus] || newStatus;
-  const eventStage = STEPPER_TO_EVENT_STAGE[newStatus] || dbStatus;
-
-  // Update order
-  const { data: order, error: updateError } = await supabase
+  // Fetch current order state from DB
+  const { data: currentOrder, error: fetchError } = await supabase
     .from('orders')
-    .update({
-      fulfillment_status: dbStatus,
-      // If status is 'completed', set estimated_delivery to now
-      ...(dbStatus === 'completed' ? { estimated_delivery: new Date().toISOString() } : {})
-    })
+    .select('id, fulfillment_status, payment_status, payment_provider, staff_order')
+    .eq('id', orderId)
+    .single();
+
+  if (fetchError || !currentOrder) {
+    return { success: false, error: fetchError?.message || 'Order not found' };
+  }
+
+  let isUndo = false;
+  let targetDbStatus = currentOrder.fulfillment_status;
+  let targetPaymentStatus = currentOrder.payment_status;
+  let eventStageToInsert = null;
+  let eventStagesToDelete = null;
+
+  if (action === 'paid') {
+    if (currentOrder.fulfillment_status === 'pending_payment' && currentOrder.payment_status === 'pending') {
+      // Advance: Unpaid -> Paid/Processing
+      targetDbStatus = 'packaging';
+      targetPaymentStatus = 'paid';
+      eventStageToInsert = 'paid';
+    } else if (currentOrder.payment_status === 'paid') {
+      // Undo Paid
+      if (currentOrder.payment_provider === 'paystack' && !currentOrder.staff_order) {
+        return { success: false, error: 'Orders with Paystack payment cannot undo Paid status' };
+      }
+      isUndo = true;
+      targetDbStatus = 'pending_payment';
+      targetPaymentStatus = 'pending';
+      eventStagesToDelete = ['paid', 'packaging'];
+    } else {
+      // Unpaid order at another status marking paid
+      targetPaymentStatus = 'paid';
+      eventStageToInsert = 'paid';
+    }
+  } else if (action === 'packed' || action === 'ready') {
+    if (currentOrder.fulfillment_status === 'ready') {
+      // Undo Packed
+      isUndo = true;
+      targetDbStatus = 'packaging';
+      eventStagesToDelete = ['ready'];
+    } else {
+      // Advance Packed
+      targetDbStatus = 'ready';
+      targetPaymentStatus = 'paid';
+      eventStageToInsert = 'ready';
+    }
+  } else if (action === 'dispatched' || action === 'delivery') {
+    if (currentOrder.fulfillment_status === 'delivery') {
+      // Undo Dispatched
+      isUndo = true;
+      targetDbStatus = 'ready';
+      eventStagesToDelete = ['delivery'];
+    } else {
+      // Advance Dispatched
+      targetDbStatus = 'delivery';
+      targetPaymentStatus = 'paid';
+      eventStageToInsert = 'delivery';
+    }
+  } else if (action === 'delivered' || action === 'completed') {
+    if (currentOrder.fulfillment_status === 'completed') {
+      // Undo Delivered
+      isUndo = true;
+      targetDbStatus = 'delivery';
+      eventStagesToDelete = ['completed'];
+    } else {
+      // Advance Delivered
+      targetDbStatus = 'completed';
+      targetPaymentStatus = 'paid';
+      eventStageToInsert = 'completed';
+    }
+  } else if (action === 'cancelled') {
+    targetDbStatus = 'cancelled';
+  } else {
+    targetDbStatus = DASHBOARD_TO_DB_FULFILLMENT[action] || action;
+  }
+
+  // Update order in Supabase
+  const updatePayload = {
+    fulfillment_status: targetDbStatus,
+    payment_status: targetPaymentStatus,
+    ...(targetDbStatus === 'completed' ? { estimated_delivery: new Date().toISOString() } : {})
+  };
+
+  const { data: updatedOrder, error: updateError } = await supabase
+    .from('orders')
+    .update(updatePayload)
     .eq('id', orderId)
     .select()
     .single();
 
   if (updateError) {
-    console.error('Error updating order status:', updateError);
-    return null;
+    return { success: false, error: updateError.message };
   }
 
-  // Insert order event
-  const { error: eventError } = await supabase
-    .from('order_events')
-    .insert({
-      order_id: orderId,
-      stage: eventStage,
-      customer_note: customerNote,
-      created_by: userId
-    });
+  if (isUndo && eventStagesToDelete) {
+    const { error: deleteError } = await supabase
+      .from('order_events')
+      .delete()
+      .eq('order_id', orderId)
+      .in('stage', eventStagesToDelete);
 
-  if (eventError) {
-    console.error('Error inserting order event:', eventError);
+    if (deleteError) {
+      console.warn('Error deleting order_events on undo:', deleteError.message);
+    }
+  } else if (eventStageToInsert) {
+    const { error: eventError } = await supabase
+      .from('order_events')
+      .insert({
+        order_id: orderId,
+        stage: eventStageToInsert,
+        customer_note: customerNote || '',
+        created_by: userId
+      });
+
+    if (eventError) {
+      console.warn('Error inserting order_events on advance:', eventError.message);
+    }
   }
 
-  return order;
+  return { success: true, data: updatedOrder };
 }
 
 // Create a staff order
@@ -252,6 +340,10 @@ export async function deleteOrder(orderId) {
     console.warn('Supabase not configured');
     return false;
   }
+
+  // Explicit deletion sequence: order_events -> order_items -> orders
+  await supabase.from('order_events').delete().eq('order_id', orderId);
+  await supabase.from('order_items').delete().eq('order_id', orderId);
 
   const { error } = await supabase
     .from('orders')

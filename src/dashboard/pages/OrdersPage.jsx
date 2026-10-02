@@ -141,83 +141,74 @@ export default function OrdersPage() {
     const order = ordersList.find(o => o.id === orderId);
     if (!order) return;
 
-    let newStatus;
-    let note = '';
+    const prevOrder = { ...order };
+    setOrderErrors(prev => ({ ...prev, [orderId]: null }));
 
-    // Special case 1: clicking "Paid" on unpaid order -> mark paid
-    if (stage === 'paid' && order.paymentStatus === 'pending') {
-      newStatus = 'packaging'; // DB 'packaging' = dashboard processing
-      note = 'Payment confirmed';
+    if (stage === 'paid' && order.paymentStatus === 'paid' && (order.paymentProvider === 'paystack' || order.payment_provider === 'paystack') && !order.staffOrder) {
+      setOrderErrors(prev => ({ ...prev, [orderId]: 'Paystack orders cannot undo Paid status' }));
+      return;
     }
-    // Special case 2: clicking "Paid" on already paid order -> revert
-    else if (stage === 'paid' && order.paymentStatus === 'paid') {
-      newStatus = 'pending_payment';
-      note = 'Payment reverted';
-    }
-    // Stage to fulfillmentStatus (dashboard values from DB_TO_DASHBOARD_FULFILLMENT)
-    else {
-      const stageToStatus = {
-        paid: 'paid',
-        packaging: 'packaging',
-        ready: 'ready',
-        dispatched: 'dispatched',
-        delivered: 'delivered'
-      };
-      const statusOrder = ['paid', 'packaging', 'ready', 'dispatched', 'delivered'];
-      const currentStatus = order.fulfillmentStatus;
-      const targetStatus = stageToStatus[stage] || stage;
 
-      // If clicking already active status, step back one stage
-      if (currentStatus === targetStatus) {
-        const currentIndex = statusOrder.indexOf(currentStatus);
-        if (currentIndex > 0) {
-          newStatus = statusOrder[currentIndex - 1];
-        } else {
-          newStatus = 'pending_payment';
-        }
+    let optFulfillment = order.fulfillmentStatus;
+    let optPayment = order.paymentStatus;
+
+    if (stage === 'paid') {
+      if (order.paymentStatus === 'pending') {
+        optFulfillment = 'packaging';
+        optPayment = 'paid';
       } else {
-        newStatus = targetStatus;
+        optFulfillment = 'pending_payment';
+        optPayment = 'pending';
+      }
+    } else if (stage === 'packed' || stage === 'ready') {
+      if (order.fulfillmentStatus === 'ready' || order.fulfillmentStatus === 'packed') {
+        optFulfillment = 'packaging';
+      } else {
+        optFulfillment = 'ready';
+        optPayment = 'paid';
+      }
+    } else if (stage === 'dispatched' || stage === 'delivery') {
+      if (order.fulfillmentStatus === 'dispatched' || order.fulfillmentStatus === 'delivery') {
+        optFulfillment = 'ready';
+      } else {
+        optFulfillment = 'dispatched';
+        optPayment = 'paid';
+      }
+    } else if (stage === 'delivered' || stage === 'completed') {
+      if (order.fulfillmentStatus === 'delivered' || order.fulfillmentStatus === 'completed') {
+        optFulfillment = 'dispatched';
+      } else {
+        optFulfillment = 'delivered';
+        optPayment = 'paid';
       }
     }
 
-    if (!newStatus) return;
-
-    // Snapshot for rollback
-    const prevOrder = { ...order };
-
-    // Optimistic update — only touch this one order, no loading state
     setOrdersList(prev => prev.map(o =>
-      o.id === orderId ? { ...o, fulfillmentStatus: newStatus, paymentStatus: newStatus === 'pending_payment' ? 'pending' : o.paymentStatus } : o
+      o.id === orderId ? { ...o, fulfillmentStatus: optFulfillment, paymentStatus: optPayment } : o
     ));
-    setOrderErrors(prev => ({ ...prev, [orderId]: null }));
 
-    // Background write
-    const result = await updateOrderStatus(orderId, newStatus, note);
-    if (!result) {
-      // Rollback on failure
+    const result = await updateOrderStatus(orderId, stage);
+    if (!result || !result.success) {
       setOrdersList(prev => prev.map(o => o.id === orderId ? prevOrder : o));
-      setOrderErrors(prev => ({ ...prev, [orderId]: 'Update failed. Please try again.' }));
+      setOrderErrors(prev => ({ ...prev, [orderId]: result?.error || 'Update failed' }));
     } else {
-      // Silent background merge — no spinner, no remount
-      refreshOrders();
+      await refreshOrders();
     }
   };
-
 
   // Restore order
   const handleRestoreOrder = async (orderId) => {
     const prevOrder = ordersList.find(o => o.id === orderId);
-    // Optimistic: set to 'packaging' (processing)
+    setOrderErrors(prev => ({ ...prev, [orderId]: null }));
     setOrdersList(prev => prev.map(o =>
       o.id === orderId ? { ...o, fulfillmentStatus: 'packaging' } : o
     ));
     const result = await updateOrderStatus(orderId, 'packaging', 'Order reopened');
-    if (!result) {
-      // Rollback
+    if (!result || !result.success) {
       if (prevOrder) setOrdersList(prev => prev.map(o => o.id === orderId ? prevOrder : o));
-      setOrderErrors(prev => ({ ...prev, [orderId]: 'Restore failed. Please try again.' }));
+      setOrderErrors(prev => ({ ...prev, [orderId]: result?.error || 'Restore failed' }));
     } else {
-      refreshOrders();
+      await refreshOrders();
     }
   };
 
@@ -572,12 +563,23 @@ export default function OrdersPage() {
             const isPaid = order.paymentStatus === 'paid';
             const stepperSteps = [
               { key: 'paid', label: 'Paid', actionStage: 'paid' },
-              { key: 'packaging', label: 'Processing', actionStage: 'packaging' },
-              { key: 'ready', label: 'Packed', actionStage: 'ready' },
-              { key: 'delivery', label: 'Dispatched', actionStage: 'delivery' }
+              { key: 'packed', label: 'Packed', actionStage: 'packed' },
+              { key: 'dispatched', label: 'Dispatched', actionStage: 'dispatched' },
+              { key: 'delivered', label: 'Delivered', actionStage: 'delivered' }
             ];
-            const statusOrder = ['paid', 'packaging', 'ready', 'delivery'];
-            const currentIndex = statusOrder.indexOf(order.fulfillmentStatus);
+
+            const getStepperCurrentIndex = (o) => {
+              if (o.fulfillmentStatus === 'cancelled') return -1;
+              if (o.paymentStatus !== 'paid') return -1;
+              const status = o.fulfillmentStatus;
+              if (status === 'packaging' || status === 'preparing' || status === 'paid') return 0;
+              if (status === 'ready' || status === 'packed') return 1;
+              if (status === 'dispatched' || status === 'delivery') return 2;
+              if (status === 'delivered' || status === 'completed') return 3;
+              return -1;
+            };
+
+            const currentIndex = getStepperCurrentIndex(order);
 
             const draft = panelDrafts[order.id] || {};
             const draftDate = draft.date !== undefined ? draft.date : '';
@@ -621,9 +623,9 @@ export default function OrdersPage() {
 
             let nextStageLabel = 'MARK PACKAGED FIRST';
             if (order.paymentStatus === 'pending') nextStageLabel = 'MARK AS PAID FIRST';
-            else if (order.fulfillmentStatus === 'packaging') nextStageLabel = 'MARK PACKAGED FIRST';
-            else if (order.fulfillmentStatus === 'ready') nextStageLabel = 'DISPATCH ORDER';
-            else if (order.fulfillmentStatus === 'delivery') nextStageLabel = 'MARK DELIVERED';
+            else if (order.fulfillmentStatus === 'packaging' || order.fulfillmentStatus === 'preparing') nextStageLabel = 'MARK PACKAGED FIRST';
+            else if (order.fulfillmentStatus === 'ready' || order.fulfillmentStatus === 'packed') nextStageLabel = 'DISPATCH ORDER';
+            else if (order.fulfillmentStatus === 'dispatched' || order.fulfillmentStatus === 'delivery') nextStageLabel = 'MARK DELIVERED';
 
             return (
               <div key={order.id} className={`order-card ${isExpanded ? 'expanded' : ''} ${isSelected ? 'selected' : ''}`}>
@@ -676,11 +678,21 @@ export default function OrdersPage() {
                       <div className="order-stepper-boxes" onClick={(e) => e.stopPropagation()}>
                         {stepperSteps.map((step, index) => {
                           const isStepPaid = step.key === 'paid';
-                          const disabled = !isPaid && !isStepPaid;
+                          let disabled = false;
+                          if (!isPaid) {
+                            disabled = !isStepPaid;
+                          } else if (isStepPaid && (order.paymentProvider === 'paystack' || order.payment_provider === 'paystack') && !order.staffOrder) {
+                            disabled = true;
+                          }
+
                           let stateClass = '';
-                          if (disabled) stateClass = 'disabled';
-                          else if (index === currentIndex) stateClass = 'current';
-                          else if (index < currentIndex) stateClass = 'reached';
+                          if (disabled && !isPaid) {
+                            stateClass = 'disabled';
+                          } else if (index === currentIndex) {
+                            stateClass = 'current';
+                          } else if (index < currentIndex) {
+                            stateClass = 'reached';
+                          }
 
                           return (
                             <button

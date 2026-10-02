@@ -38,16 +38,17 @@ export const PAYMENT_STATUS_LABELS = {
 };
 
 // Dashboard internal status to DB status mapping
-// The dashboard uses 'preparing', 'packaging', 'dispatched' internally
-// These need to map to DB enum values
 export const DASHBOARD_TO_DB_FULFILLMENT = {
   pending_payment: 'pending_payment',
   paid: 'paid',
-  preparing: 'packaging', // Dashboard "preparing" maps to DB "packaging"
-  packaging: 'packaging', // Dashboard "packaging" maps to DB "packaging"
+  preparing: 'packaging',
+  packaging: 'packaging',
   ready: 'ready',
+  packed: 'ready',
   dispatched: 'delivery',
+  delivery: 'delivery',
   delivered: 'completed',
+  completed: 'completed',
   cancelled: 'cancelled'
 };
 
@@ -55,7 +56,7 @@ export const DASHBOARD_TO_DB_FULFILLMENT = {
 export const DB_TO_DASHBOARD_FULFILLMENT = {
   pending_payment: 'pending_payment',
   paid: 'paid',
-  packaging: 'packaging', // DB "packaging" maps to dashboard "packaging"
+  packaging: 'packaging',
   ready: 'ready',
   delivery: 'dispatched',
   completed: 'delivered',
@@ -65,15 +66,12 @@ export const DB_TO_DASHBOARD_FULFILLMENT = {
 // Dashboard stepper stages to DB order_events stages
 export const STEPPER_TO_EVENT_STAGE = {
   paid: 'paid',
-  processing: 'packaging',
+  packaging: 'packaging',
   packed: 'ready',
+  ready: 'ready',
   dispatched: 'delivery',
-  delivered: 'completed'
+  delivery: 'delivery',
+  delivered: 'completed',
+  completed: 'completed'
 };
 
-// Notes on status mapping:
-// - DB enum has 'pending_payment', 'paid', 'packaging', 'ready', 'delivery', 'completed', 'cancelled'
-// - Dashboard uses 'preparing' and 'packaging' interchangeably for "Processing"
-// - Dashboard stepper stages: paid, processing, packed, dispatched, delivered
-// - DB order_events stages: pending_payment, paid, packaging, ready, delivery, completed, cancelled
-// - Storefront tracking reads these DB enum values directly
