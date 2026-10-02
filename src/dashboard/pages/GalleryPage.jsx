@@ -1,9 +1,15 @@
 // src/pages/GalleryPage.jsx
-// Admin gallery manager with storefront gallery display and Supabase uploaded photos
+// Rewired to use Supabase gallery_items table only
 
 import { useState, useEffect } from 'react';
-import { readAdminData, subscribeAdminData } from '../../data/adminStore';
 import { supabase } from '../../config/supabase';
+import {
+  listGalleryItems,
+  createGalleryItem,
+  updateGalleryItem,
+  deleteGalleryItem,
+  uploadGalleryImage
+} from '../data/gallery';
 import CustomDropdown from '../components/shared/CustomDropdown';
 
 // Toast helper
@@ -50,12 +56,12 @@ function AddPhotoModal({ onCancel, onSubmit }) {
       return;
     }
 
-    setError('');
     setFile(selected);
+    setError('');
 
-    // Create preview
+    // Generate preview
     const reader = new FileReader();
-    reader.onload = (e) => setPreview(e.target.result);
+    reader.onload = () => setPreview(reader.result);
     reader.readAsDataURL(selected);
   }
 
@@ -67,14 +73,8 @@ function AddPhotoModal({ onCancel, onSubmit }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (loading) return;
-
     if (!title.trim()) {
       setError('Title is required');
-      return;
-    }
-    if (!category) {
-      setError('Category is required');
       return;
     }
     if (!file) {
@@ -86,12 +86,30 @@ function AddPhotoModal({ onCancel, onSubmit }) {
     setError('');
 
     try {
-      await onSubmit({ title: title.trim(), category, file });
-      setTitle('');
-      setCategory('');
-      setFile(null);
-      setPreview(null);
-      onCancel();
+      // Upload image
+      const uploadResult = await uploadGalleryImage(file);
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error);
+      }
+
+      // Get max sort_order
+      const maxSort = Math.max(...galleryItems.map(p => p.sort_order || 0), 0);
+
+      // Create gallery item
+      const createResult = await createGalleryItem({
+        image_path: uploadResult.path,
+        label: title,
+        category: category || null,
+        visible: true,
+        sort_order: maxSort + 1
+      });
+
+      if (!createResult.success) {
+        throw new Error(createResult.error);
+      }
+
+      showToast('Photo added to gallery!');
+      onSubmit({ title, category, file });
     } catch (err) {
       setError(err.message || 'Failed to upload photo');
     } finally {
@@ -248,124 +266,65 @@ function DeleteModal({ item, onCancel, onConfirm }) {
 }
 
 export default function GalleryPage() {
-  const [storefrontGallery, setStorefrontGallery] = useState([]);
-  const [uploadedPhotos, setUploadedPhotos] = useState([]);
+  const [galleryItems, setGalleryItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  // Load storefront gallery from adminStore (read-only)
+  // Load gallery items from Supabase
   useEffect(() => {
-    const data = readAdminData();
-    setStorefrontGallery(data.gallery || []);
-    const unsubscribe = subscribeAdminData((newData) => {
-      setStorefrontGallery(newData.gallery || []);
-    });
-    return unsubscribe;
-  }, []);
-
-  // Load uploaded photos from Supabase
-  useEffect(() => {
-    async function loadUploadedPhotos() {
+    async function loadGallery() {
       if (!supabase) {
         setLoading(false);
         return;
       }
 
-      const { data, error } = await supabase
-        .from('gallery_items')
-        .select('*')
-        .order('sort_order', { ascending: true });
-
-      if (error) {
-        console.error('Error loading gallery items:', error);
-      } else {
-        setUploadedPhotos(data || []);
-      }
+      const data = await listGalleryItems();
+      setGalleryItems(data);
       setLoading(false);
     }
 
-    loadUploadedPhotos();
+    loadGallery();
   }, []);
 
   // Handle add photo upload
   async function handleAddPhoto({ title, category, file }) {
-    if (!supabase) {
-      throw new Error('Supabase not configured');
-    }
-
-    // Generate unique filename
-    const ext = file.name.split('.').pop();
-    const filename = `${crypto.randomUUID()}.${ext}`;
-    const filePath = `gallery/${filename}`;
-
-    // Upload to storage
-    const { error: uploadError } = await supabase
-      .storage
-      .from('storefront-media')
-      .upload(filePath, file);
-
-    if (uploadError) {
-      throw new Error(`Upload failed: ${uploadError.message}`);
-    }
-
-    // Get max sort_order
-    const maxSort = uploadedPhotos.length > 0
-      ? Math.max(...uploadedPhotos.map(p => p.sort_order || 0))
-      : 0;
-
-    // Insert into gallery_items
-    const { error: insertError } = await supabase
-      .from('gallery_items')
-      .insert({
-        image_path: filePath,
-        label: title,
-        category,
-        visible: true,
-        sort_order: maxSort + 1
-      });
-
-    if (insertError) {
-      throw new Error(`Database insert failed: ${insertError.message}`);
-    }
-
-    // Reload photos
-    const { data } = await supabase
-      .from('gallery_items')
-      .select('*')
-      .order('sort_order', { ascending: true });
-
-    setUploadedPhotos(data || []);
-    showToast('Photo added to gallery!');
+    // Reload gallery
+    const data = await listGalleryItems();
+    setGalleryItems(data);
+    setShowAddModal(false);
   }
 
   // Handle delete photo
   async function handleDeleteConfirmed() {
     if (!deleteTarget || !supabase) return;
 
-    // Delete from storage
-    if (deleteTarget.image_path) {
-      await supabase
-        .storage
-        .from('storefront-media')
-        .remove([deleteTarget.image_path]);
-    }
+    const result = await deleteGalleryItem(deleteTarget.id, deleteTarget.image_path);
 
-    // Delete from database
-    const { error } = await supabase
-      .from('gallery_items')
-      .delete()
-      .eq('id', deleteTarget.id);
-
-    if (error) {
-      console.error('Error deleting photo:', error);
-      showToast('Failed to delete photo');
-    } else {
-      setUploadedPhotos(prev => prev.filter(p => p.id !== deleteTarget.id));
+    if (result.success) {
+      setGalleryItems(prev => prev.filter(p => p.id !== deleteTarget.id));
       showToast('Photo removed from gallery.');
+    } else {
+      showToast('Failed to delete photo');
     }
 
     setDeleteTarget(null);
+  }
+
+  // Handle visibility toggle
+  async function handleToggleVisibility(item) {
+    const result = await updateGalleryItem(item.id, {
+      label: item.label,
+      category: item.category,
+      visible: !item.visible,
+      sort_order: item.sort_order
+    });
+
+    if (result.success) {
+      setGalleryItems(prev => prev.map(p =>
+        p.id === item.id ? { ...p, visible: !p.visible } : p
+      ));
+    }
   }
 
   return (
@@ -374,7 +333,7 @@ export default function GalleryPage() {
       <div className="page-header-row">
         <div className="page-title-group">
           <h2>Gallery &amp; Showcase Manager</h2>
-          <p>Manage storefront gallery and uploaded photos.</p>
+          <p>Manage storefront gallery photos.</p>
         </div>
         <div className="header-actions">
           <button className="xp-pill xp-solid" id="addPhotoBtn" type="button"
@@ -388,90 +347,68 @@ export default function GalleryPage() {
         </div>
       </div>
 
-      {/* Storefront gallery section (read-only) */}
-      <div style={{ marginBottom: '32px' }}>
-        <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>Storefront gallery</h3>
-        {storefrontGallery.length > 0 ? (
-          <div className="gallery-showcase">
-            {storefrontGallery.map((item) => (
-              <div key={item.id} className="gallery-item" data-id={item.id}>
-                <img
-                  src={item.src}
-                  className="gallery-image"
-                  alt={item.label || ''}
-                />
-                <div className="gallery-caption">— {(item.label || 'UNTITLED').toUpperCase()}</div>
-                <hr className="gallery-divider" />
-                <div className="gallery-actions">
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                    Read-only (managed in storefront)
-                  </span>
-                </div>
+      {/* Gallery grid */}
+      {loading ? (
+        <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          Loading gallery...
+        </div>
+      ) : galleryItems.length > 0 ? (
+        <div className="gallery-showcase">
+          {galleryItems.map((item) => (
+            <div key={item.id} className="gallery-item" data-id={item.id}>
+              <img
+                src={`${supabase.storage.from('storefront-media').getPublicUrl(item.image_path)}`}
+                className="gallery-image"
+                alt={item.label || ''}
+              />
+              <div className="gallery-caption">— {(item.label || 'UNTITLED').toUpperCase()}</div>
+              <hr className="gallery-divider" />
+              <div className="gallery-actions">
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: 'auto' }}>
+                  {item.category || 'Uncategorized'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleVisibility(item)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    color: item.visible ? 'var(--text-muted)' : '#ef4444',
+                    marginRight: '8px'
+                  }}
+                >
+                  {item.visible ? 'Hide' : 'Show'}
+                </button>
+                <button
+                  className="btn-icon-action gal-del-btn"
+                  title="Delete photo"
+                  type="button"
+                  onClick={() => setDeleteTarget(item)}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                  </svg>
+                </button>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{
-            background: 'var(--card-bg, #f2f1ef)', borderRadius: '12px',
-            border: '1px solid rgba(26,26,26,0.08)', padding: '48px', textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>
-              No storefront gallery photos
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Storefront gallery is empty
-            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{
+          background: 'var(--card-bg, #f2f1ef)', borderRadius: '12px',
+          border: '1px solid rgba(26,26,26,0.08)', padding: '48px', textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>
+            No gallery photos
           </div>
-        )}
-      </div>
-
-      {/* Uploaded photos section */}
-      <div>
-        <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>Uploaded photos</h3>
-        {uploadedPhotos.length > 0 ? (
-          <div className="gallery-showcase">
-            {uploadedPhotos.map((item) => (
-              <div key={item.id} className="gallery-item" data-id={item.id}>
-                <img
-                  src={`${supabase.storage.from('storefront-media').getPublicUrl(item.image_path)}`}
-                  className="gallery-image"
-                  alt={item.label || ''}
-                />
-                <div className="gallery-caption">— {(item.label || 'UNTITLED').toUpperCase()}</div>
-                <hr className="gallery-divider" />
-                <div className="gallery-actions">
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: 'auto' }}>
-                    {item.category || 'Uncategorized'}
-                  </span>
-                  <button
-                    className="btn-icon-action gal-del-btn"
-                    title="Delete photo"
-                    type="button"
-                    onClick={() => setDeleteTarget(item)}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6"/>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+            Click "Add Photo" to upload photos to the gallery
           </div>
-        ) : (
-          <div style={{
-            background: 'var(--card-bg, #f2f1ef)', borderRadius: '12px',
-            border: '1px solid rgba(26,26,26,0.08)', padding: '48px', textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>
-              No uploaded photos
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Click "Add Photo" to upload photos to the gallery
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Add Photo modal */}
       {showAddModal && (
