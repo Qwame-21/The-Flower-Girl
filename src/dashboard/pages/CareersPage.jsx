@@ -113,13 +113,15 @@ export default function CareersPage() {
           type="button"
           onClick={() => setActiveTab('postings')}
           style={{
-            padding: '10px 16px',
+            padding: '10px 20px',
             background: 'transparent',
             border: 'none',
             borderBottom: activeTab === 'postings' ? '2px solid #1a1a1a' : '2px solid transparent',
             cursor: 'pointer',
             fontSize: '14px',
-            color: activeTab === 'postings' ? '#1a1a1a' : 'var(--text-muted)'
+            color: activeTab === 'postings' ? '#1a1a1a' : 'var(--text-muted)',
+            borderRadius: '9999px',
+            transition: 'all 0.15s ease'
           }}
         >
           Job Postings ({careers.length})
@@ -128,13 +130,15 @@ export default function CareersPage() {
           type="button"
           onClick={() => setActiveTab('applications')}
           style={{
-            padding: '10px 16px',
+            padding: '10px 20px',
             background: 'transparent',
             border: 'none',
             borderBottom: activeTab === 'applications' ? '2px solid #1a1a1a' : '2px solid transparent',
             cursor: 'pointer',
             fontSize: '14px',
-            color: activeTab === 'applications' ? '#1a1a1a' : 'var(--text-muted)'
+            color: activeTab === 'applications' ? '#1a1a1a' : 'var(--text-muted)',
+            borderRadius: '9999px',
+            transition: 'all 0.15s ease'
           }}
         >
           Applications ({applications.length})
@@ -148,13 +152,15 @@ export default function CareersPage() {
               type="button"
               onClick={() => {/* Would open add modal in full implementation */}}
               style={{
-                padding: '10px 16px',
+                padding: '10px 20px',
                 background: '#1a1a1a',
                 color: '#fff',
                 border: 'none',
-                borderRadius: '8px',
+                borderRadius: '9999px',
                 cursor: 'pointer',
-                fontSize: '14px'
+                fontSize: '14px',
+                fontWeight: 500,
+                transition: 'all 0.15s ease'
               }}
             >
               Add Job Posting
@@ -227,13 +233,15 @@ export default function CareersPage() {
                         type="button"
                         onClick={() => {/* Would open edit modal */}}
                         style={{
-                          padding: '6px 12px',
+                          padding: '6px 14px',
                           background: '#f3f4f6',
                           color: '#374151',
                           border: 'none',
-                          borderRadius: '6px',
+                          borderRadius: '9999px',
                           cursor: 'pointer',
-                          fontSize: '12px'
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          transition: 'all 0.15s ease'
                         }}
                       >
                         Edit
@@ -242,13 +250,15 @@ export default function CareersPage() {
                         type="button"
                         onClick={() => setConfirmDeleteCareerId(career.id)}
                         style={{
-                          padding: '6px 12px',
+                          padding: '6px 14px',
                           background: 'transparent',
                           color: '#ef4444',
                           border: '1px solid #ef4444',
-                          borderRadius: '6px',
+                          borderRadius: '9999px',
                           cursor: 'pointer',
-                          fontSize: '12px'
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          transition: 'all 0.15s ease'
                         }}
                       >
                         Delete
@@ -275,9 +285,11 @@ export default function CareersPage() {
                           background: '#dc2626',
                           color: '#fff',
                           border: 'none',
-                          borderRadius: '4px',
+                          borderRadius: '9999px',
                           cursor: 'pointer',
-                          fontSize: '12px'
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          transition: 'all 0.15s ease'
                         }}
                       >
                         Yes
@@ -286,12 +298,14 @@ export default function CareersPage() {
                         type="button"
                         onClick={() => setConfirmDeleteCareerId(null)}
                         style={{
-                          padding: '4px 12px',
+                          padding: '4px 14px',
                           background: 'transparent',
                           border: '1px solid rgba(26,26,26,0.2)',
-                          borderRadius: '4px',
+                          borderRadius: '9999px',
                           cursor: 'pointer',
-                          fontSize: '12px'
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          transition: 'all 0.15s ease'
                         }}
                       >
                         No
@@ -400,11 +414,11 @@ export default function CareersPage() {
                           type="button"
                           onClick={() => handleUpdateApplicationStatus(app.id, 'reviewing')}
                           style={{
-                            padding: '6px 12px',
+                            padding: '6px 14px',
                             background: '#fef3c7',
                             color: '#92400e',
                             border: 'none',
-                            borderRadius: '6px',
+                            borderRadius: '9999px',
                             cursor: 'pointer',
                             fontSize: '12px',
                             fontWeight: 600
@@ -419,11 +433,11 @@ export default function CareersPage() {
                             type="button"
                             onClick={() => handleUpdateApplicationStatus(app.id, 'shortlisted')}
                             style={{
-                              padding: '6px 12px',
+                              padding: '6px 14px',
                               background: '#dcfce7',
                               color: '#166534',
                               border: 'none',
-                              borderRadius: '6px',
+                              borderRadius: '9999px',
                               cursor: 'pointer',
                               fontSize: '12px',
                               fontWeight: 600
@@ -435,11 +449,11 @@ export default function CareersPage() {
                             type="button"
                             onClick={() => handleUpdateApplicationStatus(app.id, 'rejected')}
                             style={{
-                              padding: '6px 12px',
+                              padding: '6px 14px',
                               background: '#fee2e2',
                               color: '#991b1b',
                               border: 'none',
-                              borderRadius: '6px',
+                              borderRadius: '9999px',
                               cursor: 'pointer',
                               fontSize: '12px',
                               fontWeight: 600
@@ -454,11 +468,11 @@ export default function CareersPage() {
                           type="button"
                           onClick={() => handleUpdateApplicationStatus(app.id, 'hired')}
                           style={{
-                            padding: '6px 12px',
+                            padding: '6px 14px',
                             background: '#dcfce7',
                             color: '#166534',
                             border: 'none',
-                            borderRadius: '6px',
+                            borderRadius: '9999px',
                             cursor: 'pointer',
                             fontSize: '12px',
                             fontWeight: 600
@@ -471,11 +485,11 @@ export default function CareersPage() {
                         type="button"
                         onClick={() => setConfirmDeleteAppId(app.id)}
                         style={{
-                          padding: '6px 12px',
+                          padding: '6px 14px',
                           background: 'transparent',
                           color: '#ef4444',
                           border: '1px solid #ef4444',
-                          borderRadius: '6px',
+                          borderRadius: '9999px',
                           cursor: 'pointer',
                           fontSize: '12px'
                         }}
