@@ -45,10 +45,12 @@ export function StaffLogin({ message = '', onSubmitted }) {
     const stored = localStorage.getItem('admin_logout_notice');
     if (stored) {
       setDisplayNotice(stored);
+      localStorage.removeItem('admin_logout_notice'); // clear it after displaying once
     } else if (message) {
       setDisplayNotice(message);
     }
   }, [message]);
+
 
   const validate = () => {
     let valid = true;

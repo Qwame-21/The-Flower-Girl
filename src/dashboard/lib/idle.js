@@ -31,6 +31,12 @@ export function useIdleTimer() {
   useEffect(() => {
     let lastThrottledUpdate = 0;
 
+    // Always stamp fresh activity when the dashboard mounts so a stale
+    // localStorage value from a previous session never triggers the warning
+    // immediately after the user logs in.
+    updateStoredLastActivity();
+    lastThrottledUpdate = Date.now();
+
     const handleUserActivity = () => {
       const now = Date.now();
       if (now - lastThrottledUpdate > 10000) {
@@ -61,8 +67,8 @@ export function useIdleTimer() {
       }
     };
 
-    checkIdleStatus();
-    const interval = setInterval(checkIdleStatus, 1000); // 1s interval so seconds count down accurately
+    // Don't check immediately — give the fresh stamp a tick to settle
+    const interval = setInterval(checkIdleStatus, 1000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
