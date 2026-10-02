@@ -27,3 +27,8 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Parity and temporary folders
+scratch/
+temp_before/
+
