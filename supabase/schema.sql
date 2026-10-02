@@ -157,7 +157,19 @@ create table if not exists public.site_content (
 create table if not exists public.site_settings (
   id text primary key default 'global' check (id = 'global'), business_name text not null,
   support_phone text, support_email text, dispatch_city text, delivery_note text,
-  announcement_enabled boolean not null default false, updated_at timestamptz not null default now()
+  announcement_enabled boolean not null default false,
+  store_address text, instagram_url text,
+  delivery_sameday_enabled boolean not null default true, delivery_sameday_fee numeric(12,2) not null default 120,
+  delivery_scheduled_enabled boolean not null default true, delivery_scheduled_fee numeric(12,2) not null default 90,
+  delivery_surprise_enabled boolean not null default true, delivery_surprise_fee numeric(12,2) not null default 140,
+  delivery_collection_enabled boolean not null default true, delivery_collection_fee numeric(12,2) not null default 0,
+  low_stock_threshold integer not null default 3, low_stock_alerts boolean not null default true,
+  notifications_new_orders boolean not null default true,
+  notifications_new_requests boolean not null default true,
+  notifications_new_careers boolean not null default true,
+  notifications_low_stock boolean not null default true,
+  require_password_destructive boolean not null default true,
+  updated_at timestamptz not null default now()
 );
 
 -- Seed default site settings
@@ -462,19 +474,20 @@ create trigger on_new_career_application
   for each row execute function public.notify_new_career_application();
 
 -- Customer-safe tracking lookup. Server-side rate limiting is still required.
+-- Supports both tracking_number and order_code (WEB-xxxxxx format)
 create or replace function public.track_record(lookup_reference text, lookup_contact text)
 returns jsonb language plpgsql security definer set search_path = public
 as $$
 declare result jsonb; normalized_contact text := regexp_replace(lower(trim(lookup_contact)), '[^0-9]', '', 'g');
 begin
   select jsonb_build_object(
-    'kind','order','trackingNumber',o.tracking_number,'customerName',o.customer_name,
+    'kind','order','trackingNumber',o.tracking_number,'orderCode',o.order_code,'customerName',o.customer_name,
     'status',o.fulfillment_status,'paymentStatus',o.payment_status,
     'estimatedDelivery',o.estimated_delivery,'adminNote',o.admin_note,
     'requestedDeliveryDate',o.requested_delivery_date,
     'events',coalesce((select jsonb_agg(jsonb_build_object('stage',e.stage,'note',e.customer_note,'createdAt',e.created_at) order by e.created_at) from public.order_events e where e.order_id=o.id),'[]'::jsonb)
   ) into result from public.orders o
-  where lower(o.tracking_number)=lower(trim(lookup_reference))
+  where (lower(o.tracking_number)=lower(trim(lookup_reference)) or lower(o.order_code)=lower(trim(lookup_reference)))
     and (lower(coalesce(o.customer_email,''))=lower(trim(lookup_contact)) or (length(normalized_contact)>=9 and length(regexp_replace(o.customer_phone,'[^0-9]','','g'))>=9 and right(regexp_replace(o.customer_phone,'[^0-9]','','g),9)=right(normalized_contact,9)))
   limit 1;
   if result is not null then return result; end if;

@@ -6,6 +6,25 @@ BEGIN;
 -- Add category column to gallery_items
 alter table public.gallery_items add column if not exists category text;
 
+-- Add missing columns to site_settings
+alter table public.site_settings add column if not exists store_address text;
+alter table public.site_settings add column if not exists instagram_url text;
+alter table public.site_settings add column if not exists delivery_sameday_enabled boolean not null default true;
+alter table public.site_settings add column if not exists delivery_sameday_fee numeric(12,2) not null default 120;
+alter table public.site_settings add column if not exists delivery_scheduled_enabled boolean not null default true;
+alter table public.site_settings add column if not exists delivery_scheduled_fee numeric(12,2) not null default 90;
+alter table public.site_settings add column if not exists delivery_surprise_enabled boolean not null default true;
+alter table public.site_settings add column if not exists delivery_surprise_fee numeric(12,2) not null default 140;
+alter table public.site_settings add column if not exists delivery_collection_enabled boolean not null default true;
+alter table public.site_settings add column if not exists delivery_collection_fee numeric(12,2) not null default 0;
+alter table public.site_settings add column if not exists low_stock_threshold integer not null default 3;
+alter table public.site_settings add column if not exists low_stock_alerts boolean not null default true;
+alter table public.site_settings add column if not exists notifications_new_orders boolean not null default true;
+alter table public.site_settings add column if not exists notifications_new_requests boolean not null default true;
+alter table public.site_settings add column if not exists notifications_new_careers boolean not null default true;
+alter table public.site_settings add column if not exists notifications_low_stock boolean not null default true;
+alter table public.site_settings add column if not exists require_password_destructive boolean not null default true;
+
 -- Add customer_profiles table
 create table if not exists public.customer_profiles (
   email text primary key,
@@ -224,7 +243,38 @@ create trigger on_new_career_application
   after insert on public.career_applications
   for each row execute function public.notify_new_career_application();
 
--- Add missing tables to realtime publication
+-- Replace track_record RPC to support both tracking_number and order_code
+create or replace function public.track_record(lookup_reference text, lookup_contact text)
+returns jsonb language plpgsql security definer set search_path = public
+as $$
+declare result jsonb; normalized_contact text := regexp_replace(lower(trim(lookup_contact)), '[^0-9]', '', 'g');
+begin
+  select jsonb_build_object(
+    'kind','order','trackingNumber',o.tracking_number,'orderCode',o.order_code,'customerName',o.customer_name,
+    'status',o.fulfillment_status,'paymentStatus',o.payment_status,
+    'estimatedDelivery',o.estimated_delivery,'adminNote',o.admin_note,
+    'requestedDeliveryDate',o.requested_delivery_date,
+    'events',coalesce((select jsonb_agg(jsonb_build_object('stage',e.stage,'note',e.customer_note,'createdAt',e.created_at) order by e.created_at) from public.order_events e where e.order_id=o.id),'[]'::jsonb)
+  ) into result from public.orders o
+  where (lower(o.tracking_number)=lower(trim(lookup_reference)) or lower(o.order_code)=lower(trim(lookup_reference)))
+    and (lower(coalesce(o.customer_email,''))=lower(trim(lookup_contact)) or (length(normalized_contact)>=9 and length(regexp_replace(o.customer_phone,'[^0-9]','','g'))>=9 and right(regexp_replace(o.customer_phone,'[^0-9]','','g),9)=right(normalized_contact,9)))
+  limit 1;
+  if result is not null then return result; end if;
+
+  select jsonb_build_object(
+    'kind','request','reference',r.reference,'customerName',r.customer_name,
+    'requestType',r.request_type,'service',r.service,'status',r.status,
+    'preferredDate',r.preferred_date,'confirmedQuote',r.confirmed_quote,
+    'adminNote',r.admin_note,'updatedAt',r.updated_at
+  ) into result from public.customer_requests r
+  where lower(r.reference)=lower(trim(lookup_reference))
+    and (lower(coalesce(r.email,''))=lower(trim(lookup_contact)) or (length(normalized_contact)>=9 and length(regexp_replace(r.phone,'[^0-9]','','g'))>=9 and right(regexp_replace(r.phone,'[^0-9]','','g),9)=right(normalized_contact,9)))
+  limit 1;
+  return result;
+end $$;
+
+revoke all on function public.track_record(text,text) from public;
+grant execute on function public.track_record(text,text) to anon, authenticated;
 do $$ declare table_name text; begin
   foreach table_name in array array['products','gallery_items']
   loop
@@ -304,7 +354,17 @@ insert into public.customization_options (category, option_name, estimate, displ
 on conflict do nothing;
 
 -- Seed default site settings
-insert into public.site_settings (id, business_name, support_phone, support_email, dispatch_city, delivery_note, announcement_enabled)
+insert into public.site_settings (
+  id, business_name, support_phone, support_email, dispatch_city, delivery_note, announcement_enabled,
+  store_address, instagram_url,
+  delivery_sameday_enabled, delivery_sameday_fee,
+  delivery_scheduled_enabled, delivery_scheduled_fee,
+  delivery_surprise_enabled, delivery_surprise_fee,
+  delivery_collection_enabled, delivery_collection_fee,
+  low_stock_threshold, low_stock_alerts,
+  notifications_new_orders, notifications_new_requests, notifications_new_careers, notifications_low_stock,
+  require_password_destructive
+)
 values (
   'global',
   'Flower Girl Pro',
@@ -312,7 +372,16 @@ values (
   'info@flowergirlpro.com',
   'Accra',
   'Delivery available across Accra. Same-day delivery available when stock and schedule allow.',
-  false
+  false,
+  'ACP Estate Junction, Kwabenya, Accra',
+  'https://www.instagram.com/thegiftingfactory/',
+  true, 120,
+  true, 90,
+  true, 140,
+  true, 0,
+  3, true,
+  true, true, true, true,
+  true
 )
 on conflict (id) do update set
   business_name = EXCLUDED.business_name,
@@ -320,6 +389,23 @@ on conflict (id) do update set
   support_email = EXCLUDED.support_email,
   dispatch_city = EXCLUDED.dispatch_city,
   delivery_note = EXCLUDED.delivery_note,
-  announcement_enabled = EXCLUDED.announcement_enabled;
+  announcement_enabled = EXCLUDED.announcement_enabled,
+  store_address = EXCLUDED.store_address,
+  instagram_url = EXCLUDED.instagram_url,
+  delivery_sameday_enabled = EXCLUDED.delivery_sameday_enabled,
+  delivery_sameday_fee = EXCLUDED.delivery_sameday_fee,
+  delivery_scheduled_enabled = EXCLUDED.delivery_scheduled_enabled,
+  delivery_scheduled_fee = EXCLUDED.delivery_scheduled_fee,
+  delivery_surprise_enabled = EXCLUDED.delivery_surprise_enabled,
+  delivery_surprise_fee = EXCLUDED.delivery_surprise_fee,
+  delivery_collection_enabled = EXCLUDED.delivery_collection_enabled,
+  delivery_collection_fee = EXCLUDED.delivery_collection_fee,
+  low_stock_threshold = EXCLUDED.low_stock_threshold,
+  low_stock_alerts = EXCLUDED.low_stock_alerts,
+  notifications_new_orders = EXCLUDED.notifications_new_orders,
+  notifications_new_requests = EXCLUDED.notifications_new_requests,
+  notifications_new_careers = EXCLUDED.notifications_new_careers,
+  notifications_low_stock = EXCLUDED.notifications_low_stock,
+  require_password_destructive = EXCLUDED.require_password_destructive;
 
 COMMIT;
