@@ -16,11 +16,13 @@ create table if not exists public.customer_profiles (
 
 alter table public.customer_profiles enable row level security;
 
-create policy "staff manages customer_profiles"
-on public.customer_profiles
-for all to authenticated
-using (public.is_staff())
-with check (public.is_staff());
+do $$ begin
+  create policy "staff manages customer_profiles"
+  on public.customer_profiles
+  for all to authenticated
+  using (public.is_staff())
+  with check (public.is_staff());
+exception when duplicate_object then null; end $$;
 
 -- Add touch_updated_at trigger to customer_profiles
 drop trigger if exists set_updated_at on public.customer_profiles;
@@ -265,6 +267,8 @@ create trigger set_updated_at before update on public.customization_options for 
 do $$ begin
   create policy "staff manages customization_options" on public.customization_options for all to authenticated using (public.is_staff()) with check (public.is_staff());
 exception when duplicate_object then null; end $$;
+
+-- Add customization_options to the staff management loop in schema.sql (handled separately to avoid duplicate policy error)
 
 -- Seed default customization options from static data
 insert into public.customization_options (category, option_name, estimate, display_order, visible) values
