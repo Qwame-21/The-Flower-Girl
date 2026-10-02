@@ -248,27 +248,24 @@ create table if not exists public.customization_options (
 
 alter table public.customization_options enable row level security;
 
-create policy "staff manages customization_options"
-on public.customization_options
-for all to authenticated
-using (public.is_staff())
-with check (public.is_staff());
+do $$ begin
+  create policy "staff manages customization_options"
+  on public.customization_options
+  for all to authenticated
+  using (public.is_staff())
+  with check (public.is_staff());
+exception when duplicate_object then null; end $$;
 
-create policy "public reads visible customization options"
-on public.customization_options
-for select
-using (visible);
+do $$ begin
+  create policy "public reads visible customization options"
+  on public.customization_options
+  for select
+  using (visible);
+exception when duplicate_object then null; end $$;
 
 -- Add trigger for updated_at
 drop trigger if exists set_updated_at on public.customization_options;
 create trigger set_updated_at before update on public.customization_options for each row execute function public.touch_updated_at();
-
--- Add to staff management policy list
-do $$ begin
-  create policy "staff manages customization_options" on public.customization_options for all to authenticated using (public.is_staff()) with check (public.is_staff());
-exception when duplicate_object then null; end $$;
-
--- Add customization_options to the staff management loop in schema.sql (handled separately to avoid duplicate policy error)
 
 -- Seed default customization options from static data
 insert into public.customization_options (category, option_name, estimate, display_order, visible) values
