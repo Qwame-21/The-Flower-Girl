@@ -306,4 +306,23 @@ insert into public.customization_options (category, option_name, estimate, displ
   ('Finish & deliver', 'Surprise delivery', 140, 6, true)
 on conflict do nothing;
 
+-- Seed default site settings
+insert into public.site_settings (id, business_name, support_phone, support_email, dispatch_city, delivery_note, announcement_enabled)
+values (
+  'global',
+  'Flower Girl Pro',
+  '+233 202 417 072',
+  'info@flowergirlpro.com',
+  'Accra',
+  'Delivery available across Accra. Same-day delivery available when stock and schedule allow.',
+  false
+)
+on conflict (id) do update set
+  business_name = EXCLUDED.business_name,
+  support_phone = EXCLUDED.support_phone,
+  support_email = EXCLUDED.support_email,
+  dispatch_city = EXCLUDED.dispatch_city,
+  delivery_note = EXCLUDED.delivery_note,
+  announcement_enabled = EXCLUDED.announcement_enabled;
+
 COMMIT;

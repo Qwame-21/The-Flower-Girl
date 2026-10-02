@@ -159,6 +159,25 @@ create table if not exists public.site_settings (
   support_phone text, support_email text, dispatch_city text, delivery_note text,
   announcement_enabled boolean not null default false, updated_at timestamptz not null default now()
 );
+
+-- Seed default site settings
+insert into public.site_settings (id, business_name, support_phone, support_email, dispatch_city, delivery_note, announcement_enabled)
+values (
+  'global',
+  'Flower Girl Pro',
+  '+233 202 417 072',
+  'info@flowergirlpro.com',
+  'Accra',
+  'Delivery available across Accra. Same-day delivery available when stock and schedule allow.',
+  false
+)
+on conflict (id) do update set
+  business_name = EXCLUDED.business_name,
+  support_phone = EXCLUDED.support_phone,
+  support_email = EXCLUDED.support_email,
+  dispatch_city = EXCLUDED.dispatch_city,
+  delivery_note = EXCLUDED.delivery_note,
+  announcement_enabled = EXCLUDED.announcement_enabled;
 create table if not exists public.admin_notifications (
   id uuid primary key default gen_random_uuid(), type text not null, title text not null, body text,
   route text, record_id text, read_at timestamptz, created_at timestamptz not null default now()
