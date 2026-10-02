@@ -275,6 +275,7 @@ end $$;
 
 revoke all on function public.track_record(text,text) from public;
 grant execute on function public.track_record(text,text) to anon, authenticated;
+
 do $$ declare table_name text; begin
   foreach table_name in array array['products','gallery_items']
   loop
