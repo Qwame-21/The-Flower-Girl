@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { BadgeCheck, CircleDollarSign, LoaderCircle, PackageCheck, Truck } from 'lucide-react';
-import { readAdminData, subscribeAdminData } from '../../data/adminStore';
 import { hasTrackingApi, trackRecord } from '../api/trackingApi';
 import SiteFooter from '../components/SiteFooter';
 
@@ -19,31 +18,30 @@ export default function TrackOrderPage({ onNavigate }) {
   const [result, setResult] = useState(null);
   const [searched, setSearched] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [trackingData, setTrackingData] = useState(readAdminData);
   const resultRef = useRef(null);
-  useEffect(() => subscribeAdminData(data => { setTrackingData(data); setResult(current => current ? { ...current, record: (current.kind === 'order' ? data.orders : data.requests).find(record => record.id === current.record.id) || current.record } : current); }), []);
   useEffect(() => { if (result) window.requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }, [result]);
 
   const search = async event => {
     event.preventDefault();
     setSearching(true);
-    const value = reference.trim().toLowerCase();
-    const contact = credential.trim().toLowerCase();
-    const digits = contact.replace(/\D/g, '');
-    const matchesContact = record => {
-      const recordDigits = record.phone?.replace(/\D/g, '') || '';
-      return record.email?.toLowerCase() === contact || record.customerEmail?.toLowerCase() === contact || (digits.length >= 9 && recordDigits.length >= 9 && recordDigits.slice(-9) === digits.slice(-9));
-    };
-    const order = trackingData.orders.find(record => (record.tracking?.toLowerCase() === value || record.code?.toLowerCase() === value) && matchesContact(record));
-    const request = trackingData.requests.find(record => (record.reference?.toLowerCase() === value || record.id?.toLowerCase() === value) && matchesContact(record));
-    let matched = order ? { kind: 'order', record: order } : request ? { kind: 'request', record: request } : null;
-    if (hasTrackingApi()) {
-      const { data } = await trackRecord(reference, credential);
-      if (data?.kind === 'order') {
-        const eventFields = Object.fromEntries((data.events || []).flatMap(item => [[`${item.stage}At`, item.createdAt], [`${item.stage}Note`, item.note]]));
-        matched = { kind: 'order', record: { tracking: data.trackingNumber, customer: data.customerName, status: data.status, paymentStatus: data.paymentStatus, estimatedDelivery: data.estimatedDelivery, requestedDeliveryDate: data.requestedDeliveryDate, adminNote: data.adminNote, ...eventFields } };
-      } else if (data?.kind === 'request') matched = { kind: 'request', record: { reference: data.reference, name: data.customerName, status: data.status, service: data.service, preferredDate: data.preferredDate, quoteTotal: data.confirmedQuote, adminNote: data.adminNote } };
+    
+    if (!hasTrackingApi()) {
+      setResult(null);
+      setSearched(true);
+      setSearching(false);
+      return;
     }
+
+    const { data } = await trackRecord(reference, credential);
+    let matched = null;
+    
+    if (data?.kind === 'order') {
+      const eventFields = Object.fromEntries((data.events || []).flatMap(item => [[`${item.stage}At`, item.createdAt], [`${item.stage}Note`, item.note]]));
+      matched = { kind: 'order', record: { tracking: data.trackingNumber, customer: data.customerName, status: data.status, paymentStatus: data.paymentStatus, estimatedDelivery: data.estimatedDelivery, requestedDeliveryDate: data.requestedDeliveryDate, adminNote: data.adminNote, ...eventFields } };
+    } else if (data?.kind === 'request') {
+      matched = { kind: 'request', record: { reference: data.reference, name: data.customerName, status: data.status, service: data.service, preferredDate: data.preferredDate, quoteTotal: data.confirmedQuote, adminNote: data.adminNote } };
+    }
+    
     setResult(matched);
     setSearched(true);
     setSearching(false);
@@ -64,7 +62,7 @@ export default function TrackOrderPage({ onNavigate }) {
       </form>
       {order && <article ref={resultRef} className="tracking-result"><span>{order.tracking}</span><h2>{order.customer}</h2><p>Your order is currently <strong>{labels[order.status] || order.status}</strong>.</p><div className="tracking-timeline">{stages.map(stage => { const done = stages.indexOf(stage) <= stages.indexOf(order.status) || (stage === 'paid' && order.paymentStatus === 'paid'); const current = stage === order.status || (stage === 'paid' && order.status === 'pending_payment'); const note = order[`${stage}Note`] || (current ? order.adminNote : ''); return <i key={stage} className={`${done ? 'done' : ''} ${current ? 'is-current' : ''}`}><b><TrackingIcon stage={stage} /></b><span className="tracking-stage-label">{stage === 'paid' && order.paymentStatus !== 'paid' ? 'Awaiting payment' : labels[stage]}</span><time>{order[`${stage}At`] ? new Date(order[`${stage}At`]).toLocaleString('en-GH') : 'Update pending'}</time>{note && <small>{note}</small>}</i>; })}</div><section className="track-order-details"><p><strong>Recipient:</strong> {order.recipient || order.customer}</p><p><strong>Delivery:</strong> {order.delivery || 'Awaiting confirmation'}</p><p><strong>Payment:</strong> {order.paymentStatus === 'paid' ? 'Confirmed' : 'Awaiting confirmation'}</p>{order.estimatedDelivery && <p><strong>Estimated delivery:</strong> {new Date(order.estimatedDelivery).toLocaleString('en-GH')}</p>}{order.adminNote && <p><strong>Latest update:</strong> {order.adminNote}</p>}</section></article>}
       {request && <article ref={resultRef} className="tracked-request tracking-result"><span>{request.reference || request.id}</span><h2>{request.name || 'Custom request'}</h2><p>Your request is <strong>{request.status === 'converted' ? 'now an order' : request.status === 'approved' ? 'approved' : request.status === 'quote_needed' ? 'being quoted' : 'received'}</strong>.</p><section className="track-order-details"><p><strong>Service:</strong> {request.service || request.selections?.join(', ') || 'Bespoke gift'}</p><p><strong>Preferred date:</strong> {request.preferredDate || 'To confirm'}</p>{request.quoteTotal && <p><strong>Confirmed quote:</strong> GHS {Number(request.quoteTotal).toLocaleString()}</p>}<p><strong>Latest update:</strong> {request.adminNote || 'The team will contact you as the request progresses.'}</p></section></article>}
-      {searched && !result && <div className="track-empty"><p>No record matched those details. Check the reference and contact information, then try again.</p><a href={`tel:${String(trackingData.settings.supportPhone || '').replace(/[^+\d]/g, '')}`}>Call {trackingData.settings.supportPhone}</a></div>}
+      {searched && !result && <div className="track-empty"><p>No record matched those details. Check the reference and contact information, then try again.</p></div>}
     </section>
     <SiteFooter onNavigate={onNavigate} />
   </main>;
