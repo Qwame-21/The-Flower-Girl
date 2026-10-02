@@ -229,8 +229,8 @@ export default function LogPage() {
   // ── Reopen Order Action ── (Monolith lines 24745–24776)
   const handleReopenOrder = async (orderId) => {
     // Reopen order: change status from 'completed' to 'delivery' (dispatched)
-    const success = await updateOrderStatus(orderId, 'dispatched', 'Order reopened from delivery history');
-    if (success) {
+    const result = await updateOrderStatus(orderId, 'dispatched', 'Order reopened from delivery history');
+    if (result && result.success) {
       const refreshedOrders = await listOrders();
       setOrders(refreshedOrders);
       setExpandedOrderIds(prev => {
