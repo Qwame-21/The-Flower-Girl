@@ -148,38 +148,6 @@ function normalizeProduct(p, idx = 0) {
   };
 }
 
-function loadProductsData() {
-  try {
-    const raw = localStorage.getItem(PRODUCTS_KEY);
-    const list = raw ? JSON.parse(raw) : RAW_SNAPSHOT_PRODUCTS;
-    return list.map((p, idx) => normalizeProduct(p, idx));
-  } catch {
-    return RAW_SNAPSHOT_PRODUCTS.map((p, idx) => normalizeProduct(p, idx));
-  }
-}
-
-function saveProductsData(arr) {
-  try {
-    localStorage.setItem(PRODUCTS_KEY, JSON.stringify(arr));
-  } catch {}
-  window.dispatchEvent(new CustomEvent('xa12:orders-updated'));
-}
-
-function loadShopCart() {
-  try {
-    const savedCart = localStorage.getItem('shopCart');
-    return savedCart ? JSON.parse(savedCart) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveShopCart(cart) {
-  try {
-    localStorage.setItem('shopCart', JSON.stringify(cart));
-  } catch {}
-}
-
 const INITIAL_FORM_DATA = {
   fullName: '',
   phone: '',
