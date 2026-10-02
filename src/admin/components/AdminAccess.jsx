@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Eye, EyeOff, LogOut, Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '../../config/supabase';
 import '../login.css';
@@ -34,6 +34,21 @@ export function StaffLogin({ message = '', onSubmitted }) {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [capsLock, setCapsLock] = useState(false);
+  const [displayNotice, setDisplayNotice] = useState(() => {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('admin_logout_notice') || message;
+    }
+    return message;
+  });
+
+  useEffect(() => {
+    const stored = localStorage.getItem('admin_logout_notice');
+    if (stored) {
+      setDisplayNotice(stored);
+    } else if (message) {
+      setDisplayNotice(message);
+    }
+  }, [message]);
 
   const validate = () => {
     let valid = true;
@@ -104,7 +119,7 @@ export function StaffLogin({ message = '', onSubmitted }) {
             Staff sign-in is not connected in this preview. The backend configuration is needed before accounts can sign in.
           </p>
         )}
-        {message && <p className="login-notice" role="status">{message}</p>}
+        {displayNotice && <p className="login-notice" role="status">{displayNotice}</p>}
 
         <form className="login-form" onSubmit={submit} noValidate>
           <div className={`login-field ${emailError ? 'login-field--has-error' : ''}`}>
@@ -231,6 +246,9 @@ export default function AdminAccess({ children }) {
   }));
   const [loadingStage, setLoadingStage] = useState(1);
   const [revision, setRevision] = useState(0);
+  const currentUserIdRef = useRef(null);
+  const isReadyRef = useRef(false);
+  isReadyRef.current = access.status === 'ready';
 
   // Stage 1 -> Stage 2 smooth visual transition
   useEffect(() => {
@@ -250,16 +268,27 @@ export default function AdminAccess({ children }) {
     let request = 0;
     const startTime = Date.now();
 
-    const check = async session => {
+    const check = async (session, isInitial = false) => {
       const ticket = ++request;
-      if (!session) { if (active) setAccess({ status: 'signed-out', identity: null, error: '' }); return; }
-      if (active) setAccess({ status: 'loading', identity: null, error: '' });
+      if (!session) {
+        currentUserIdRef.current = null;
+        if (active) setAccess({ status: 'signed-out', identity: null, error: '' });
+        return;
+      }
+
+      // If already ready for same user id, do nothing (never leave ready on focus event)
+      if (!isInitial && isReadyRef.current && currentUserIdRef.current === session.user?.id) {
+        return;
+      }
+
+      if (active && !isReadyRef.current) setAccess({ status: 'loading', identity: null, error: '' });
+
       try {
         const identity = await getStaffIdentity(supabase, session);
         if (!active || ticket !== request) return;
-        // Ensure smooth transition timing so Stage 2 reads clearly without a jarring flash
+        currentUserIdRef.current = session.user?.id || null;
         const elapsed = Date.now() - startTime;
-        const remainingDelay = Math.max(0, 420 - elapsed);
+        const remainingDelay = isInitial ? Math.max(0, 420 - elapsed) : 0;
         setTimeout(() => {
           if (active && ticket === request) {
             setAccess({ status: 'ready', identity, error: '' });
@@ -282,12 +311,21 @@ export default function AdminAccess({ children }) {
       .then(({ data, error }) => {
         if (!active) return;
         if (error) setAccess({ status: 'error', identity: null, error: 'Could not restore your session.' });
-        else check(data.session);
+        else check(data.session, true);
       })
       .catch(() => { if (active) setAccess({ status: 'error', identity: null, error: 'Could not restore your session.' }); });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event !== 'INITIAL_SESSION') window.setTimeout(() => { if (active) check(session); }, 0);
+      if (event === 'SIGNED_OUT' || !session) {
+        currentUserIdRef.current = null;
+        if (active) setAccess({ status: 'signed-out', identity: null, error: '' });
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        if (currentUserIdRef.current && session?.user?.id === currentUserIdRef.current && isReadyRef.current) {
+          // Same user, already ready: DO NOTHING (never leave ready on focus event)
+          return;
+        }
+        window.setTimeout(() => { if (active) check(session, false); }, 0);
+      }
     });
 
     return () => { active = false; request++; subscription.unsubscribe(); };
