@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { listNotifications, deleteNotification, markAllNotificationsRead, clearAllNotifications, subscribeToNotifications, startNotificationPolling } from '../../data/notifications';
 import { supabase } from '../../../config/supabase';
@@ -296,6 +296,30 @@ export default function Header({ onToggleMobile }) {
     setClearAllConfirm(false);
   };
 
+  const navigate = useNavigate();
+
+  const handleNotificationClick = (notif) => {
+    setIsNotifOpen(false);
+    const type = notif.type;
+    const recordId = notif.recordId;
+
+    if (type === 'new_order') {
+      if (recordId) {
+        navigate('/orders', { state: { openOrderId: recordId } });
+      } else {
+        navigate('/orders');
+      }
+    } else if (type === 'new_request') {
+      navigate('/requests');
+    } else if (type === 'new_application') {
+      navigate('/careers');
+    } else if (type === 'low_stock') {
+      navigate('/products');
+    } else {
+      navigate('/overview');
+    }
+  };
+
   return (
     <>
     <div className="top-title-bar">
@@ -423,8 +447,16 @@ export default function Header({ onToggleMobile }) {
                 </div>
               ) : (
                 notifications.map((notif) => (
-                  <div key={notif.id} className={`notif-item ${notif.readAt ? 'read' : ''}`}>
-                    <span className="meta-label">{notif.title}</span>
+                  <div
+                    key={notif.id}
+                    className={`notif-item ${notif.readAt ? 'read' : ''}`}
+                    onClick={() => handleNotificationClick(notif)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <span className="meta-label">{notif.title}</span>
+                      {notif.body && <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{notif.body}</div>}
+                    </div>
                     <button
                       className="notif-clear-item-btn"
                       onClick={(e) => {
