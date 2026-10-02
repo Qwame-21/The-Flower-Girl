@@ -186,6 +186,22 @@ export default function Sidebar({
               </div>
               <span className="menu-item-label">Shop/POS</span>
             </NavLink>
+
+            {/* 07. Customization */}
+            <NavLink
+              to="/customization"
+              className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+              data-page="Customization"
+              onClick={onCloseMobile}
+            >
+              <div className="menu-item-icon-wrapper">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+              </div>
+              <span className="menu-item-label">Customization</span>
+            </NavLink>
           </div>
 
           <div className="group-divider"></div>
@@ -194,7 +210,7 @@ export default function Sidebar({
           <div className="menu-group">
             <span className="meta-label group-header-label">Analytics & Audience</span>
 
-            {/* 07. Insights */}
+            {/* 08. Insights */}
             <NavLink
               to="/insights"
               className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
@@ -211,7 +227,7 @@ export default function Sidebar({
               <span className="menu-item-label">Insights</span>
             </NavLink>
 
-            {/* 08. Customers */}
+            {/* 09. Customers */}
             <NavLink
               to="/customers"
               className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
@@ -229,7 +245,7 @@ export default function Sidebar({
               <span className="menu-item-label">Customers</span>
             </NavLink>
 
-            {/* 09. Reviews */}
+            {/* 10. Reviews */}
             <NavLink
               to="/reviews"
               className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
@@ -244,7 +260,7 @@ export default function Sidebar({
               <span className="menu-item-label">Reviews</span>
             </NavLink>
 
-            {/* 10. Requests */}
+            {/* 11. Requests */}
             <NavLink
               to="/requests"
               className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
@@ -267,7 +283,7 @@ export default function Sidebar({
           <div className="menu-group">
             <span className="meta-label group-header-label">Platform & Utilities</span>
 
-            {/* 11. Careers */}
+            {/* 12. Careers */}
             <NavLink
               to="/careers"
               className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
@@ -283,7 +299,7 @@ export default function Sidebar({
               <span className="menu-item-label">Careers</span>
             </NavLink>
 
-            {/* 12. Gallery */}
+            {/* 13. Gallery */}
             <NavLink
               to="/gallery"
               className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
@@ -300,7 +316,7 @@ export default function Sidebar({
               <span className="menu-item-label">Gallery</span>
             </NavLink>
 
-            {/* 13. Settings */}
+            {/* 14. Settings */}
             <NavLink
               to="/settings"
               className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}

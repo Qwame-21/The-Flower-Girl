@@ -169,6 +169,16 @@ create table if not exists public.customer_profiles (
   notes text,
   updated_at timestamptz not null default now()
 );
+create table if not exists public.customization_options (
+  id uuid primary key default gen_random_uuid(),
+  category text not null,
+  option_name text not null,
+  estimate numeric(12,2) not null default 0 check (estimate >= 0),
+  display_order integer not null default 0,
+  visible boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 
 -- Public media buckets. Originals are uploaded by staff; request files use signed URLs.
 insert into storage.buckets (id, name, public) values ('storefront-media','storefront-media',true) on conflict (id) do nothing;
@@ -204,10 +214,11 @@ do $$ begin
   create policy "public reads open careers" on public.careers for select using (status = 'open');
   create policy "public reads site content" on public.site_content for select using (true);
   create policy "public reads site settings" on public.site_settings for select using (true);
+  create policy "public reads visible customization options" on public.customization_options for select using (visible);
 exception when duplicate_object then null; end $$;
 
 do $$ declare table_name text; begin
-  foreach table_name in array array['staff_profiles','products','collections','collection_products','promotions','gallery_items','customer_requests','orders','order_items','order_events','checkout_attempts','reviews','careers','career_applications','site_content','site_settings','admin_notifications','customer_profiles']
+  foreach table_name in array array['staff_profiles','products','collections','collection_products','promotions','gallery_items','customer_requests','orders','order_items','order_events','checkout_attempts','reviews','careers','career_applications','site_content','site_settings','admin_notifications','customer_profiles','customization_options']
   loop execute format('create policy "staff manages %1$s" on public.%1$I for all to authenticated using (public.is_staff()) with check (public.is_staff())', table_name);
   end loop;
 exception when duplicate_object then null; end $$;
@@ -225,7 +236,7 @@ create or replace function public.touch_updated_at()
 returns trigger language plpgsql as $$ begin new.updated_at = now(); return new; end; $$;
 
 do $$ declare table_name text; begin
-  foreach table_name in array array['products','collections','promotions','gallery_items','customer_requests','orders','checkout_attempts','reviews','careers','career_applications','site_content','site_settings','customer_profiles']
+  foreach table_name in array array['products','collections','promotions','gallery_items','customer_requests','orders','checkout_attempts','reviews','careers','career_applications','site_content','site_settings','customer_profiles','customization_options']
   loop
     execute format('drop trigger if exists set_updated_at on public.%I', table_name);
     execute format('create trigger set_updated_at before update on public.%I for each row execute function public.touch_updated_at()', table_name);

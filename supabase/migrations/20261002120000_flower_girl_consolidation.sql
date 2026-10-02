@@ -232,4 +232,74 @@ do $$ declare table_name text; begin
   end loop;
 end $$;
 
+-- Add customization_options table for storefront customization builder
+create table if not exists public.customization_options (
+  id uuid primary key default gen_random_uuid(),
+  category text not null,
+  option_name text not null,
+  estimate numeric(12,2) not null default 0 check (estimate >= 0),
+  display_order integer not null default 0,
+  visible boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.customization_options enable row level security;
+
+create policy "staff manages customization_options"
+on public.customization_options
+for all to authenticated
+using (public.is_staff())
+with check (public.is_staff());
+
+create policy "public reads visible customization options"
+on public.customization_options
+for select
+using (visible);
+
+-- Add trigger for updated_at
+drop trigger if exists set_updated_at on public.customization_options;
+create trigger set_updated_at before update on public.customization_options for each row execute function public.touch_updated_at();
+
+-- Add to staff management policy list
+do $$ begin
+  create policy "staff manages customization_options" on public.customization_options for all to authenticated using (public.is_staff()) with check (public.is_staff());
+exception when duplicate_object then null; end $$;
+
+-- Seed default customization options from static data
+insert into public.customization_options (category, option_name, estimate, display_order, visible) values
+  ('Choose a base', 'Luxury box', 220, 1, true),
+  ('Choose a base', 'Open hamper', 180, 2, true),
+  ('Choose a base', 'Flower bouquet', 450, 3, true),
+  ('Choose a base', 'Gift bag', 120, 4, true),
+  ('Choose a base', 'Keepsake basket', 280, 5, true),
+  ('Choose a base', 'Corporate box', 240, 6, true),
+  ('Add gifts', 'Perfume', 480, 1, true),
+  ('Add gifts', 'Chocolate', 120, 2, true),
+  ('Add gifts', 'Fresh flowers', 300, 3, true),
+  ('Add gifts', 'Jewelry', 350, 4, true),
+  ('Add gifts', 'Wrist bag', 320, 5, true),
+  ('Add gifts', 'Watch', 420, 6, true),
+  ('Add gifts', 'Tumbler', 160, 7, true),
+  ('Add gifts', 'Fabric', 380, 8, true),
+  ('Add gifts', 'Self-care items', 220, 9, true),
+  ('Add gifts', 'Shirt', 250, 10, true),
+  ('Add gifts', 'Manicure set', 130, 11, true),
+  ('Add gifts', 'Tea & cookies', 90, 12, true),
+  ('Add gifts', 'Juice', 45, 13, true),
+  ('Add gifts', 'Hot water bottle', 110, 14, true),
+  ('Personalize', 'Engraved name', 80, 1, true),
+  ('Personalize', 'Embroidered name', 120, 2, true),
+  ('Personalize', 'Card message & design', 40, 3, true),
+  ('Personalize', 'Photo insert', 25, 4, true),
+  ('Personalize', 'Branded ribbon', 65, 5, true),
+  ('Personalize', 'Company branding', 160, 6, true),
+  ('Finish & deliver', 'Gift wrapping', 90, 1, true),
+  ('Finish & deliver', 'Engagement wrapping', 240, 2, true),
+  ('Finish & deliver', 'Same-day Accra delivery', 120, 3, true),
+  ('Finish & deliver', 'Scheduled delivery', 90, 4, true),
+  ('Finish & deliver', 'Store collection', 0, 5, true),
+  ('Finish & deliver', 'Surprise delivery', 140, 6, true)
+on conflict do nothing;
+
 COMMIT;

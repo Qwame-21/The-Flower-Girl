@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { submitInquiry } from '../api/submissions';
+import { getCustomizationOptions } from '../api/customizationApi';
 import { CUSTOM_ESTIMATES, CUSTOM_OPTIONS } from '../data/customization';
 import { formDate, formIsoDate } from '../utils/date';
 import CardStylePicker from '../components/CardStylePicker';
@@ -18,8 +19,25 @@ export default function CustomizePage({ onNavigate }) {
   const [submissionId] = useState(() => crypto.randomUUID());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [dbCustomData, setDbCustomData] = useState(null);
+  
+  // Load customization options from database
+  useEffect(() => {
+    async function loadCustomization() {
+      const data = await getCustomizationOptions();
+      if (data) {
+        setDbCustomData(data);
+      }
+    }
+    loadCustomization();
+  }, []);
+
+  // Use database options if available, otherwise fall back to static
+  const customOptions = dbCustomData?.options || CUSTOM_OPTIONS;
+  const customEstimates = dbCustomData?.estimates || CUSTOM_ESTIMATES;
+
   const toggle = option => setSelected(current => current.includes(option) ? current.filter(item => item !== option) : [...current, option]);
-  const unitEstimate = selected.reduce((sum, option) => sum + (CUSTOM_ESTIMATES[option] || 0), 0);
+  const unitEstimate = selected.reduce((sum, option) => sum + (customEstimates[option] || 0), 0);
   const estimateLow = unitEstimate * quantity;
   const estimateHigh = Math.ceil(estimateLow * 1.12 / 10) * 10;
   const submit = async event => {
@@ -56,7 +74,7 @@ export default function CustomizePage({ onNavigate }) {
     <header className="content-page-heading"><span>BESPOKE GIFT BUILDER</span><h1>Make it<br />theirs.</h1></header>
     <div className="custom-gallery"><figure><img src="/assets/hamper-editorial-v2.png" alt="Luxury hamper inspiration" /><figcaption>Hampers</figcaption></figure><figure><img src="/assets/bouquet-editorial-v2.png" alt="Fresh flower inspiration" /><figcaption>Flowers</figcaption></figure><figure><img src="/assets/embroidery-editorial-v2.png" alt="Embroidery and personalization inspiration" /><figcaption>Personalization</figcaption></figure></div>
     <div className="custom-builder"><form onSubmit={submit}>
-      {Object.entries(CUSTOM_OPTIONS).map(([group, options], groupIndex) => <fieldset className="custom-option-group" key={group}><legend><span>{String(groupIndex + 1).padStart(2, '0')}</span>{group}</legend><div>{options.map(option => <label key={option} className={selected.includes(option) ? 'selected' : ''}><input type="checkbox" checked={selected.includes(option)} onChange={() => toggle(option)} />{option}</label>)}</div></fieldset>)}
+      {Object.entries(customOptions).map(([group, options], groupIndex) => <fieldset className="custom-option-group" key={group}><legend><span>{String(groupIndex + 1).padStart(2, '0')}</span>{group}</legend><div>{options.map(option => <label key={option} className={selected.includes(option) ? 'selected' : ''}><input type="checkbox" checked={selected.includes(option)} onChange={() => toggle(option)} />{option}</label>)}</div></fieldset>)}
       <section className="builder-card-message"><span>CARD MESSAGE &amp; DESIGN</span><p>Select “Card message &amp; design” above when you want either a printed message or a custom card. Then enter the exact wording and choose its lettering below.</p><label>Message for the card <small>(optional)</small><textarea name="cardMessage" rows="3" placeholder="Write the message exactly as it should appear" /></label><CardStylePicker /></section>
       <label className="custom-note">Gift notes and instructions<textarea name="note" required rows="5" placeholder="Tell us the occasion, recipient, preferred colours, budget, presentation ideas or anything the team should know" /></label>
       <div className="custom-contact"><label>Name<input name="name" required /></label><label>Email address<input name="email" type="email" required /></label><label>Occasion<input name="occasion" required /></label><PhoneInput label="WhatsApp number" required /><DateField label="Preferred date" prefix="custom" /></div>

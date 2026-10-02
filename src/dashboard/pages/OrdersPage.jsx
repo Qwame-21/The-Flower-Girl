@@ -144,7 +144,9 @@ export default function OrdersPage() {
     const prevOrder = { ...order };
     setOrderErrors(prev => ({ ...prev, [orderId]: null }));
 
-    if (stage === 'paid' && order.paymentStatus === 'paid' && (order.paymentProvider === 'paystack' || order.payment_provider === 'paystack' || !order.staffOrder) && !order.staffOrder) {
+    // Paystack-paid orders cannot be un-paid (database enforces this too)
+    // Staff orders can toggle paid/unpaid freely
+    if (stage === 'paid' && order.paymentStatus === 'paid' && !order.staffOrder) {
       // Locked Paid pill for Paystack paid online orders: do nothing silently, no error message
       return;
     }
