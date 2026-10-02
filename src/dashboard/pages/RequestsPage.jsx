@@ -111,13 +111,15 @@ export default function RequestsPage() {
             type="button"
             onClick={() => setStatusFilter(status)}
             style={{
-              padding: '10px 16px',
+              padding: '10px 20px',
               background: 'transparent',
               border: 'none',
               borderBottom: statusFilter === status ? '2px solid #1a1a1a' : '2px solid transparent',
               cursor: 'pointer',
               fontSize: '14px',
               color: statusFilter === status ? '#1a1a1a' : 'var(--text-muted)',
+              borderRadius: '9999px',
+              transition: 'all 0.15s ease',
               textTransform: 'capitalize',
               whiteSpace: 'nowrap'
             }}
@@ -240,7 +242,7 @@ export default function RequestsPage() {
               )}
 
               {request.admin_note && (
-                <div style={{ fontSize: '13px', marginBottom: '12px', padding: '8px', background: '#f3f4f6', borderRadius: '6px' }}>
+                <div style={{ fontSize: '13px', marginBottom: '12px', padding: '8px', background: '#f3f4f6', borderRadius: '8px' }}>
                   <strong>Admin note:</strong> {request.admin_note}
                 </div>
               )}
@@ -254,9 +256,9 @@ export default function RequestsPage() {
                   onFocus={() => setSelectedRequestId(request.id)}
                   style={{
                     flex: 1,
-                    padding: '6px 12px',
+                    padding: '6px 14px',
                     border: '1px solid rgba(26,26,26,0.14)',
-                    borderRadius: '6px',
+                    borderRadius: '9999px',
                     fontSize: '13px'
                   }}
                 />
@@ -268,9 +270,9 @@ export default function RequestsPage() {
                   onFocus={() => setSelectedRequestId(request.id)}
                   style={{
                     width: '120px',
-                    padding: '6px 12px',
+                    padding: '6px 14px',
                     border: '1px solid rgba(26,26,26,0.14)',
-                    borderRadius: '6px',
+                    borderRadius: '9999px',
                     fontSize: '13px'
                   }}
                 />
@@ -291,14 +293,15 @@ export default function RequestsPage() {
                         type="button"
                         onClick={() => handleStatusChange(request.id, 'quote_needed')}
                         style={{
-                          padding: '6px 12px',
+                          padding: '6px 14px',
                           background: '#fef3c7',
                           color: '#92400e',
                           border: 'none',
-                          borderRadius: '6px',
+                          borderRadius: '9999px',
                           cursor: 'pointer',
                           fontSize: '12px',
-                          fontWeight: 600
+                          fontWeight: 600,
+                          transition: 'all 0.15s ease'
                         }}
                       >
                         Need Quote
@@ -307,14 +310,15 @@ export default function RequestsPage() {
                         type="button"
                         onClick={() => handleStatusChange(request.id, 'approved')}
                         style={{
-                          padding: '6px 12px',
+                          padding: '6px 14px',
                           background: '#dcfce7',
                           color: '#166534',
                           border: 'none',
-                          borderRadius: '6px',
+                          borderRadius: '9999px',
                           cursor: 'pointer',
                           fontSize: '12px',
-                          fontWeight: 600
+                          fontWeight: 600,
+                          transition: 'all 0.15s ease'
                         }}
                       >
                         Approve
@@ -326,11 +330,11 @@ export default function RequestsPage() {
                       type="button"
                       onClick={() => handleQuoteUpdate(request.id)}
                       style={{
-                        padding: '6px 12px',
+                        padding: '6px 14px',
                         background: '#dbeafe',
                         color: '#1e40af',
                         border: 'none',
-                        borderRadius: '6px',
+                        borderRadius: '9999px',
                         cursor: 'pointer',
                         fontSize: '12px',
                         fontWeight: 600
@@ -344,11 +348,11 @@ export default function RequestsPage() {
                       type="button"
                       onClick={() => handleStatusChange(request.id, 'converted')}
                       style={{
-                        padding: '6px 12px',
+                        padding: '6px 14px',
                         background: '#fef3c7',
                         color: '#92400e',
                         border: 'none',
-                        borderRadius: '6px',
+                        borderRadius: '9999px',
                         cursor: 'pointer',
                         fontSize: '12px',
                         fontWeight: 600
@@ -361,11 +365,11 @@ export default function RequestsPage() {
                     type="button"
                     onClick={() => setConfirmDeleteId(request.id)}
                     style={{
-                      padding: '6px 12px',
+                      padding: '6px 14px',
                       background: 'transparent',
                       color: '#ef4444',
                       border: '1px solid #ef4444',
-                      borderRadius: '6px',
+                      borderRadius: '9999px',
                       cursor: 'pointer',
                       fontSize: '12px'
                     }}

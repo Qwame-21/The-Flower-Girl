@@ -104,13 +104,15 @@ export default function ReviewsPage() {
             type="button"
             onClick={() => setStatusFilter(status)}
             style={{
-              padding: '10px 16px',
+              padding: '10px 20px',
               background: 'transparent',
               border: 'none',
               borderBottom: statusFilter === status ? '2px solid #1a1a1a' : '2px solid transparent',
               cursor: 'pointer',
               fontSize: '14px',
               color: statusFilter === status ? '#1a1a1a' : 'var(--text-muted)',
+              borderRadius: '9999px',
+              transition: 'all 0.15s ease',
               textTransform: 'capitalize'
             }}
           >
@@ -208,11 +210,11 @@ export default function ReviewsPage() {
                         type="button"
                         onClick={() => handleStatusChange(review.id, 'published')}
                         style={{
-                          padding: '6px 12px',
+                          padding: '6px 14px',
                           background: '#dcfce7',
                           color: '#166534',
                           border: 'none',
-                          borderRadius: '6px',
+                          borderRadius: '9999px',
                           cursor: 'pointer',
                           fontSize: '12px',
                           fontWeight: 600
@@ -224,11 +226,11 @@ export default function ReviewsPage() {
                         type="button"
                         onClick={() => handleStatusChange(review.id, 'flagged')}
                         style={{
-                          padding: '6px 12px',
+                          padding: '6px 14px',
                           background: '#fee2e2',
                           color: '#991b1b',
                           border: 'none',
-                          borderRadius: '6px',
+                          borderRadius: '9999px',
                           cursor: 'pointer',
                           fontSize: '12px',
                           fontWeight: 600
@@ -243,11 +245,11 @@ export default function ReviewsPage() {
                       type="button"
                       onClick={() => handleStatusChange(review.id, 'pending')}
                       style={{
-                        padding: '6px 12px',
+                        padding: '6px 14px',
                         background: '#f3f4f6',
                         color: '#374151',
                         border: 'none',
-                        borderRadius: '6px',
+                        borderRadius: '9999px',
                         cursor: 'pointer',
                         fontSize: '12px'
                       }}
@@ -259,11 +261,11 @@ export default function ReviewsPage() {
                     type="button"
                     onClick={() => setConfirmDeleteId(review.id)}
                     style={{
-                      padding: '6px 12px',
+                      padding: '6px 14px',
                       background: 'transparent',
                       color: '#ef4444',
                       border: '1px solid #ef4444',
-                      borderRadius: '6px',
+                      borderRadius: '9999px',
                       cursor: 'pointer',
                       fontSize: '12px'
                     }}
