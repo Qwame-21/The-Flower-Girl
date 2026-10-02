@@ -183,17 +183,12 @@ export default function OrdersPage() {
       }
     }
 
-    setOrdersList(prev => prev.map(o =>
-      o.id === orderId ? { ...o, fulfillmentStatus: optFulfillment, paymentStatus: optPayment } : o
-    ));
-
     const result = await updateOrderStatus(orderId, stage);
     if (!result || !result.success) {
-      setOrdersList(prev => prev.map(o => o.id === orderId ? prevOrder : o));
       setOrderErrors(prev => ({ ...prev, [orderId]: result?.error || 'Update failed' }));
-    } else {
-      await refreshOrders();
     }
+    // Always refresh from DB to ensure state matches
+    await refreshOrders();
   };
 
   // Restore order

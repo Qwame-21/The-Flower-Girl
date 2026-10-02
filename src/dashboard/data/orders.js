@@ -62,12 +62,12 @@ export async function listOrders() {
     items: (order.order_items || []).map(item => ({
       id: item.id,
       productId: item.product_id,
-      sku: null, // Would need to join with products table
+      sku: null,
       name: item.item_name,
       variant: '',
       qty: item.quantity,
       unitPrice: item.unit_price,
-      category: null, // Would need to join with products table
+      category: item.metadata?.category || null, // Category stored in metadata by finalize_paid_checkout
       metadata: item.metadata
     })),
     auditLog: (order.order_events || []).map(event => ({
@@ -109,10 +109,7 @@ export async function updateOrderStatus(orderId, action, customerNote = '', user
       targetPaymentStatus = 'paid';
       eventStageToInsert = 'paid';
     } else if (currentOrder.payment_status === 'paid') {
-      // Undo Paid
-      if (currentOrder.payment_provider === 'paystack' && !currentOrder.staff_order) {
-        return { success: false, error: 'Orders with Paystack payment cannot undo Paid status' };
-      }
+      // Undo Paid - database trigger will enforce Paystack protection
       isUndo = true;
       targetDbStatus = 'pending_payment';
       targetPaymentStatus = 'pending';
@@ -276,23 +273,46 @@ export async function createStaffOrder(orderData) {
     return null;
   }
 
-  // Insert order items
+  // Insert order items with category capture and stock decrement
   if (orderData.items && orderData.items.length > 0) {
-    const itemsToInsert = orderData.items.map(item => ({
-      order_id: order.id,
-      product_id: item.productId || null,
-      item_name: item.name,
-      quantity: item.qty,
-      unit_price: item.unitPrice,
-      metadata: item.metadata || {}
-    }));
+    for (const item of orderData.items) {
+      let itemCategory = null;
+      if (item.productId) {
+        const { data: product } = await supabase
+          .from('products')
+          .select('category')
+          .eq('id', item.productId)
+          .single();
+        if (product) itemCategory = product.category;
+      }
 
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(itemsToInsert);
+      const itemMetadata = {
+        ...(item.metadata || {}),
+        category: itemCategory
+      };
 
-    if (itemsError) {
-      console.error('Error inserting order items:', itemsError);
+      const { error: itemError } = await supabase
+        .from('order_items')
+        .insert({
+          order_id: order.id,
+          product_id: item.productId || null,
+          item_name: item.name,
+          quantity: item.qty,
+          unit_price: item.unitPrice,
+          metadata: itemMetadata
+        });
+
+      if (itemError) {
+        console.error('Error inserting order item:', itemError);
+      }
+
+      // Decrement stock for staff orders too
+      if (item.productId) {
+        await supabase
+          .from('products')
+          .update({ stock: supabase.raw('stock - ' + item.qty) })
+          .eq('id', item.productId);
+      }
     }
   }
 

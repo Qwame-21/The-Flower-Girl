@@ -53,9 +53,11 @@ export const DASHBOARD_TO_DB_FULFILLMENT = {
 };
 
 // DB status to dashboard internal status mapping
+// NOTE: Database now sets fulfillment_status to 'packaging' when order is paid (not 'paid')
+// This matches the admin flow expectation: paid → packaging (Processing)
 export const DB_TO_DASHBOARD_FULFILLMENT = {
   pending_payment: 'pending_payment',
-  paid: 'paid',
+  paid: 'packaging',  // Database writes 'packaging' on paid, admin displays as "Processing"
   packaging: 'packaging',
   ready: 'ready',
   delivery: 'dispatched',

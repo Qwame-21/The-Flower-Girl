@@ -1,5 +1,12 @@
 -- The Gifting Factory: production Supabase foundation
 -- Run in a new Supabase project SQL editor. Re-runnable where practical.
+--
+-- NAMING RULES:
+-- - Database columns: snake_case (e.g., customer_name, fulfillment_status)
+-- - Dashboard labels: camelCase or Title Case (e.g., customerName, "Pending Payment")
+-- - Status enums: lowercase with underscores (e.g., pending_payment, paid, packaging)
+-- - ID columns: uuid for auto-generated, text for stable IDs (products)
+-- - Mappings: See src/dashboard/data/statusMap.js for translations
 
 create extension if not exists pgcrypto;
 
@@ -63,6 +70,7 @@ create unique index if not exists one_active_promotion_per_product on public.pro
 
 create table if not exists public.gallery_items (
   id uuid primary key default gen_random_uuid(), image_path text not null, label text not null,
+  category text,
   visible boolean not null default true, sort_order integer not null default 0,
   created_at timestamptz not null default now(), updated_at timestamptz not null default now()
 );
@@ -155,6 +163,12 @@ create table if not exists public.admin_notifications (
   id uuid primary key default gen_random_uuid(), type text not null, title text not null, body text,
   route text, record_id text, read_at timestamptz, created_at timestamptz not null default now()
 );
+create table if not exists public.customer_profiles (
+  email text primary key,
+  vip boolean not null default false,
+  notes text,
+  updated_at timestamptz not null default now()
+);
 
 -- Public media buckets. Originals are uploaded by staff; request files use signed URLs.
 insert into storage.buckets (id, name, public) values ('storefront-media','storefront-media',true) on conflict (id) do nothing;
@@ -178,6 +192,7 @@ alter table public.career_applications enable row level security;
 alter table public.site_content enable row level security;
 alter table public.site_settings enable row level security;
 alter table public.admin_notifications enable row level security;
+alter table public.customer_profiles enable row level security;
 
 do $$ begin
   create policy "public reads visible products" on public.products for select using (visible);
@@ -192,7 +207,7 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 do $$ declare table_name text; begin
-  foreach table_name in array array['staff_profiles','products','collections','collection_products','promotions','gallery_items','customer_requests','orders','order_items','order_events','checkout_attempts','reviews','careers','career_applications','site_content','site_settings','admin_notifications']
+  foreach table_name in array array['staff_profiles','products','collections','collection_products','promotions','gallery_items','customer_requests','orders','order_items','order_events','checkout_attempts','reviews','careers','career_applications','site_content','site_settings','admin_notifications','customer_profiles']
   loop execute format('create policy "staff manages %1$s" on public.%1$I for all to authenticated using (public.is_staff()) with check (public.is_staff())', table_name);
   end loop;
 exception when duplicate_object then null; end $$;
@@ -210,7 +225,7 @@ create or replace function public.touch_updated_at()
 returns trigger language plpgsql as $$ begin new.updated_at = now(); return new; end; $$;
 
 do $$ declare table_name text; begin
-  foreach table_name in array array['products','collections','promotions','gallery_items','customer_requests','orders','checkout_attempts','reviews','careers','career_applications','site_content','site_settings']
+  foreach table_name in array array['products','collections','promotions','gallery_items','customer_requests','orders','checkout_attempts','reviews','careers','career_applications','site_content','site_settings','customer_profiles']
   loop
     execute format('drop trigger if exists set_updated_at on public.%I', table_name);
     execute format('create trigger set_updated_at before update on public.%I for each row execute function public.touch_updated_at()', table_name);
@@ -218,10 +233,11 @@ do $$ declare table_name text; begin
 end $$;
 
 -- Idempotent, transactional conversion used only after webhook verification.
+-- FIXED: fulfillment_status now lands in 'packaging' to match admin flow expectation
 create or replace function public.finalize_paid_checkout(
   verified_reference text,
   verified_amount numeric,
-  verified_currency text
+  verified_currency text default 'GHS'
 ) returns jsonb
 language plpgsql
 security definer
@@ -230,6 +246,9 @@ as $$
 declare
   attempt public.checkout_attempts%rowtype;
   created_order_id uuid;
+  item_rec record;
+  updated_product record;
+  item_category text;
 begin
   select * into attempt from public.checkout_attempts
   where payment_reference = verified_reference
@@ -257,12 +276,46 @@ begin
     nullif(attempt.checkout_data->>'location_link',''), nullif(attempt.checkout_data->>'customer_note',''),
     nullif(attempt.checkout_data->>'card_message',''), nullif(attempt.checkout_data->>'card_style',''),
     nullif(attempt.checkout_data->>'requested_delivery_date','')::date,
-    attempt.subtotal, attempt.total, 'paystack', attempt.payment_reference, 'paid', 'paid'
+    attempt.subtotal, attempt.total, 'paystack', attempt.payment_reference, 'paid', 'packaging'
   ) returning id into created_order_id;
 
-  insert into public.order_items (order_id, product_id, item_name, quantity, unit_price, metadata)
-  select created_order_id, item.product_id, item.item_name, item.quantity, item.unit_price, coalesce(item.metadata, '{}'::jsonb)
-  from jsonb_to_recordset(attempt.items) as item(product_id text, item_name text, quantity integer, unit_price numeric, metadata jsonb);
+  -- Insert order_items with category stored in metadata for analytics
+  for item_rec in
+    select item.product_id, item.item_name, item.quantity, item.unit_price, coalesce(item.metadata, '{}'::jsonb)
+    from jsonb_to_recordset(attempt.items) as item(product_id text, item_name text, quantity integer, unit_price numeric, metadata jsonb)
+  loop
+    select category into item_category from public.products where id = item_rec.product_id;
+    insert into public.order_items (order_id, product_id, item_name, quantity, unit_price, metadata)
+    values (
+      created_order_id, item_rec.product_id, item_rec.item_name, item_rec.quantity, item_rec.unit_price,
+      coalesce(item_rec.metadata, '{}'::jsonb) || jsonb_build_object('category', item_category)
+    );
+  end loop;
+
+  -- Decrement products stock and check low stock threshold
+  for item_rec in
+    select item.product_id, item.item_name, item.quantity
+    from jsonb_to_recordset(attempt.items) as item(product_id text, item_name text, quantity integer, unit_price numeric, metadata jsonb)
+  loop
+    if item_rec.product_id is not null then
+      update public.products
+      set stock = greatest(0, coalesce(stock, 0) - item_rec.quantity),
+          updated_at = now()
+      where id = item_rec.product_id
+      returning id, name, stock, low_stock_threshold into updated_product;
+
+      if found and updated_product.stock <= coalesce(updated_product.low_stock_threshold, 3) then
+        insert into public.admin_notifications (type, title, body, route, record_id)
+        values (
+          'low_stock',
+          'Low stock: ' || updated_product.name,
+          'Stock for ' || updated_product.name || ' dropped to ' || updated_product.stock || ' (threshold: ' || coalesce(updated_product.low_stock_threshold, 3) || ')',
+          '/admin',
+          updated_product.id
+        );
+      end if;
+    end if;
+  end loop;
 
   insert into public.order_events (order_id, stage, customer_note)
   values (created_order_id, 'paid', 'Payment confirmed');
@@ -279,6 +332,103 @@ end $$;
 revoke all on function public.finalize_paid_checkout(text,numeric,text) from public, anon, authenticated;
 grant execute on function public.finalize_paid_checkout(text,numeric,text) to service_role;
 
+-- Trigger to protect Paystack orders from being un-paid
+create or replace function public.protect_paystack_payment()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.payment_status = 'paid' and new.payment_status <> 'paid' and old.payment_provider = 'paystack' and new.staff_order = false then
+    raise exception 'Cannot undo payment on Paystack orders. Staff orders (staff_order = true) may toggle paid/unpaid freely.';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists protect_paystack_payment on public.orders;
+create trigger protect_paystack_payment
+  before update of payment_status on public.orders
+  for each row execute function public.protect_paystack_payment();
+
+-- Trigger for admin status change notifications
+create or replace function public.notify_status_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.fulfillment_status is distinct from new.fulfillment_status then
+    insert into public.admin_notifications (type, title, body, route, record_id)
+    values (
+      'status_change',
+      'Order status changed',
+      'Order ' || new.tracking_number || ' is now ' || new.fulfillment_status,
+      '/admin',
+      new.id::text
+    );
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists notify_status_change on public.orders;
+create trigger notify_status_change
+  after update of fulfillment_status on public.orders
+  for each row execute function public.notify_status_change();
+
+-- Trigger for new customer requests
+create or replace function public.notify_new_customer_request()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.admin_notifications (type, title, body, route, record_id)
+  values (
+    'new_request',
+    'New customer request from ' || new.customer_name,
+    'Type: ' || new.request_type,
+    '/admin',
+    new.id::text
+  );
+  return new;
+end $$;
+
+drop trigger if exists on_new_customer_request on public.customer_requests;
+create trigger on_new_customer_request
+  after insert on public.customer_requests
+  for each row execute function public.notify_new_customer_request();
+
+-- Trigger for new career applications
+create or replace function public.notify_new_career_application()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  pos_title text;
+begin
+  select title into pos_title from public.careers where id = new.career_id;
+
+  insert into public.admin_notifications (type, title, body, route, record_id)
+  values (
+    'new_application',
+    'New career application from ' || new.full_name,
+    'Role: ' || coalesce(pos_title, 'General Application'),
+    '/admin',
+    new.id::text
+  );
+  return new;
+end $$;
+
+drop trigger if exists on_new_career_application on public.career_applications;
+create trigger on_new_career_application
+  after insert on public.career_applications
+  for each row execute function public.notify_new_career_application();
+
 -- Customer-safe tracking lookup. Server-side rate limiting is still required.
 create or replace function public.track_record(lookup_reference text, lookup_contact text)
 returns jsonb language plpgsql security definer set search_path = public
@@ -293,7 +443,7 @@ begin
     'events',coalesce((select jsonb_agg(jsonb_build_object('stage',e.stage,'note',e.customer_note,'createdAt',e.created_at) order by e.created_at) from public.order_events e where e.order_id=o.id),'[]'::jsonb)
   ) into result from public.orders o
   where lower(o.tracking_number)=lower(trim(lookup_reference))
-    and (lower(coalesce(o.customer_email,''))=lower(trim(lookup_contact)) or (length(normalized_contact)>=9 and length(regexp_replace(o.customer_phone,'[^0-9]','','g'))>=9 and right(regexp_replace(o.customer_phone,'[^0-9]','','g'),9)=right(normalized_contact,9)))
+    and (lower(coalesce(o.customer_email,''))=lower(trim(lookup_contact)) or (length(normalized_contact)>=9 and length(regexp_replace(o.customer_phone,'[^0-9]','','g'))>=9 and right(regexp_replace(o.customer_phone,'[^0-9]','','g),9)=right(normalized_contact,9)))
   limit 1;
   if result is not null then return result; end if;
 
@@ -304,7 +454,7 @@ begin
     'adminNote',r.admin_note,'updatedAt',r.updated_at
   ) into result from public.customer_requests r
   where lower(r.reference)=lower(trim(lookup_reference))
-    and (lower(coalesce(r.email,''))=lower(trim(lookup_contact)) or (length(normalized_contact)>=9 and length(regexp_replace(r.phone,'[^0-9]','','g'))>=9 and right(regexp_replace(r.phone,'[^0-9]','','g'),9)=right(normalized_contact,9)))
+    and (lower(coalesce(r.email,''))=lower(trim(lookup_contact)) or (length(normalized_contact)>=9 and length(regexp_replace(r.phone,'[^0-9]','','g'))>=9 and right(regexp_replace(r.phone,'[^0-9]','','g),9)=right(normalized_contact,9)))
   limit 1;
   return result;
 end $$;
@@ -313,7 +463,7 @@ revoke all on function public.track_record(text,text) from public;
 grant execute on function public.track_record(text,text) to anon, authenticated;
 
 do $$ declare table_name text; begin
-  foreach table_name in array array['orders','order_events','customer_requests','admin_notifications']
+  foreach table_name in array array['orders','order_events','customer_requests','admin_notifications','products','gallery_items']
   loop
     if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename=table_name) then
       execute format('alter publication supabase_realtime add table public.%I', table_name);

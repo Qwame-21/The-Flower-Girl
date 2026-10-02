@@ -1,12 +1,10 @@
 // src/pages/ShopPOSPage.jsx
-// Ported 1-for-1 verbatim from admin-monolith.html renderShopView() (lines 17775–18387)
+// Ported from admin-monolith.html, now wired to Supabase
 
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getOrders, saveOrders, logActivityEvent } from '../lib/ordersModel';
+import { loadPosProducts, placeStaffOrder } from '../data/shopPos';
 import CustomDropdown from '../components/shared/CustomDropdown';
-
-const PRODUCTS_KEY = 'xa12-products-data-v1';
 
 // Shared line-art motif set — thin single-weight stroke, no fill, ink-colored (Monolith lines 16732-16810)
 function getPlaceholderSvg(category) {
@@ -201,8 +199,9 @@ const INITIAL_FORM_DATA = {
 };
 
 export default function ShopPOSPage() {
-  const [products, setProducts] = useState(loadProductsData);
-  const [shopCart, setShopCart] = useState(loadShopCart);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [shopCart, setShopCart] = useState([]);
   const [shopSearchQuery, setShopSearchQuery] = useState('');
   const [shopSelectedCategory, setShopSelectedCategory] = useState('ALL');
   const [isShopDrawerOpen, setIsShopDrawerOpen] = useState(false);
@@ -212,23 +211,19 @@ export default function ShopPOSPage() {
   const [shopSuccessMessage, setShopSuccessMessage] = useState('');
   const [shopLastOrderCode, setShopLastOrderCode] = useState('');
 
-  // Sync products when storage changes
+  // Load products from Supabase on mount
   useEffect(() => {
-    const handleSync = () => {
-      setProducts(loadProductsData());
-    };
-    window.addEventListener('xa12:orders-updated', handleSync);
-    window.addEventListener('storage', handleSync);
-    return () => {
-      window.removeEventListener('xa12:orders-updated', handleSync);
-      window.removeEventListener('storage', handleSync);
-    };
+    async function loadProducts() {
+      const data = await loadPosProducts();
+      setProducts(data);
+      setLoading(false);
+    }
+    loadProducts();
   }, []);
 
-  // Sync cart helper
+  // Sync cart helper (session-only, no localStorage)
   const updateCart = (newCart) => {
     setShopCart(newCart);
-    saveShopCart(newCart);
   };
 
   // Close drawer on Escape
@@ -327,7 +322,7 @@ export default function ShopPOSPage() {
     setShopFormErrors(prev => ({ ...prev, [fieldName]: '' }));
   };
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     const errors = {};
     if (!shopFormData.fullName.trim()) errors.fullName = 'Full name is required';
     if (!shopFormData.phone.trim()) errors.phone = 'Phone is required';
@@ -342,65 +337,19 @@ export default function ShopPOSPage() {
       return;
     }
 
-    const orders = getOrders();
-    const orderCode = `GF-2026-${Math.floor(10000 + Math.random() * 90000)}`;
-    const orderId = `ORD-${Math.floor(1000 + Math.random() * 9000)}`;
-    const totalAmount = shopCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const result = await placeStaffOrder(shopFormData, shopCart, null);
 
-    const newOrder = {
-      id: orderId,
-      orderCode: orderCode,
-      customerName: shopFormData.fullName,
-      phone: shopFormData.phone,
-      email: shopFormData.email,
-      source: shopFormData.orderSource.toLowerCase().replace(' ', '-'),
-      items: shopCart.map(item => ({
-        productId: item.id,
-        sku: products.find(p => p.id === item.id)?.code || item.id,
-        name: item.name,
-        variant: '',
-        qty: item.qty,
-        unitPrice: item.price,
-        category: item.category
-      })),
-      amount: totalAmount,
-      paymentStatus: shopFormData.paymentStatus === 'Paid' ? 'paid' : 'pending',
-      fulfillmentStatus: 'preparing',
-      deliveryAddress: shopFormData.address,
-      deliveryWindow: shopFormData.deliveryDate,
-      estimatedDelivery: shopFormData.deliveryDate,
-      estimatedDeliveryAt: { date: shopFormData.deliveryDate, window: '', from: '', to: '' },
-      adminNote: shopFormData.deliveryInstructions,
-      riderAssigned: '',
-      orderDate: new Date().toISOString(),
-      auditLog: [{ time: 'Just now', note: `Order created via ${shopFormData.orderSource}` }]
-    };
+    if (!result.success) {
+      setShopFormErrors({ general: result.error || 'Failed to place order' });
+      return;
+    }
 
-    orders.unshift(newOrder);
-    saveOrders(orders);
-
-    // Update stock in products catalog
-    const updatedProducts = products.map(product => {
-      const cartItem = shopCart.find(item => item.id === product.id);
-      if (cartItem) {
-        return {
-          ...product,
-          stock: Math.max(0, product.stock - cartItem.qty)
-        };
-      }
-      return product;
-    });
-
+    // Reload products to get updated stock
+    const updatedProducts = await loadPosProducts();
     setProducts(updatedProducts);
-    saveProductsData(updatedProducts);
 
-    logActivityEvent({
-      type: 'order',
-      text: `New order ${orderCode} · GHS ${totalAmount.toFixed(2)}`
-    });
-
-    setShopLastOrderCode(orderCode);
-    setShopSuccessMessage(`Order ${orderCode} placed successfully!`);
+    setShopLastOrderCode(result.order.order_code);
+    setShopSuccessMessage(`Order ${result.order.order_code} placed successfully!`);
     updateCart([]);
     setShopFormData(INITIAL_FORM_DATA);
     setShopFormErrors({});
