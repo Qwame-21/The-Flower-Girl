@@ -1,10 +1,12 @@
--- Idempotent stock decrement and admin notifications triggers proposal
+-- Check products.stock values before running: checkout rejects quantities above stock.
 -- Path: supabase/proposed/stock-and-alerts.sql
+
+BEGIN;
 
 create or replace function public.finalize_paid_checkout(
   verified_reference text,
   verified_amount numeric,
-  verified_currency text
+  verified_currency text default 'GHS'
 ) returns jsonb
 language plpgsql
 security definer
@@ -143,3 +145,5 @@ drop trigger if exists on_new_career_application on public.career_applications;
 create trigger on_new_career_application
   after insert on public.career_applications
   for each row execute function public.notify_new_career_application();
+
+COMMIT;
