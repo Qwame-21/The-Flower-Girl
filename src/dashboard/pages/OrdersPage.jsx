@@ -144,8 +144,8 @@ export default function OrdersPage() {
     const prevOrder = { ...order };
     setOrderErrors(prev => ({ ...prev, [orderId]: null }));
 
-    if (stage === 'paid' && order.paymentStatus === 'paid' && (order.paymentProvider === 'paystack' || order.payment_provider === 'paystack') && !order.staffOrder) {
-      setOrderErrors(prev => ({ ...prev, [orderId]: 'Paystack orders cannot undo Paid status' }));
+    if (stage === 'paid' && order.paymentStatus === 'paid' && (order.paymentProvider === 'paystack' || order.payment_provider === 'paystack' || !order.staffOrder) && !order.staffOrder) {
+      // Locked Paid pill for Paystack paid online orders: do nothing silently, no error message
       return;
     }
 
@@ -678,10 +678,11 @@ export default function OrdersPage() {
                       <div className="order-stepper-boxes" onClick={(e) => e.stopPropagation()}>
                         {stepperSteps.map((step, index) => {
                           const isStepPaid = step.key === 'paid';
+                          const isPaystackPaid = isPaid && isStepPaid && !order.staffOrder;
                           let disabled = false;
                           if (!isPaid) {
                             disabled = !isStepPaid;
-                          } else if (isStepPaid && (order.paymentProvider === 'paystack' || order.payment_provider === 'paystack') && !order.staffOrder) {
+                          } else if (isPaystackPaid) {
                             disabled = true;
                           }
 
@@ -700,6 +701,7 @@ export default function OrdersPage() {
                               data-stage={step.key}
                               className={`stepper-box ${stateClass}`}
                               disabled={disabled}
+                              title={isPaystackPaid ? 'Paid online (Paystack)' : undefined}
                               onClick={() => handleStepperClick(order.id, step.actionStage)}
                             >
                               <span className="stepper-checkbox"></span>
