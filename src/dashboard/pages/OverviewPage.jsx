@@ -662,7 +662,7 @@ export default function OverviewPage() {
             </div>
             <button className="btn-capsule" onClick={() => navigate('/log')} style={{ fontSize: '11px', cursor: 'pointer' }}>View all</button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1, paddingTop: '4px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, paddingTop: '4px', overflowY: 'auto', maxHeight: '220px' }}>
             {activityLog.length > 0 ? (
               activityLog.map(item => {
                 let icon = SVG.clock;
