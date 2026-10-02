@@ -217,8 +217,14 @@ function AddPhotoModal({ onCancel, onSubmit }) {
               onClick={onCancel}
               disabled={loading}
               style={{
-                padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(26,26,26,0.14)',
-                background: 'transparent', cursor: 'pointer', fontSize: '13px'
+                padding: '10px 20px',
+                borderRadius: '9999px',
+                border: '1px solid rgba(26,26,26,0.14)',
+                background: 'transparent',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                transition: 'all 0.15s ease'
               }}
             >
               Cancel
@@ -227,8 +233,15 @@ function AddPhotoModal({ onCancel, onSubmit }) {
               type="submit"
               disabled={loading}
               style={{
-                padding: '8px 16px', borderRadius: '8px', border: 'none',
-                background: '#1a1a1a', color: '#fff', cursor: 'pointer', fontSize: '13px',
+                padding: '10px 20px',
+                borderRadius: '9999px',
+                border: 'none',
+                background: '#1a1a1a',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                transition: 'all 0.15s ease',
                 opacity: loading ? 0.6 : 1
               }}
             >
@@ -376,7 +389,10 @@ export default function GalleryPage() {
                     cursor: 'pointer',
                     fontSize: '11px',
                     color: item.visible ? 'var(--text-muted)' : '#ef4444',
-                    marginRight: '8px'
+                    marginRight: '8px',
+                    padding: '6px 14px',
+                    borderRadius: '9999px',
+                    transition: 'all 0.15s ease'
                   }}
                 >
                   {item.visible ? 'Hide' : 'Show'}
