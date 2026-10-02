@@ -255,3 +255,26 @@ export async function deletePromotion(id) {
 
   return { success: true };
 }
+
+// Get inventory summary for Overview
+export async function getInventorySummary() {
+  if (!supabase) {
+    console.warn('Supabase not configured');
+    return { totalProducts: 0, lowStockCount: 0, outOfStockCount: 0 };
+  }
+
+  const { data: products, error } = await supabase
+    .from('products')
+    .select('id, stock, low_stock_threshold');
+
+  if (error) {
+    console.error('Error fetching inventory summary:', error);
+    return { totalProducts: 0, lowStockCount: 0, outOfStockCount: 0 };
+  }
+
+  const totalProducts = products.length;
+  const lowStockCount = products.filter(p => p.stock <= p.low_stock_threshold).length;
+  const outOfStockCount = products.filter(p => p.stock === 0).length;
+
+  return { totalProducts, lowStockCount, outOfStockCount };
+}

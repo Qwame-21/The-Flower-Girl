@@ -204,6 +204,44 @@ export async function updateOrderStatus(orderId, action, customerNote = '', user
     }
   }
 
+  // Trigger customer notification for status changes (except undo operations)
+  if (!isUndo && eventStageToInsert && updatedOrder.payment_status === 'paid') {
+    try {
+      // Fetch order items for the email
+      const { data: orderItems } = await supabase
+        .from('order_items')
+        .select('name, quantity')
+        .eq('order_id', orderId);
+
+      // Call notify-customer Edge Function
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const serviceRole = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+      
+      if (supabaseUrl && serviceRole) {
+        const notifyUrl = `${supabaseUrl}/functions/v1/notify-customer`;
+        await fetch(notifyUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${serviceRole}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            order_id: orderId,
+            event_type: 'status_change',
+            tracking_number: updatedOrder.tracking_number,
+            status: targetDbStatus,
+            total_paid: updatedOrder.total,
+            items: orderItems || [],
+          }),
+        });
+        console.log('Customer notification triggered for status change:', orderId);
+      }
+    } catch (notifyError) {
+      console.error('Failed to trigger customer notification:', notifyError);
+      // Don't fail the status update if notification fails
+    }
+  }
+
   return { success: true, data: updatedOrder };
 }
 

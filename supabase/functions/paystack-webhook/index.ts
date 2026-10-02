@@ -53,5 +53,38 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   console.log('Verified order finalized:', result?.orderId);
+
+  // Trigger customer notification if order was created
+  if (result?.orderId) {
+    try {
+      // Fetch order items for the email
+      const { data: orderItems } = await supabase
+        .from('order_items')
+        .select('name, quantity')
+        .eq('order_id', result.orderId);
+
+      // Call notify-customer function
+      const notifyUrl = `${supabaseUrl}/functions/v1/notify-customer`;
+      await fetch(notifyUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${serviceRole}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          order_id: result.orderId,
+          event_type: 'order_paid',
+          tracking_number: result.trackingNumber,
+          total_paid: amount,
+          items: orderItems || [],
+        }),
+      });
+      console.log('Customer notification triggered for order:', result.orderId);
+    } catch (notifyError) {
+      console.error('Failed to trigger customer notification:', notifyError);
+      // Don't fail the webhook if notification fails
+    }
+  }
+
   return json({ received: true });
 });

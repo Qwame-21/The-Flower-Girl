@@ -1,14 +1,11 @@
-import { useEffect, useState } from 'react';
 import { MapPin, X } from 'lucide-react';
-import { readAdminData, subscribeAdminData } from '../data/adminStore';
 import { PRODUCTS } from '../data/products';
 
 export default function DrawerMenu({ isOpen, onClose, onNavigate }) {
-  const [adminData, setAdminData] = useState(readAdminData);
-  useEffect(() => subscribeAdminData(setAdminData), []);
   if (!isOpen) return null;
-  const promotion = (adminData.promotions || []).find(item => item.status === 'active' && Number(item.percent) > 0);
-  const promotedProduct = promotion && [...(adminData.products || []), ...PRODUCTS].find(product => product.id === promotion.productId);
+
+  // Static fallback since adminStore is removed
+  const announcement = 'Handcrafted gifts, custom arrangements, and same-day delivery across Accra.';
 
   return (
     <div className="storefront-drawer" style={styles.fullPage} onClick={onClose}>
@@ -44,10 +41,10 @@ export default function DrawerMenu({ isOpen, onClose, onNavigate }) {
           ))}
         </nav>
 
-        <button className="storefront-drawer__announcement" onClick={() => { onNavigate(promotion ? 'shop' : 'home'); onClose(); }}>
-          <small>{promotion ? 'CURRENT OFFER' : 'FROM THE STUDIO'}</small>
-          <strong>{promotion ? `${Number(promotion.percent)}% off ${promotedProduct?.name || 'selected gifts'}` : adminData.content?.announcement}</strong>
-          <span>{promotion ? 'View the offer →' : 'Return to the storefront →'}</span>
+        <button className="storefront-drawer__announcement" onClick={() => { onNavigate('shop'); onClose(); }}>
+          <small>FROM THE STUDIO</small>
+          <strong>{announcement}</strong>
+          <span>Return to the storefront →</span>
         </button>
 
         {/* Social links — horizontal, text-based, matching site style */}

@@ -449,7 +449,7 @@ export default function ProductsPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600', marginBottom: '6px' }}>Slug *</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Slug *</label>
                 <input
                   type="text"
                   value={formSlug}
@@ -460,7 +460,7 @@ export default function ProductsPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600', marginBottom: '6px' }}>Category *</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Category *</label>
                 <select
                   value={formCategory}
                   onChange={e => setFormCategory(e.target.value)}
@@ -483,7 +483,7 @@ export default function ProductsPage() {
                   />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600', marginBottom: '6px' }}>Stock *</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Stock *</label>
                   <input
                     type="number"
                     value={formStock}
@@ -494,7 +494,7 @@ export default function ProductsPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600', marginBottom: '6px' }}>Low Stock Threshold</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Low Stock Threshold</label>
                 <input
                   type="number"
                   value={formThreshold}
@@ -504,7 +504,7 @@ export default function ProductsPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600', marginBottom: '6px' }}>Tag</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Tag</label>
                 <input
                   type="text"
                   value={formTag}
@@ -515,7 +515,7 @@ export default function ProductsPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600', marginBottom: '6px' }}>Description</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Description</label>
                 <textarea
                   value={formDescription}
                   onChange={e => setFormDescription(e.target.value)}
@@ -525,7 +525,7 @@ export default function ProductsPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600', marginBottom: '6px' }}>Details (comma-separated)</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Details (comma-separated)</label>
                 <input
                   type="text"
                   value={formDetails}
@@ -536,7 +536,7 @@ export default function ProductsPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600', marginBottom: '6px' }}>Image</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Image</label>
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -562,7 +562,7 @@ export default function ProductsPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600', marginBottom: '6px' }}>Sort Order</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Sort Order</label>
                 <input
                   type="number"
                   value={formSortOrder}

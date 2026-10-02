@@ -315,6 +315,8 @@ export default function Header({ onToggleMobile }) {
       navigate('/careers');
     } else if (type === 'low_stock') {
       navigate('/products');
+    } else if (type === 'new_review') {
+      navigate('/reviews');
     } else {
       navigate('/overview');
     }
