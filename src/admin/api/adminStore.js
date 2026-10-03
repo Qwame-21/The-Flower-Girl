@@ -152,7 +152,7 @@ export async function syncFromSupabase() {
   syncInProgress = true;
 
   try {
-    const { fetchSupabaseData } = await import('../data/supabaseSync');
+    const { fetchSupabaseData } = await import('../../data/supabaseSync');
     const supabaseData = await fetchSupabaseData();
 
     const current = readAdminData();
