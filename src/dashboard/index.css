@@ -7311,7 +7311,19 @@ input:checked + .toggle-slider:before {
   transition: border-color 0.2s ease;
 }
 
-.shop-field-input:focus {
+.shop-field-input:-webkit-autofill,
+.shop-field-input:autofill {
+  -webkit-text-fill-color: var(--text-primary) !important;
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  box-shadow: 0 0 0 1000px transparent inset !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.shop-field-input:focus,
+.shop-field-input:-webkit-autofill:focus,
+.shop-field-input:autofill:focus {
   border-color: var(--text-primary);
 }
 
@@ -8466,6 +8478,22 @@ input:checked + .toggle-slider:before {
   box-sizing: border-box;
 }
 
+.field-input:-webkit-autofill,
+.field-input:autofill,
+.field-textarea:-webkit-autofill,
+.field-textarea:autofill,
+.form-input:-webkit-autofill,
+.form-input:autofill,
+.form-textarea:-webkit-autofill,
+.form-textarea:autofill {
+  -webkit-text-fill-color: #111827 !important;
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  box-shadow: 0 0 0 1000px transparent inset !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 .field-input::placeholder,
 .field-textarea::placeholder,
 .products-search-box input::placeholder,
@@ -8480,7 +8508,15 @@ input:checked + .toggle-slider:before {
 .products-search-box input:focus,
 .form-input:focus,
 .form-select:focus,
-.form-textarea:focus {
+.form-textarea:focus,
+.field-input:-webkit-autofill:focus,
+.field-input:autofill:focus,
+.field-textarea:-webkit-autofill:focus,
+.field-textarea:autofill:focus,
+.form-input:-webkit-autofill:focus,
+.form-input:autofill:focus,
+.form-textarea:-webkit-autofill:focus,
+.form-textarea:autofill:focus {
   border-bottom: 2px solid #111827 !important;
   margin-bottom: -1px;
 }
