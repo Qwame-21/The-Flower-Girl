@@ -254,7 +254,13 @@ export default function RequestsPage() {
 
     saveAndSetRequests(updated);
 
-    const phoneDigits = (quoteModalReq.phone || '').replace(/[^0-9]/g, '');
+    const rawPhone = quoteModalReq.phone || '';
+    const normalizedPhone = rawPhone.replace(/\D/g, '');
+    const phoneDigits = normalizedPhone.startsWith('0')
+      ? `233${normalizedPhone.slice(1)}`
+      : normalizedPhone.startsWith('233')
+        ? normalizedPhone
+        : normalizedPhone;
     const waMessage = `Hello ${quoteModalReq.customer_name || 'Customer'}, this is The Gifting Factory. Your request ${quoteModalReq.reference || quoteModalReq.id} is priced at GHS ${amount.toLocaleString()}.${quoteNoteVal ? ' ' + quoteNoteVal : ''} Reply YES to approve.`;
 
     setWhatsappPrompt({
@@ -683,6 +689,16 @@ export default function RequestsPage() {
                 style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(26,26,26,0.15)', background: '#fff', fontSize: '13px' }}
               >
                 Send on WhatsApp
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  navigator.clipboard.writeText(`+${whatsappPrompt.phoneDigits}`);
+                }}
+                style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(26,26,26,0.15)', background: '#fff', fontSize: '13px' }}
+              >
+                Copy number
               </button>
               <button
                 type="button"

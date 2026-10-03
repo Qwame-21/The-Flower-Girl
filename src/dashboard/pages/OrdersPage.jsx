@@ -223,7 +223,10 @@ export default function OrdersPage() {
   // Bulk actions
   const handleBulkMoveStatus = async (targetStatus) => {
     for (const orderId of selectedIds) {
-      await updateOrderStatus(orderId, targetStatus, `Bulk move to ${targetStatus}`);
+      const result = await updateOrderStatus(orderId, targetStatus, `Bulk move to ${targetStatus}`);
+      if (!result || !result.success) {
+        console.error(`Failed to move order ${orderId}:`, result?.error);
+      }
     }
     await refreshOrders();
     setSelectedIds([]);
@@ -231,7 +234,10 @@ export default function OrdersPage() {
 
   const handleConfirmBulkCancel = async () => {
     for (const orderId of selectedIds) {
-      await updateOrderStatus(orderId, 'cancelled', 'Bulk cancel');
+      const result = await updateOrderStatus(orderId, 'cancelled', 'Bulk cancel');
+      if (!result || !result.success) {
+        console.error(`Failed to cancel order ${orderId}:`, result?.error);
+      }
     }
     await refreshOrders();
     setSelectedIds([]);
@@ -790,8 +796,8 @@ export default function OrdersPage() {
                                       const phone = order.customerPhone || order.phone;
                                       // Normalize Ghana phone to international format (+233)
                                       const normalizedPhone = phone.replace(/\D/g, '');
-                                      const internationalPhone = normalizedPhone.startsWith('0') 
-                                        ? `+233${normalizedPhone.slice(1)}` 
+                                      const internationalPhone = normalizedPhone.startsWith('0')
+                                        ? `+233${normalizedPhone.slice(1)}`
                                         : normalizedPhone.startsWith('233')
                                           ? `+${normalizedPhone}`
                                           : normalizedPhone;
@@ -799,15 +805,35 @@ export default function OrdersPage() {
                                       const message = encodeURIComponent(
                                         `Hello! Your order ${order.orderCode || order.trackingNumber} is currently ${statusLabel}. Tracking: ${order.trackingNumber || 'N/A'}`
                                       );
+                                      const handleCopyPhone = () => {
+                                        navigator.clipboard.writeText(internationalPhone);
+                                      };
                                       return (
-                                        <a 
-                                          href={`https://wa.me/${internationalPhone}?text=${message}`} 
-                                          target="_blank" 
-                                          rel="noreferrer" 
-                                          className="contact-link"
-                                        >
-                                          Message on WhatsApp
-                                        </a>
+                                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                          <a
+                                            href={`https://wa.me/${internationalPhone}?text=${message}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="contact-link"
+                                          >
+                                            Message on WhatsApp
+                                          </a>
+                                          <button
+                                            type="button"
+                                            onClick={handleCopyPhone}
+                                            style={{
+                                              padding: '4px 8px',
+                                              fontSize: '11px',
+                                              background: 'rgba(26,26,26,0.08)',
+                                              border: 'none',
+                                              borderRadius: '4px',
+                                              cursor: 'pointer',
+                                              color: 'var(--text-muted)'
+                                            }}
+                                          >
+                                            Copy number
+                                          </button>
+                                        </div>
                                       );
                                     })()}
                                   </div>
