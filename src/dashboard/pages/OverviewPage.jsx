@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { formatGHS, CATEGORY_MAP } from '../lib/ordersModel';
 import { listOrders } from '../data/orders';
 import { getInventorySummary } from '../data/products';
+import { FULFILLMENT_STATUS_LABELS } from '../data/statusMap';
 
 // SVG Icons matching monolith
 const SVG = {
@@ -541,10 +542,11 @@ export default function OverviewPage() {
   orders.slice(0, 6).forEach(order => {
     if (order.auditLog && order.auditLog.length > 0) {
       order.auditLog.slice(0, 2).forEach(event => {
+        const stageLabel = FULFILLMENT_STATUS_LABELS[event.stage] || event.stage;
         activityLog.push({
           id: `${order.id}-${event.time}`,
           type: 'order',
-          text: `Order #${order.orderCode || order.id}: ${event.stage}`,
+          text: `Order #${order.orderCode || order.id}: ${stageLabel}`,
           timestamp: event.time,
           timeRelative: event.time
         });
@@ -662,7 +664,7 @@ export default function OverviewPage() {
             </div>
             <button className="btn-capsule" onClick={() => navigate('/log')} style={{ fontSize: '11px', cursor: 'pointer' }}>View all</button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, paddingTop: '4px', overflowY: 'auto', maxHeight: '220px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1, paddingTop: '4px' }}>
             {activityLog.length > 0 ? (
               activityLog.map(item => {
                 let icon = SVG.clock;
