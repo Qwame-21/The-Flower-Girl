@@ -1475,6 +1475,10 @@ a {
   letter-spacing: .08em;
 }
 
+.application-section .date-field legend {
+  margin-bottom: .5rem;
+}
+
 .custom-builder legend span {
   display: inline-block;
   width: 2.7rem;
@@ -6100,7 +6104,7 @@ a {
 .checkout-modal .date-field .custom-select > button,
 .request-modal .date-field .custom-select > button {
   min-height: 42px;
-  padding: .62rem .7rem;
+  padding: .62rem 0;
   border: 0;
   border-radius: 0;
   background: transparent;
