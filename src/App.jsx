@@ -200,15 +200,15 @@ function SiteApp() {
         />
       )}
 
-      {activeTab === 'about' && <AboutPage key="about" onNavigate={navigateStorefront} />}
-      {activeTab === 'services' && <ServicesPage key={`services-${preferredService || 'all'}`} initialService={preferredService} onNavigate={navigateStorefront} />}
-      {activeTab === 'gallery' && <GalleryPage key="gallery" onNavigate={navigateStorefront} />}
-      {activeTab === 'shop' && <ShopPage key="shop" onNavigate={navigateStorefront} cart={cart} setCart={setCart} wishlist={wishlist} setWishlist={setWishlist} openCheckout={checkoutRequested} onCheckoutHandled={() => setCheckoutRequested(false)} openWishlist={wishlistRequested} onWishlistHandled={() => setWishlistRequested(false)} />}
-      {activeTab === 'customize' && <CustomizePage key="customize" onNavigate={navigateStorefront} />}
-      {activeTab === 'careers' && <CareersPage key="careers" onNavigate={navigateStorefront} />}
-      {activeTab === 'track' && <TrackOrderPage key="track" onNavigate={navigateStorefront} />}
-      {activeTab === 'delivery' && <InformationPage key="delivery" type="delivery" onNavigate={navigateStorefront} />}
-      {activeTab === 'policy' && <InformationPage key="policy" type="policy" onNavigate={navigateStorefront} />}
+      {activeTab === 'about' && <AboutPage onNavigate={navigateStorefront} />}
+      {activeTab === 'services' && <ServicesPage initialService={preferredService} onNavigate={navigateStorefront} />}
+      {activeTab === 'gallery' && <GalleryPage onNavigate={navigateStorefront} />}
+      {activeTab === 'shop' && <ShopPage onNavigate={navigateStorefront} cart={cart} setCart={setCart} wishlist={wishlist} setWishlist={setWishlist} openCheckout={checkoutRequested} onCheckoutHandled={() => setCheckoutRequested(false)} openWishlist={wishlistRequested} onWishlistHandled={() => setWishlistRequested(false)} />}
+      {activeTab === 'customize' && <CustomizePage onNavigate={navigateStorefront} />}
+      {activeTab === 'careers' && <CareersPage onNavigate={navigateStorefront} />}
+      {activeTab === 'track' && <TrackOrderPage onNavigate={navigateStorefront} />}
+      {activeTab === 'delivery' && <InformationPage type="delivery" onNavigate={navigateStorefront} />}
+      {activeTab === 'policy' && <InformationPage type="policy" onNavigate={navigateStorefront} />}
 
       {/* Modals and Side Drawers */}
       <DrawerMenu
