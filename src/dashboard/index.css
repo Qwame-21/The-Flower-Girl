@@ -13,7 +13,7 @@
    --type-index-md: 20px                      -> Structural Index Numbers
    -------------------------------------------------------------------------- */
 
-.dashboard-viewport {
+:root {
   --xp-r-pill: 9999px;
   /* Color Palette System (Style Lock 001) */
   --bg-gradient-start: #e4e4e2;
@@ -120,16 +120,16 @@
   --z-tooltip: 3000;
 }
 
-/* Reset & Box Sizing - Scoped to dashboard container */
-.dashboard-viewport *, .dashboard-viewport *::before, .dashboard-viewport *::after {
+/* Reset & Box Sizing */
+*, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-.dashboard-viewport {
+html, body {
   width: 100%;
-  height: 100vh;
+  height: 100%;
   font-family: var(--font-family-base);
   background-color: var(--bg-gradient-start);
   color: var(--text-primary);
@@ -855,6 +855,7 @@
   background: rgba(26, 26, 26, 0.04);
   border: 1px solid rgba(26, 26, 26, 0.12);
   border-radius: 50%;
+  /* FIX 3: match clear-all-btn height of 32px */
   width: 32px;
   height: 32px;
   padding: 0;
@@ -863,14 +864,7 @@
   justify-content: center;
   color: var(--text-muted);
   cursor: pointer;
-  /* Safe transitions — no size/transform so capsule text never wraps or clips mid-transition */
-  transition: background-color 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-              color 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-              width 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-              border-radius 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-              padding 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.38s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -960,17 +954,6 @@
   color: var(--text-primary);
 }
 
-.clear-all-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.clear-all-btn:disabled:hover {
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-muted);
-}
-
 .notif-body {
   min-height: 80px;
   max-height: 400px;
@@ -1014,20 +997,6 @@
 
 .notif-body::-webkit-scrollbar-thumb:hover {
   background: rgba(26, 26, 26, 0.3);
-}
-
-.notif-item {
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(26, 26, 26, 0.06);
-  transition: background-color 0.15s ease;
-}
-
-.notif-item:hover {
-  background-color: rgba(26, 26, 26, 0.03);
-}
-
-.notif-item:last-child {
-  border-bottom: none;
 }
 
 .notif-skeleton {
@@ -2193,6 +2162,12 @@
   }
   .data-table th, .data-table td {
     padding: 10px 12px;
+  }
+
+  .mute-toggle-btn {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 6px;
   }
 }
 
@@ -5189,11 +5164,8 @@ input:checked + .toggle-slider:before {
   align-items: center;
   gap: 5px;
   cursor: pointer;
-  /* Safe transitions: only color/background/border — no size or transform */
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-  /* Fixed dimensions so state changes never move anything */
+  transition: all 0.15s ease;
   min-height: 34px;
-  min-width: 72px;
   box-sizing: border-box;
 }
 
@@ -5290,9 +5262,7 @@ input:checked + .toggle-slider:before {
   font-size: 10px;
   font-weight: 700;
   color: var(--status-tick-orange);
-  /* Only color/border transitions — no size changes */
-  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
-  flex-shrink: 0;
+  transition: all 0.15s ease;
 }
 
 .stepper-label {
