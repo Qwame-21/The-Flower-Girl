@@ -1,25 +1,10 @@
 // src/pages/GalleryPage.jsx
-// Rewired to use Supabase gallery_items table only
+// Admin gallery manager with storefront gallery display and Supabase uploaded photos
 
 import { useState, useEffect } from 'react';
+import { readAdminData, subscribeAdminData } from '../../data/adminStore';
 import { supabase } from '../../config/supabase';
-import {
-  listGalleryItems,
-  createGalleryItem,
-  updateGalleryItem,
-  deleteGalleryItem,
-  uploadGalleryImage
-} from '../data/gallery';
-import { getImageUrl } from '../lib/imageUrlHelper';
 import CustomDropdown from '../components/shared/CustomDropdown';
-
-// Built-in storefront gallery images (from adminStore.js defaults)
-const BUILT_IN_GALLERY = [
-  { id: 'gallery-hamper', src: '/assets/hamper-editorial-v2.png', label: 'Luxury gift hamper', visible: true, isBuiltIn: true },
-  { id: 'gallery-bouquet', src: '/assets/bouquet-editorial-v2.png', label: 'Fresh flower bouquet', visible: true, isBuiltIn: true },
-  { id: 'gallery-wrap', src: '/assets/wrapping-editorial-v2.png', label: 'Signature gift presentation', visible: true, isBuiltIn: true },
-  { id: 'gallery-basket', src: '/assets/basket-hamper-editorial-v2.png', label: 'Curated celebration basket', visible: true, isBuiltIn: true },
-];
 
 // Toast helper
 function showToast(msg) {
@@ -65,12 +50,12 @@ function AddPhotoModal({ onCancel, onSubmit }) {
       return;
     }
 
-    setFile(selected);
     setError('');
+    setFile(selected);
 
-    // Generate preview
+    // Create preview
     const reader = new FileReader();
-    reader.onload = () => setPreview(reader.result);
+    reader.onload = (e) => setPreview(e.target.result);
     reader.readAsDataURL(selected);
   }
 
@@ -82,8 +67,14 @@ function AddPhotoModal({ onCancel, onSubmit }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (loading) return;
+
     if (!title.trim()) {
       setError('Title is required');
+      return;
+    }
+    if (!category) {
+      setError('Category is required');
       return;
     }
     if (!file) {
@@ -95,30 +86,12 @@ function AddPhotoModal({ onCancel, onSubmit }) {
     setError('');
 
     try {
-      // Upload image
-      const uploadResult = await uploadGalleryImage(file);
-      if (!uploadResult.success) {
-        throw new Error(uploadResult.error);
-      }
-
-      // Get max sort_order
-      const maxSort = Math.max(...galleryItems.map(p => p.sort_order || 0), 0);
-
-      // Create gallery item
-      const createResult = await createGalleryItem({
-        image_path: uploadResult.path,
-        label: title,
-        category: category || null,
-        visible: true,
-        sort_order: maxSort + 1
-      });
-
-      if (!createResult.success) {
-        throw new Error(createResult.error);
-      }
-
-      showToast('Photo added to gallery!');
-      onSubmit({ title, category, file });
+      await onSubmit({ title: title.trim(), category, file });
+      setTitle('');
+      setCategory('');
+      setFile(null);
+      setPreview(null);
+      onCancel();
     } catch (err) {
       setError(err.message || 'Failed to upload photo');
     } finally {
@@ -226,14 +199,8 @@ function AddPhotoModal({ onCancel, onSubmit }) {
               onClick={onCancel}
               disabled={loading}
               style={{
-                padding: '10px 20px',
-                borderRadius: '9999px',
-                border: '1px solid rgba(26,26,26,0.14)',
-                background: 'transparent',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 500,
-                transition: 'all 0.15s ease'
+                padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(26,26,26,0.14)',
+                background: 'transparent', cursor: 'pointer', fontSize: '13px'
               }}
             >
               Cancel
@@ -242,15 +209,8 @@ function AddPhotoModal({ onCancel, onSubmit }) {
               type="submit"
               disabled={loading}
               style={{
-                padding: '10px 20px',
-                borderRadius: '9999px',
-                border: 'none',
-                background: '#1a1a1a',
-                color: '#fff',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 500,
-                transition: 'all 0.15s ease',
+                padding: '8px 16px', borderRadius: '8px', border: 'none',
+                background: '#1a1a1a', color: '#fff', cursor: 'pointer', fontSize: '13px',
                 opacity: loading ? 0.6 : 1
               }}
             >
@@ -279,28 +239,8 @@ function DeleteModal({ item, onCancel, onConfirm }) {
           Are you sure you want to remove &ldquo;{item.label || 'this photo'}&rdquo; from the gallery?
         </p>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-          <button type="button" onClick={onCancel} style={{
-            padding: '10px 20px',
-            borderRadius: '9999px',
-            border: '1px solid #e5e7eb',
-            background: '#f3f4f6',
-            color: '#1a1a1a',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: 500,
-            transition: 'all 0.15s ease'
-          }}>No</button>
-          <button type="button" onClick={onConfirm} style={{
-            padding: '10px 20px',
-            borderRadius: '9999px',
-            border: 'none',
-            background: '#dc2626',
-            color: '#fff',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: 500,
-            transition: 'all 0.15s ease'
-          }}>Yes</button>
+          <button type="button" className="btn" onClick={onCancel}>No</button>
+          <button type="button" className="btn d" onClick={onConfirm}>Yes</button>
         </div>
       </div>
     </div>
@@ -308,146 +248,124 @@ function DeleteModal({ item, onCancel, onConfirm }) {
 }
 
 export default function GalleryPage() {
-  const [galleryItems, setGalleryItems] = useState([]);
+  const [storefrontGallery, setStorefrontGallery] = useState([]);
+  const [uploadedPhotos, setUploadedPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [importing, setImporting] = useState(false);
 
-  // Load gallery items from Supabase
+  // Load storefront gallery from adminStore (read-only)
   useEffect(() => {
-    async function loadGallery() {
+    const data = readAdminData();
+    setStorefrontGallery(data.gallery || []);
+    const unsubscribe = subscribeAdminData((newData) => {
+      setStorefrontGallery(newData.gallery || []);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Load uploaded photos from Supabase
+  useEffect(() => {
+    async function loadUploadedPhotos() {
       if (!supabase) {
         setLoading(false);
         return;
       }
 
-      const data = await listGalleryItems();
-      setGalleryItems(data);
+      const { data, error } = await supabase
+        .from('gallery_items')
+        .select('*')
+        .order('sort_order', { ascending: true });
+
+      if (error) {
+        console.error('Error loading gallery items:', error);
+      } else {
+        setUploadedPhotos(data || []);
+      }
       setLoading(false);
     }
 
-    loadGallery();
+    loadUploadedPhotos();
   }, []);
 
   // Handle add photo upload
   async function handleAddPhoto({ title, category, file }) {
-    if (!file) return;
-
-    setLoading(true);
-    const uploadResult = await uploadGalleryImage(file);
-    if (!uploadResult.success) {
-      showToast('Failed to upload image');
-      setLoading(false);
-      return;
-    }
-
-    const createResult = await createGalleryItem({
-      image_path: uploadResult.path,
-      label: title,
-      category,
-      visible: true,
-      sort_order: galleryItems.length
-    });
-
-    if (createResult.success) {
-      const data = await listGalleryItems();
-      setGalleryItems(data);
-      setShowAddModal(false);
-      showToast('Photo added to gallery');
-    } else {
-      showToast('Failed to add photo to gallery');
-    }
-    setLoading(false);
-  }
-
-  // Import built-in storefront gallery to Supabase
-  async function handleImportBuiltInGallery() {
     if (!supabase) {
-      showToast('Supabase not configured');
-      return;
+      throw new Error('Supabase not configured');
     }
 
-    setImporting(true);
-    let imported = 0;
-    let skipped = 0;
+    // Generate unique filename
+    const ext = file.name.split('.').pop();
+    const filename = `${crypto.randomUUID()}.${ext}`;
+    const filePath = `gallery/${filename}`;
 
-    for (const builtIn of BUILT_IN_GALLERY) {
-      // Check if already imported by label
-      const exists = galleryItems.some(item => item.label === builtIn.label);
-      if (exists) {
-        skipped++;
-        continue;
-      }
+    // Upload to storage
+    const { error: uploadError } = await supabase
+      .storage
+      .from('storefront-media')
+      .upload(filePath, file);
 
-      // Fetch the image file
-      try {
-        const response = await fetch(builtIn.src);
-        const blob = await response.blob();
-        const file = new File([blob], builtIn.src.split('/').pop(), { type: 'image/png' });
-
-        const uploadResult = await uploadGalleryImage(file);
-        if (uploadResult.success) {
-          const createResult = await createGalleryItem({
-            image_path: uploadResult.path,
-            label: builtIn.label,
-            category: null,
-            visible: true,
-            sort_order: galleryItems.length + imported
-          });
-          if (createResult.success) {
-            imported++;
-          }
-        }
-      } catch (error) {
-        console.error('Failed to import:', builtIn.src, error);
-      }
+    if (uploadError) {
+      throw new Error(`Upload failed: ${uploadError.message}`);
     }
 
-    // Reload gallery
-    const data = await listGalleryItems();
-    setGalleryItems(data);
-    setImporting(false);
+    // Get max sort_order
+    const maxSort = uploadedPhotos.length > 0
+      ? Math.max(...uploadedPhotos.map(p => p.sort_order || 0))
+      : 0;
 
-    if (imported > 0) {
-      showToast(`Imported ${imported} photos${skipped > 0 ? ` (${skipped} skipped)` : ''}`);
-    } else if (skipped > 0) {
-      showToast('All built-in photos already imported');
-    } else {
-      showToast('Import failed');
+    // Insert into gallery_items
+    const { error: insertError } = await supabase
+      .from('gallery_items')
+      .insert({
+        image_path: filePath,
+        label: title,
+        category,
+        visible: true,
+        sort_order: maxSort + 1
+      });
+
+    if (insertError) {
+      throw new Error(`Database insert failed: ${insertError.message}`);
     }
+
+    // Reload photos
+    const { data } = await supabase
+      .from('gallery_items')
+      .select('*')
+      .order('sort_order', { ascending: true });
+
+    setUploadedPhotos(data || []);
+    showToast('Photo added to gallery!');
   }
 
   // Handle delete photo
   async function handleDeleteConfirmed() {
     if (!deleteTarget || !supabase) return;
 
-    const result = await deleteGalleryItem(deleteTarget.id, deleteTarget.image_path);
+    // Delete from storage
+    if (deleteTarget.image_path) {
+      await supabase
+        .storage
+        .from('storefront-media')
+        .remove([deleteTarget.image_path]);
+    }
 
-    if (result.success) {
-      setGalleryItems(prev => prev.filter(p => p.id !== deleteTarget.id));
-      showToast('Photo removed from gallery.');
-    } else {
+    // Delete from database
+    const { error } = await supabase
+      .from('gallery_items')
+      .delete()
+      .eq('id', deleteTarget.id);
+
+    if (error) {
+      console.error('Error deleting photo:', error);
       showToast('Failed to delete photo');
+    } else {
+      setUploadedPhotos(prev => prev.filter(p => p.id !== deleteTarget.id));
+      showToast('Photo removed from gallery.');
     }
 
     setDeleteTarget(null);
-  }
-
-  // Handle visibility toggle
-  async function handleToggleVisibility(item) {
-    const result = await updateGalleryItem(item.id, {
-      label: item.label,
-      category: item.category,
-      visible: !item.visible,
-      sort_order: item.sort_order
-    });
-
-    if (result.success) {
-      setGalleryItems(prev => prev.map(p =>
-        p.id === item.id ? { ...p, visible: !p.visible } : p
-      ));
-    }
   }
 
   return (
@@ -456,20 +374,9 @@ export default function GalleryPage() {
       <div className="page-header-row">
         <div className="page-title-group">
           <h2>Gallery &amp; Showcase Manager</h2>
-          <p>Manage storefront gallery photos.</p>
+          <p>Manage storefront gallery and uploaded photos.</p>
         </div>
         <div className="header-actions">
-          {galleryItems.length === 0 && (
-            <button
-              className="xp-pill"
-              type="button"
-              onClick={handleImportBuiltInGallery}
-              disabled={importing}
-              style={{ marginRight: '8px' }}
-            >
-              {importing ? 'Importing...' : 'Import Storefront Gallery'}
-            </button>
-          )}
           <button className="xp-pill xp-solid" id="addPhotoBtn" type="button"
             onClick={() => setShowAddModal(true)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -481,78 +388,90 @@ export default function GalleryPage() {
         </div>
       </div>
 
-      {/* Gallery grid */}
-      {loading ? (
-        <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
-          Loading gallery...
-        </div>
-      ) : galleryItems.length === 0 ? (
-        <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
-          <p>No gallery photos yet.</p>
-          <p style={{ fontSize: '12px', marginTop: '8px' }}>
-            Click "Import Storefront Gallery" to load the built-in images, or "Add Photo" to upload new ones.
-          </p>
-        </div>
-      ) : (
-        <div className="gallery-showcase">
-          {galleryItems.map((item) => (
-            <div key={item.id} className="gallery-item" data-id={item.id}>
-              <img
-                src={getImageUrl(item.image_path)}
-                className="gallery-image"
-                alt={item.label || ''}
-              />
-              <div className="gallery-caption">— {(item.label || 'UNTITLED').toUpperCase()}</div>
-              <hr className="gallery-divider" />
-              <div className="gallery-actions">
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: 'auto' }}>
-                  {item.category || 'Uncategorized'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleToggleVisibility(item)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    color: item.visible ? 'var(--text-muted)' : '#ef4444',
-                    marginRight: '8px',
-                    padding: '6px 14px',
-                    borderRadius: '9999px',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {item.visible ? 'Hide' : 'Show'}
-                </button>
-                <button
-                  className="btn-icon-action gal-del-btn"
-                  title="Delete photo"
-                  type="button"
-                  onClick={() => setDeleteTarget(item)}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6"/>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                  </svg>
-                </button>
+      {/* Storefront gallery section (read-only) */}
+      <div style={{ marginBottom: '32px' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>Storefront gallery</h3>
+        {storefrontGallery.length > 0 ? (
+          <div className="gallery-showcase">
+            {storefrontGallery.map((item) => (
+              <div key={item.id} className="gallery-item" data-id={item.id}>
+                <img
+                  src={item.src}
+                  className="gallery-image"
+                  alt={item.label || ''}
+                />
+                <div className="gallery-caption">— {(item.label || 'UNTITLED').toUpperCase()}</div>
+                <hr className="gallery-divider" />
+                <div className="gallery-actions">
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Read-only (managed in storefront)
+                  </span>
+                </div>
               </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            background: 'var(--card-bg, #f2f1ef)', borderRadius: '12px',
+            border: '1px solid rgba(26,26,26,0.08)', padding: '48px', textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>
+              No storefront gallery photos
             </div>
-          ))}
-        </div>
-      ) : (
-        <div style={{
-          background: 'var(--card-bg, #f2f1ef)', borderRadius: '12px',
-          border: '1px solid rgba(26,26,26,0.08)', padding: '48px', textAlign: 'center'
-        }}>
-          <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>
-            No gallery photos
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Storefront gallery is empty
+            </div>
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Click "Add Photo" to upload photos to the gallery
+        )}
+      </div>
+
+      {/* Uploaded photos section */}
+      <div>
+        <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>Uploaded photos</h3>
+        {uploadedPhotos.length > 0 ? (
+          <div className="gallery-showcase">
+            {uploadedPhotos.map((item) => (
+              <div key={item.id} className="gallery-item" data-id={item.id}>
+                <img
+                  src={`${supabase.storage.from('storefront-media').getPublicUrl(item.image_path)}`}
+                  className="gallery-image"
+                  alt={item.label || ''}
+                />
+                <div className="gallery-caption">— {(item.label || 'UNTITLED').toUpperCase()}</div>
+                <hr className="gallery-divider" />
+                <div className="gallery-actions">
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: 'auto' }}>
+                    {item.category || 'Uncategorized'}
+                  </span>
+                  <button
+                    className="btn-icon-action gal-del-btn"
+                    title="Delete photo"
+                    type="button"
+                    onClick={() => setDeleteTarget(item)}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div style={{
+            background: 'var(--card-bg, #f2f1ef)', borderRadius: '12px',
+            border: '1px solid rgba(26,26,26,0.08)', padding: '48px', textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>
+              No uploaded photos
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Click "Add Photo" to upload photos to the gallery
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Add Photo modal */}
       {showAddModal && (
