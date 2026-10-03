@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import CustomDropdown from '../components/shared/CustomDropdown';
+import CopyIcon from '../components/shared/CopyIcon';
 import { formatGHS } from '../lib/ordersModel';
 import { listOrders, updateOrderStatus } from '../data/orders';
 
@@ -428,8 +429,9 @@ export default function LogPage() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                               <div>
                                 <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)', textAlign: 'right' }}>{formattedAmount}</div>
-                                <span className="order-code-sub" style={{ display: 'block', textAlign: 'right', fontSize: '12px', color: '#6b7280' }}>
+                                <span className="order-code-sub code-with-copy" style={{ display: 'block', textAlign: 'right', fontSize: '12px', color: '#6b7280' }}>
                                   {order.orderCode || order.id}
+                                  <CopyIcon text={order.orderCode || order.id} />
                                 </span>
                               </div>
                               <button

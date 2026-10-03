@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import CopyIcon from '../components/shared/CopyIcon';
 import { formatGHS, CATEGORY_MAP } from '../lib/ordersModel';
 import { listOrders } from '../data/orders';
 import { getInventorySummary } from '../data/products';
@@ -681,7 +682,23 @@ export default function OverviewPage() {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                        {item.text}
+                        {item.type === 'order' && item.text.includes('Order #') ? (
+                          (() => {
+                            const match = item.text.match(/Order #([^:]+): (.+)/);
+                            if (match) {
+                              const [, code, rest] = match;
+                              return (
+                                <span className="code-with-copy">
+                                  Order #{code}: {rest}
+                                  <CopyIcon text={code} />
+                                </span>
+                              );
+                            }
+                            return item.text;
+                          })()
+                        ) : (
+                          item.text
+                        )}
                       </div>
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0 }}>

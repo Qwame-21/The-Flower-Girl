@@ -1,5 +1,6 @@
 import { useState, useEffect, useTransition } from 'react';
 import CustomDropdown from '../components/shared/CustomDropdown';
+import CopyIcon from '../components/shared/CopyIcon';
 import { ORDER_CATEGORIES, formatGHS } from '../lib/ordersModel';
 import { listOrders, updateOrderStatus, deleteOrder, updateOrderNote } from '../data/orders';
 import { supabase } from '../../config/supabase';
@@ -748,7 +749,10 @@ export default function OrdersPage() {
 
                     <div className="order-amount-block">
                       <div className="order-amount-text">GHS {amount.toLocaleString('en-US')}</div>
-                      <div className="order-code-muted">{displayCode}</div>
+                      <div className="order-code-muted code-with-copy">
+                        {displayCode}
+                        <CopyIcon text={displayCode} />
+                      </div>
                     </div>
 
                     <div className={`expand-chevron ${isExpanded ? 'expanded' : ''}`}>
@@ -767,7 +771,10 @@ export default function OrdersPage() {
                           <div className="customer-header-row">
                             <div className="customer-name-display">{order.customerName}</div>
                             <div className="customer-header-right">
-                              <span className="order-code-chip">{displayCode}</span>
+                              <span className="order-code-chip code-with-copy">
+                                {displayCode}
+                                <CopyIcon text={displayCode} />
+                              </span>
                               <button className="print-badge-btn" onClick={() => window.print()}>PRINT</button>
                             </div>
                           </div>

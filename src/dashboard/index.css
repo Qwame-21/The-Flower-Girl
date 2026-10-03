@@ -1148,6 +1148,53 @@ html, body {
   border-radius: 3px;
 }
 
+/* Copy icon button - shown on hover/focus, reserved space to prevent layout shift */
+.copy-icon-btn {
+  background: rgba(26, 26, 26, 0.04);
+  border: 1px solid rgba(26, 26, 26, 0.12);
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  opacity: 0;
+  margin-left: 6px;
+}
+
+.copy-icon-btn:hover,
+.copy-icon-btn:focus {
+  opacity: 1;
+  background: rgba(26, 26, 26, 0.08);
+  border-color: rgba(26, 26, 26, 0.2);
+  color: var(--text-primary);
+}
+
+.copy-icon-btn:focus-visible {
+  outline: 2px solid var(--accent-signal);
+  outline-offset: 2px;
+  opacity: 1;
+}
+
+/* Always show on touch devices */
+@media (hover: none) {
+  .copy-icon-btn {
+    opacity: 1;
+  }
+}
+
+/* Container for code with copy icon - reserves space */
+.code-with-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .notif-list {
   display: flex;
   flex-direction: column;

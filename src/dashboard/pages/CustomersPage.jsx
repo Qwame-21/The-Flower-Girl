@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { formatGHS } from '../lib/ordersModel';
 import { loadCustomersData, saveCustomersData, syncCustomersWithSupabase } from '../data/customersAdapter';
 import CustomDropdown from '../components/shared/CustomDropdown';
+import CopyIcon from '../components/shared/CopyIcon';
 
 const CUSTOMERS_KEY = 'xa12-customers-data-v1';
 
@@ -303,7 +304,10 @@ export default function CustomersPage() {
                       >
                         <div>
                           <div style={{ fontWeight: 600, fontSize: '12px', color: '#1a1a1a' }}>
-                            {o.id || o.orderCode} • {(o.items || []).map(i => i.name || i.title || '').join(', ')}
+                            <span className="code-with-copy">
+                              {o.id || o.orderCode}
+                              <CopyIcon text={o.id || o.orderCode} />
+                            </span> • {(o.items || []).map(i => i.name || i.title || '').join(', ')}
                           </div>
                           <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
                             Placed on {o.orderDate ? o.orderDate.split('T')[0] : (o.date || 'N/A')}

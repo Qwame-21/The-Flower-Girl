@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import CopyIcon from '../components/shared/CopyIcon';
 import { loadRequestsData, saveRequestsData, syncRequestsWithSupabase } from '../data/requestsAdapter';
 
 const REQUESTS_KEY = 'xa12_custom_requests';
@@ -481,7 +482,10 @@ export default function RequestsPage() {
               onClick={() => setDrawerTarget(req)}
             >
               <div className="top">
-                <span className="ref">{req.reference || req.id}</span>
+                <span className="ref code-with-copy">
+                  {req.reference || req.id}
+                  <CopyIcon text={req.reference || req.id} />
+                </span>
                 <span className="st">{stText}</span>
               </div>
               <div className="motif">{motifSvg}</div>
@@ -526,7 +530,10 @@ export default function RequestsPage() {
                   {getRequestMotifSvg(drawerTarget, requests.findIndex(r => r.id === drawerTarget.id))}
                 </div>
                 <div className="dtitle">
-                  <h2>{drawerTarget.reference || drawerTarget.id}</h2>
+                  <h2 className="code-with-copy">
+                    {drawerTarget.reference || drawerTarget.id}
+                    <CopyIcon text={drawerTarget.reference || drawerTarget.id} />
+                  </h2>
                   <div className="sub">
                     {drawerTarget.customer_name || drawerTarget.client || 'Client'} · {drawerTarget.occasion || drawerTarget.service || 'Request'}
                   </div>

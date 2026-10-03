@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { loadPosProducts, placeStaffOrder } from '../data/shopPos';
 import CustomDropdown from '../components/shared/CustomDropdown';
+import CopyIcon from '../components/shared/CopyIcon';
 
 // Shared line-art motif set — thin single-weight stroke, no fill, ink-colored (Monolith lines 16732-16810)
 function getPlaceholderSvg(category) {
@@ -523,7 +524,10 @@ export default function ShopPOSPage() {
                   <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                   <polyline points="22 4 12 14.01 9 11.01" />
                 </svg>
-                <span>Order {shopLastOrderCode} placed successfully!</span>
+                <span className="code-with-copy">
+                  Order {shopLastOrderCode} placed successfully!
+                  <CopyIcon text={shopLastOrderCode} />
+                </span>
                 <Link to="/orders" className="shop-view-orders-link">View in Orders</Link>
               </div>
             )}
