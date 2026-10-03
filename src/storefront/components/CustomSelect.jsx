@@ -5,6 +5,7 @@ export default function CustomSelect({
   label,
   options,
   value,
+  defaultValue,
   onChange,
   required = false,
   disabled = false,
@@ -18,9 +19,18 @@ export default function CustomSelect({
   const hiddenRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState('below');
+  const [internalValue, setInternalValue] = useState(value ?? defaultValue ?? '');
 
-  const selectedOption = options.find(opt => getValue(opt) === value);
+  const currentValue = value !== undefined ? value : internalValue;
+  const selectedOption = options.find(opt => getValue(opt) === currentValue);
   const displayValue = selectedOption ? getLabel(selectedOption) : '';
+
+  const handleOptionSelect = (optionValue) => {
+    if (value === undefined) {
+      setInternalValue(optionValue);
+    }
+    onChange?.(optionValue);
+  };
 
   useEffect(() => {
     if (!open || !buttonRef.current || !menuRef.current) return;
@@ -78,7 +88,9 @@ export default function CustomSelect({
       case 'Enter':
       case ' ':
         event.preventDefault();
-        selectOption(optionValue);
+        handleOptionSelect(optionValue);
+        setOpen(false);
+        buttonRef.current?.focus();
         break;
       case 'Escape':
         event.preventDefault();
@@ -90,27 +102,21 @@ export default function CustomSelect({
         event.preventDefault();
         const buttons = menuRef.current?.querySelectorAll('button[role="option"]') || [];
         const currentIndex = Array.from(buttons).findIndex(btn => btn === event.target);
-        const nextIndex = event.key === 'ArrowDown' 
+        const nextIndex = event.key === 'ArrowDown'
           ? Math.min(currentIndex + 1, buttons.length - 1)
           : Math.max(currentIndex - 1, 0);
         buttons[nextIndex]?.focus();
         break;
       case 'Tab':
         event.preventDefault();
-        selectOption(optionValue);
+        handleOptionSelect(optionValue);
         break;
     }
   };
 
-  const selectOption = (optionValue) => {
-    onChange?.(optionValue);
-    setOpen(false);
-    buttonRef.current?.focus();
-  };
-
   const handleFocus = () => {
     if (hiddenRef.current) {
-      hiddenRef.current.value = value ?? '';
+      hiddenRef.current.value = currentValue ?? '';
     }
   };
 
@@ -122,7 +128,7 @@ export default function CustomSelect({
           ref={hiddenRef}
           type="hidden"
           name={name}
-          value={value ?? ''}
+          value={currentValue ?? ''}
           required={required}
           onChange={() => {}}
           onFocus={handleFocus}
@@ -163,7 +169,7 @@ export default function CustomSelect({
             {options.map((option, index) => {
               const optionValue = getValue(option);
               const optionLabel = getLabel(option);
-              const isSelected = optionValue === value;
+              const isSelected = optionValue === currentValue;
               return (
                 <button
                   key={optionValue ?? index}
@@ -171,7 +177,11 @@ export default function CustomSelect({
                   role="option"
                   aria-selected={isSelected}
                   className={`custom-select-option ${isSelected ? 'selected' : ''}`}
-                  onClick={() => selectOption(optionValue)}
+                  onClick={() => {
+                    handleOptionSelect(optionValue);
+                    setOpen(false);
+                    buttonRef.current?.focus();
+                  }}
                   onKeyDown={(e) => handleOptionKeyDown(e, optionValue)}
                 >
                   {optionLabel}
