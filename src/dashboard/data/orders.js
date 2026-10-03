@@ -88,12 +88,21 @@ export async function updateOrderStatus(orderId, action, customerNote = '', user
   // Fetch current order state from DB
   const { data: currentOrder, error: fetchError } = await supabase
     .from('orders')
-    .select('id, fulfillment_status, payment_status, payment_provider, staff_order')
+    .select('id, fulfillment_status, payment_status, payment_provider, payment_reference, staff_order')
     .eq('id', orderId)
     .single();
 
   if (fetchError || !currentOrder) {
     return { success: false, error: fetchError?.message || 'Order not found' };
+  }
+
+  // Paystack-paid orders cannot be un-paid
+  const isPaystackPaid = currentOrder.payment_provider === 'paystack' && 
+                         currentOrder.payment_status === 'paid' && 
+                         currentOrder.payment_reference;
+  
+  if (action === 'paid' && isPaystackPaid) {
+    return { success: false, error: 'Paystack-paid orders cannot be modified' };
   }
 
   let isUndo = false;

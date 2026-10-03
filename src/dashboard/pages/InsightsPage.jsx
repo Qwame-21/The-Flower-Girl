@@ -38,8 +38,9 @@ function filterOrdersByDateRange(orders, range) {
 }
 
 function calculateInsightsStats(orders) {
-  const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0);
-  const totalOrders = orders.length;
+  const paidOrders = orders.filter(order => order.paymentStatus === 'paid');
+  const totalRevenue = paidOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+  const totalOrders = paidOrders.length;
   const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
   const customerOrders = {};
