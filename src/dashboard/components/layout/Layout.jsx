@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import { useIdleTimer } from '../../lib/idle';
+import AdminErrorBoundary from '../ErrorBoundary';
 
 export default function Layout() {
   const [isLocked, setIsLocked] = useState(false);
@@ -76,7 +77,9 @@ export default function Layout() {
 
           {/* Full-Width Extendable Content Body (Scroll Container) */}
           <div className="extendable-content-body" id="extendableContentBody">
-            <Outlet />
+            <AdminErrorBoundary>
+              <Outlet />
+            </AdminErrorBoundary>
           </div>
         </section>
       </main>
