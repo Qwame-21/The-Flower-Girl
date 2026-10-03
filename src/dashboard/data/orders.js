@@ -188,29 +188,38 @@ export async function updateOrderStatus(orderId, action, customerNote = '', user
     return { success: false, error: updateError.message };
   }
 
+  // Run event insert/delete in parallel with order update (independent operations)
+  const eventPromises = [];
   if (isUndo && eventStagesToDelete) {
-    const { error: deleteError } = await supabase
-      .from('order_events')
-      .delete()
-      .eq('order_id', orderId)
-      .in('stage', eventStagesToDelete);
-
-    if (deleteError) {
-      console.warn('Error deleting order_events on undo:', deleteError.message);
-    }
+    eventPromises.push(
+      supabase
+        .from('order_events')
+        .delete()
+        .eq('order_id', orderId)
+        .in('stage', eventStagesToDelete)
+    );
   } else if (eventStageToInsert) {
-    const { error: eventError } = await supabase
-      .from('order_events')
-      .insert({
-        order_id: orderId,
-        stage: eventStageToInsert,
-        customer_note: customerNote || '',
-        created_by: userId
-      });
+    eventPromises.push(
+      supabase
+        .from('order_events')
+        .insert({
+          order_id: orderId,
+          stage: eventStageToInsert,
+          customer_note: customerNote || '',
+          created_by: userId
+        })
+    );
+  }
 
-    if (eventError) {
-      console.warn('Error inserting order_events on advance:', eventError.message);
-    }
+  // Await all event operations in parallel
+  if (eventPromises.length > 0) {
+    const results = await Promise.allSettled(eventPromises);
+    results.forEach((result, idx) => {
+      if (result.status === 'rejected' || (result.value && result.value.error)) {
+        const error = result.status === 'rejected' ? result.reason : result.value.error;
+        console.warn('Error in order_events operation:', error.message);
+      }
+    });
   }
 
   return { success: true, data: updatedOrder };

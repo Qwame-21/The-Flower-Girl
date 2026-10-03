@@ -43,6 +43,8 @@ export default function OrdersPage() {
   const [error, setError] = useState(null);
   // Per-order inline error (e.g. stage button write failure)
   const [orderErrors, setOrderErrors] = useState({});
+  // Track in-flight updates per order to prevent race conditions
+  const [updatingOrders, setUpdatingOrders] = useState(new Set());
 
   // Load orders from Supabase on mount
   useEffect(() => {
@@ -141,14 +143,23 @@ export default function OrdersPage() {
     const order = ordersList.find(o => o.id === orderId);
     if (!order) return;
 
+    // Prevent race: ignore if this order is already being updated
+    if (updatingOrders.has(orderId)) return;
+
     const prevOrder = { ...order };
     setOrderErrors(prev => ({ ...prev, [orderId]: null }));
+    setUpdatingOrders(prev => new Set(prev).add(orderId));
 
     // Paystack-paid orders cannot be un-paid (payment_provider='paystack', status='paid', has payment_reference)
     // Staff orders can toggle paid/unpaid freely
-    if (stage === 'paid' && order.paymentStatus === 'paid' && 
+    if (stage === 'paid' && order.paymentStatus === 'paid' &&
         order.paymentProvider === 'paystack' && order.paymentReference) {
       // Locked Paid pill for Paystack paid online orders: do nothing silently, no error message
+      setUpdatingOrders(prev => {
+        const next = new Set(prev);
+        next.delete(orderId);
+        return next;
+      });
       return;
     }
 
@@ -186,12 +197,28 @@ export default function OrdersPage() {
       }
     }
 
+    // Optimistic UI update: update only this order in the list
+    setOrdersList(prev => prev.map(o =>
+      o.id === orderId ? { ...o, fulfillmentStatus: optFulfillment, paymentStatus: optPayment } : o
+    ));
+
+    // Background write: run database update in parallel (order update + event insert/delete)
     const result = await updateOrderStatus(orderId, stage);
+
+    // Clear in-flight flag
+    setUpdatingOrders(prev => {
+      const next = new Set(prev);
+      next.delete(orderId);
+      return next;
+    });
+
     if (!result || !result.success) {
+      // Rollback optimistic update on failure
+      setOrdersList(prev => prev.map(o => o.id === orderId ? prevOrder : o));
       setOrderErrors(prev => ({ ...prev, [orderId]: result?.error || 'Update failed' }));
     }
-    // Always refresh from DB to ensure state matches
-    await refreshOrders();
+    // On success: the UI already shows the new state; no full refetch needed
+    // Realtime updates will merge any server-side changes automatically
   };
 
   // Restore order
