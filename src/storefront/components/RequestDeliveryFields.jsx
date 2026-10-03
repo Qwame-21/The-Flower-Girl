@@ -1,11 +1,25 @@
 import { useState } from 'react';
 import DeliveryAddressFields from './DeliveryAddressFields';
 import PhoneInput from './PhoneInput';
+import CustomSelect from './CustomSelect';
+
+const FULFILMENT_OPTIONS = [
+  { value: 'delivery', label: 'Delivery' },
+  { value: 'collection', label: 'Collect from the shop' },
+];
 
 export default function RequestDeliveryFields() {
   const [method, setMethod] = useState('delivery');
   return <section className="request-delivery-fields">
-    <label>Delivery or collection<select name="fulfilment" value={method} onChange={event => setMethod(event.target.value)}><option value="delivery">Delivery</option><option value="collection">Collect from the shop</option></select></label>
+    <CustomSelect
+      name="fulfilment"
+      label="Delivery or collection"
+      options={FULFILMENT_OPTIONS}
+      value={method}
+      onChange={setMethod}
+      getValue={opt => opt.value}
+      getLabel={opt => opt.label}
+    />
     <label>Recipient name <small>(optional)</small><input name="recipient" placeholder="Leave blank if you are receiving it" /></label>
     <PhoneInput name="recipientPhone" label="Recipient phone (optional)" />
     {method === 'delivery' ? <>

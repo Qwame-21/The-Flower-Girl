@@ -6117,6 +6117,140 @@ a {
   border-bottom-color: #111;
 }
 
+/* ── Custom Select Dropdown ──────────────────── */
+.custom-select-field {
+  display: block;
+  width: 100%;
+}
+
+.custom-select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.custom-select-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 42px;
+  padding: .62rem 0;
+  border: 0;
+  border-bottom: 1px solid rgba(17, 17, 17, .3);
+  border-radius: 0;
+  background: transparent;
+  color: #111;
+  font-family: 'Raleway', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+  transition: border-bottom-color 180ms ease;
+}
+
+.custom-select-button:hover:not(:disabled) {
+  border-bottom-color: rgba(17, 17, 17, .5);
+}
+
+.custom-select-button:focus-visible {
+  outline: none;
+  border-bottom-color: #111;
+  border-bottom-width: 2px;
+  margin-bottom: -1px;
+}
+
+.custom-select-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.custom-select-value {
+  flex: 1;
+  color: #111;
+}
+
+.custom-select-value:empty::before {
+  content: attr(data-placeholder);
+  color: #999999;
+}
+
+.custom-select-chevron {
+  flex: 0 0 auto;
+  margin-left: .5rem;
+  color: #666;
+  transition: transform 180ms ease;
+}
+
+.custom-select-wrapper.open .custom-select-chevron {
+  transform: rotate(180deg);
+}
+
+.custom-select-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #ffffff;
+  border: 1px solid rgba(17, 17, 17, .18);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .08);
+  padding: .25rem;
+}
+
+.custom-select-menu--below {
+  top: calc(100% + 4px);
+}
+
+.custom-select-menu--above {
+  bottom: calc(100% + 4px);
+}
+
+.custom-select-option {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: .6rem .75rem;
+  color: #111;
+  font-family: 'Raleway', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  text-align: left;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.custom-select-option:hover,
+.custom-select-option:focus-visible {
+  background: rgba(17, 17, 17, .06);
+  outline: none;
+}
+
+.custom-select-option.selected {
+  background: rgba(232, 160, 180, .12);
+  font-weight: 500;
+}
+
+.custom-select-option:focus-visible {
+  outline: 2px solid #111;
+  outline-offset: -2px;
+}
+
+@media (max-width: 768px) {
+  .custom-select-button {
+    font-size: 16px;
+  }
+
+  .custom-select-option {
+    font-size: 16px;
+  }
+}
+
 /* Mobile storefront pages use the document scroller; overlays keep their own scroll. */
 @media (max-width: 760px) {
   .home-scroll,
