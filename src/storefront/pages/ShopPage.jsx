@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getProducts, getPromotions } from '../api/catalogApi';
+import { readAdminData, subscribeAdminData } from '../../data/adminStore';
 import { PRODUCTS } from '../../data/products';
 import ProductCard from '../components/ProductCard';
 import SiteFooter from '../components/SiteFooter';
@@ -12,26 +12,9 @@ export default function ShopPage({ onNavigate, cart, setCart, wishlist, setWishl
   const [requestProduct, setRequestProduct] = useState(null);
   const [detailProduct, setDetailProduct] = useState(null);
   const [addedProduct, setAddedProduct] = useState('');
-  const [promotions, setPromotions] = useState([]);
-  const [dbProducts, setDbProducts] = useState([]);
-
-  // Load products and promotions from Supabase
-  useEffect(() => {
-    async function loadData() {
-      const [productsData, promotionsData] = await Promise.all([
-        getProducts(),
-        getPromotions()
-      ]);
-      setDbProducts(productsData);
-      setPromotions(promotionsData);
-    }
-    loadData();
-  }, []);
-
-  // Use DB products if available, fall back to static PRODUCTS
-  const sourceProducts = dbProducts.length > 0 ? dbProducts : PRODUCTS;
-
-  const shopProducts = useMemo(() => sourceProducts.map(product => { const promotion = promotions.find(item => item.productId === product.id && item.status === 'active' && Number(item.percent) > 0); if (!promotion) return product; const discountPercent = Math.min(90, Number(promotion.percent)); const salePrice = Math.round(product.price * (100 - discountPercent) / 100); return { ...product, originalPriceLabel: product.priceLabel, discountPercent, price: salePrice, priceLabel: `GHS ${salePrice.toLocaleString()}` }; }), [promotions, sourceProducts]);
+  const [promotions, setPromotions] = useState(() => readAdminData().promotions || []);
+  useEffect(() => subscribeAdminData(data => setPromotions(data.promotions || [])), []);
+  const shopProducts = useMemo(() => PRODUCTS.map(product => { const promotion = promotions.find(item => item.productId === product.id && item.status === 'active' && Number(item.percent) > 0); if (!promotion) return product; const discountPercent = Math.min(90, Number(promotion.percent)); const salePrice = Math.round(product.price * (100 - discountPercent) / 100); return { ...product, originalPriceLabel: product.priceLabel, discountPercent, price: salePrice, priceLabel: `GHS ${salePrice.toLocaleString()}` }; }), [promotions]);
   useEffect(() => {
     setCart(current => current.map(item => {
       const liveProduct = shopProducts.find(product => product.id === item.id);
