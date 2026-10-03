@@ -347,12 +347,14 @@ export default function ProductsPage() {
     }
   };
 
-  const lowStockCount = products.filter(p => p.stock <= p.low_stock_threshold && p.stock > 0).length;
-  const outOfStockCount = products.filter(p => p.stock === 0).length;
+  const displayProducts = showDefaults ? DEFAULT_PRODUCTS.map(p => ({ ...p, _isDefault: true })) : products;
 
-  const categories = Array.from(new Set(products.map(p => p.category)));
+  const lowStockCount = displayProducts.filter(p => p.stock <= p.low_stock_threshold && p.stock > 0).length;
+  const outOfStockCount = displayProducts.filter(p => p.stock === 0).length;
 
-  const filteredProducts = products.filter(p => {
+  const categories = Array.from(new Set(displayProducts.map(p => p.category)));
+
+  const filteredProducts = displayProducts.filter(p => {
     const matchSearch = !productsSearchQuery ||
       p.name.toLowerCase().includes(productsSearchQuery.toLowerCase()) ||
       p.id.toLowerCase().includes(productsSearchQuery.toLowerCase());
@@ -431,21 +433,6 @@ export default function ProductsPage() {
       </div>
     );
   }
-
-  const displayProducts = showDefaults ? DEFAULT_PRODUCTS.map(p => ({ ...p, _isDefault: true })) : products;
-
-  const lowStockCount = displayProducts.filter(p => p.stock <= p.low_stock_threshold && p.stock > 0).length;
-  const outOfStockCount = displayProducts.filter(p => p.stock === 0).length;
-
-  const categories = Array.from(new Set(displayProducts.map(p => p.category)));
-
-  const filteredProducts = displayProducts.filter(p => {
-    const matchSearch = !productsSearchQuery ||
-      p.name.toLowerCase().includes(productsSearchQuery.toLowerCase()) ||
-      p.id.toLowerCase().includes(productsSearchQuery.toLowerCase());
-    const matchCategory = selectedCategoryFilter === 'ALL' || p.category === selectedCategoryFilter;
-    return matchSearch && matchCategory;
-  });
 
   return (
     <div className="page-container">
