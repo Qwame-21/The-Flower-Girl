@@ -10,7 +10,16 @@ import {
   deleteGalleryItem,
   uploadGalleryImage
 } from '../data/gallery';
+import { getImageUrl } from '../lib/imageUrlHelper';
 import CustomDropdown from '../components/shared/CustomDropdown';
+
+// Built-in storefront gallery images (from adminStore.js defaults)
+const BUILT_IN_GALLERY = [
+  { id: 'gallery-hamper', src: '/assets/hamper-editorial-v2.png', label: 'Luxury gift hamper', visible: true, isBuiltIn: true },
+  { id: 'gallery-bouquet', src: '/assets/bouquet-editorial-v2.png', label: 'Fresh flower bouquet', visible: true, isBuiltIn: true },
+  { id: 'gallery-wrap', src: '/assets/wrapping-editorial-v2.png', label: 'Signature gift presentation', visible: true, isBuiltIn: true },
+  { id: 'gallery-basket', src: '/assets/basket-hamper-editorial-v2.png', label: 'Curated celebration basket', visible: true, isBuiltIn: true },
+];
 
 // Toast helper
 function showToast(msg) {
@@ -303,6 +312,7 @@ export default function GalleryPage() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [importing, setImporting] = useState(false);
 
   // Load gallery items from Supabase
   useEffect(() => {
@@ -322,10 +332,90 @@ export default function GalleryPage() {
 
   // Handle add photo upload
   async function handleAddPhoto({ title, category, file }) {
+    if (!file) return;
+
+    setLoading(true);
+    const uploadResult = await uploadGalleryImage(file);
+    if (!uploadResult.success) {
+      showToast('Failed to upload image');
+      setLoading(false);
+      return;
+    }
+
+    const createResult = await createGalleryItem({
+      image_path: uploadResult.path,
+      label: title,
+      category,
+      visible: true,
+      sort_order: galleryItems.length
+    });
+
+    if (createResult.success) {
+      const data = await listGalleryItems();
+      setGalleryItems(data);
+      setShowAddModal(false);
+      showToast('Photo added to gallery');
+    } else {
+      showToast('Failed to add photo to gallery');
+    }
+    setLoading(false);
+  }
+
+  // Import built-in storefront gallery to Supabase
+  async function handleImportBuiltInGallery() {
+    if (!supabase) {
+      showToast('Supabase not configured');
+      return;
+    }
+
+    setImporting(true);
+    let imported = 0;
+    let skipped = 0;
+
+    for (const builtIn of BUILT_IN_GALLERY) {
+      // Check if already imported by label
+      const exists = galleryItems.some(item => item.label === builtIn.label);
+      if (exists) {
+        skipped++;
+        continue;
+      }
+
+      // Fetch the image file
+      try {
+        const response = await fetch(builtIn.src);
+        const blob = await response.blob();
+        const file = new File([blob], builtIn.src.split('/').pop(), { type: 'image/png' });
+
+        const uploadResult = await uploadGalleryImage(file);
+        if (uploadResult.success) {
+          const createResult = await createGalleryItem({
+            image_path: uploadResult.path,
+            label: builtIn.label,
+            category: null,
+            visible: true,
+            sort_order: galleryItems.length + imported
+          });
+          if (createResult.success) {
+            imported++;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to import:', builtIn.src, error);
+      }
+    }
+
     // Reload gallery
     const data = await listGalleryItems();
     setGalleryItems(data);
-    setShowAddModal(false);
+    setImporting(false);
+
+    if (imported > 0) {
+      showToast(`Imported ${imported} photos${skipped > 0 ? ` (${skipped} skipped)` : ''}`);
+    } else if (skipped > 0) {
+      showToast('All built-in photos already imported');
+    } else {
+      showToast('Import failed');
+    }
   }
 
   // Handle delete photo
@@ -369,6 +459,17 @@ export default function GalleryPage() {
           <p>Manage storefront gallery photos.</p>
         </div>
         <div className="header-actions">
+          {galleryItems.length === 0 && (
+            <button
+              className="xp-pill"
+              type="button"
+              onClick={handleImportBuiltInGallery}
+              disabled={importing}
+              style={{ marginRight: '8px' }}
+            >
+              {importing ? 'Importing...' : 'Import Storefront Gallery'}
+            </button>
+          )}
           <button className="xp-pill xp-solid" id="addPhotoBtn" type="button"
             onClick={() => setShowAddModal(true)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -385,12 +486,19 @@ export default function GalleryPage() {
         <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
           Loading gallery...
         </div>
-      ) : galleryItems.length > 0 ? (
+      ) : galleryItems.length === 0 ? (
+        <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <p>No gallery photos yet.</p>
+          <p style={{ fontSize: '12px', marginTop: '8px' }}>
+            Click "Import Storefront Gallery" to load the built-in images, or "Add Photo" to upload new ones.
+          </p>
+        </div>
+      ) : (
         <div className="gallery-showcase">
           {galleryItems.map((item) => (
             <div key={item.id} className="gallery-item" data-id={item.id}>
               <img
-                src={`${supabase.storage.from('storefront-media').getPublicUrl(item.image_path)}`}
+                src={getImageUrl(item.image_path)}
                 className="gallery-image"
                 alt={item.label || ''}
               />
