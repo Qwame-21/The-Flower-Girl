@@ -1,6 +1,18 @@
 -- Flower Girl Consolidation Migration
--- Run this in Supabase SQL Editor after reviewing. Safe to run on live database.
--- No data loss, no table drops, no resets.
+-- Safe to run on live database. No data loss, no table drops, no resets.
+-- Can be re-run idempotently.
+--
+-- Table of Contents:
+-- 1. Add category column to gallery_items
+-- 2. Correct finalize_paid_checkout function signature
+-- 3. Add stock decrement trigger
+-- 4. Add low-stock notification trigger
+-- 5. Add Paystack paid-lock trigger (staff orders excluded)
+-- 6. Add request notification trigger
+-- 7. Add career application notification trigger
+-- 8. Add missing columns to site_settings
+-- 9. Add tables to realtime publication
+--
 BEGIN;
 
 -- Add category column to gallery_items
@@ -24,28 +36,6 @@ alter table public.site_settings add column if not exists notifications_new_requ
 alter table public.site_settings add column if not exists notifications_new_careers boolean not null default true;
 alter table public.site_settings add column if not exists notifications_low_stock boolean not null default true;
 alter table public.site_settings add column if not exists require_password_destructive boolean not null default true;
-
--- Add customer_profiles table
-create table if not exists public.customer_profiles (
-  email text primary key,
-  vip boolean not null default false,
-  notes text,
-  updated_at timestamptz not null default now()
-);
-
-alter table public.customer_profiles enable row level security;
-
-do $$ begin
-  create policy "staff manages customer_profiles"
-  on public.customer_profiles
-  for all to authenticated
-  using (public.is_staff())
-  with check (public.is_staff());
-exception when duplicate_object then null; end $$;
-
--- Add touch_updated_at trigger to customer_profiles
-drop trigger if exists set_updated_at on public.customer_profiles;
-create trigger set_updated_at before update on public.customer_profiles for each row execute function public.touch_updated_at();
 
 -- Replace finalize_paid_checkout with enhanced version (stock decrement, category storage, fixed fulfillment_status)
 create or replace function public.finalize_paid_checkout(
