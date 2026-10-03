@@ -15,7 +15,6 @@ import ShopPOSPage    from './pages/ShopPOSPage';
 import CustomersPage  from './pages/CustomersPage';
 import RequestsPage   from './pages/RequestsPage';
 import CareersPage    from './pages/CareersPage';
-import CustomizationPage from './pages/CustomizationPage';
 
 export default function App() {
   return (
@@ -35,7 +34,6 @@ export default function App() {
           <Route path="/customers"  element={<CustomersPage />} />
           <Route path="/requests"   element={<RequestsPage />} />
           <Route path="/careers"    element={<CareersPage />} />
-          <Route path="/customization" element={<CustomizationPage />} />
           <Route path="*" element={<Navigate to="/overview" replace />} />
         </Route>
       </Routes>
