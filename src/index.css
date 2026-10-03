@@ -1375,19 +1375,25 @@ a {
   border-bottom: 1px solid rgba(17, 17, 17, .3);
 }
 
-.application-section .phone-input-control select,
-.custom-builder .phone-input-control select,
-.flow-modal .phone-input-control select {
-  width: 100%;
-  min-width: 0;
-  height: 42px;
+.phone-country-select {
+  position: relative;
+}
+
+.phone-country-select .custom-select-field {
+  margin: 0;
+}
+
+.phone-country-select .custom-select-button {
+  min-height: 42px;
   padding: .62rem 1.25rem .62rem 0;
   border: 0;
   border-radius: 0;
   outline: 0;
   background-color: transparent;
-  color: #111;
-  font: inherit;
+}
+
+.phone-country-select .custom-select-menu {
+  min-width: 160px;
 }
 
 .application-section .phone-input-control input,

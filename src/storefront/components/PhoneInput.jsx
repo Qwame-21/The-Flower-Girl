@@ -1,4 +1,5 @@
-import { useId, useRef } from 'react';
+import { useId, useRef, useState } from 'react';
+import CustomSelect from './CustomSelect';
 
 const COUNTRY_CODES = [
   { code: '+233', label: 'Ghana', short: 'GH', flag: '🇬🇭' },
@@ -31,37 +32,41 @@ export default function PhoneInput({
 }) {
   const id = useId();
   const numberRef = useRef(null);
-  const selectRef = useRef(null);
   const hiddenRef = useRef(null);
+  const [countryCode, setCountryCode] = useState('+233');
 
   // Single sync function — reads directly from refs, no DOM traversal.
   const sync = () => {
     if (hiddenRef.current) {
       hiddenRef.current.value = combinePhone(
-        selectRef.current?.value || '+233',
+        countryCode,
         numberRef.current?.value,
       );
     }
+  };
+
+  const handleCountryChange = (newCode) => {
+    setCountryCode(newCode);
+    sync();
   };
 
   return (
     <label className="phone-input-field" htmlFor={`${id}-number`}>
       {label}
       <span className="phone-input-control">
-        <select
-          ref={selectRef}
-          name={`${name}-code`}
-          aria-label="Country code"
-          defaultValue="+233"
-          disabled={disabled}
-          onChange={sync}
-        >
-          {COUNTRY_CODES.map(country => (
-            <option key={`${country.label}-${country.code}`} value={country.code}>
-              {country.flag} {country.short} {country.code}
-            </option>
-          ))}
-        </select>
+        <div className="phone-country-select">
+          <CustomSelect
+            name={`${name}-code`}
+            label=""
+            options={COUNTRY_CODES}
+            value={countryCode}
+            onChange={handleCountryChange}
+            getValue={opt => opt.code}
+            getLabel={opt => `${opt.flag} ${opt.short} ${opt.code}`}
+            disabled={disabled}
+            placeholder=""
+          />
+        </div>
         <input
           id={`${id}-number`}
           ref={numberRef}
