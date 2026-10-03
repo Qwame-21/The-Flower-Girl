@@ -3,7 +3,7 @@ import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { listNotifications, deleteNotification, markAllNotificationsRead, clearAllNotifications, subscribeToNotifications, startNotificationPolling } from '../../data/notifications';
 import { supabase } from '../../../config/supabase';
-import { playNotificationSound, playMuteSound, playUnmuteSound } from '../../lib/sounds';
+import { playNotificationSound } from '../../lib/sounds';
 
 const ROUTE_TITLE_MAP = {
   '/overview': 'OVERVIEW',
@@ -244,13 +244,17 @@ export default function Header({ onToggleMobile }) {
   // Notification handlers
   const handleToggleMute = () => {
     const newMutedState = !isMuted;
-    setIsMuted(newMutedState);
 
-    // Play sound (always — this is the mute toggle confirmation itself)
+    // When unmuting: unmute first, then play notification sound
+    // When muting: play notification sound first, then mute
     if (newMutedState) {
-      playMuteSound();
+      // Muting: play sound before changing state
+      playNotificationSound();
+      setIsMuted(newMutedState);
     } else {
-      playUnmuteSound();
+      // Unmuting: change state first, then play sound
+      setIsMuted(newMutedState);
+      playNotificationSound();
     }
 
     // Trigger expanding capsule animation
