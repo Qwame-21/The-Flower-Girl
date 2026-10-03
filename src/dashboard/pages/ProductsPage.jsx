@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import CustomDropdown from '../components/shared/CustomDropdown';
+import { getImageUrl } from '../lib/imageUrlHelper';
 import {
   listProducts,
   createProduct,
@@ -14,6 +15,121 @@ import {
   updatePromotion,
   deletePromotion
 } from '../data/products';
+
+const DEFAULT_PRODUCTS = [
+  {
+    id: 'hamper-3750',
+    name: 'Luxury hamper',
+    slug: 'luxury-hamper',
+    category: 'hampers',
+    price: 3750,
+    stock: 25,
+    low_stock_threshold: 3,
+    tag: 'SIGNATURE',
+    description: 'Laptop bag, Lacoste shirt, YSL perfume, Patek Philippe watch, manicure set and card.',
+    details: ['Premium gift box', 'Fashion and fragrance selection', 'Watch and grooming pieces', 'Personal message card'],
+    image_path: 'hamper-editorial-v2.png',
+    secondary_image_path: null,
+    visible: true,
+    sort_order: 0
+  },
+  {
+    id: 'christmas-bundle',
+    name: 'Christmas bundle',
+    slug: 'christmas-bundle',
+    category: 'bundles',
+    price: 1250,
+    stock: 20,
+    low_stock_threshold: 3,
+    tag: 'SEASONAL',
+    description: 'Six yards of Hollandaise fabric, Bodycology fragrance splash and an insulated tumbler.',
+    details: ['Hollandaise fabric', 'Fragrance splash', 'Insulated tumbler', 'Gift presentation'],
+    image_path: 'engagement-presentation-v2.png',
+    secondary_image_path: null,
+    visible: true,
+    sort_order: 1
+  },
+  {
+    id: 'period-care',
+    name: 'Period care box',
+    slug: 'period-care-box',
+    category: 'care',
+    price: 650,
+    stock: 30,
+    low_stock_threshold: 5,
+    tag: 'SUBSCRIPTION',
+    description: 'Pads and panty liners, feminine wash and wipes, ginger tea with mint, cranberry juice, cookies and a hot water bottle. Monthly subscription available.',
+    details: ['Period-care essentials', 'Tea, juice and cookies', 'Hot water bottle', 'Optional monthly delivery'],
+    image_path: 'wrapping-editorial-v2.png',
+    secondary_image_path: null,
+    visible: true,
+    sort_order: 2
+  },
+  {
+    id: 'fresh-bouquet',
+    name: 'Fresh flower bouquet',
+    slug: 'fresh-flower-bouquet',
+    category: 'flowers',
+    price: 450,
+    stock: 30,
+    low_stock_threshold: 5,
+    tag: 'FRESH',
+    description: 'A fresh arrangement selected around your preferred palette, occasion and delivery date.',
+    details: ['Seasonal fresh flowers', 'Chosen colour direction', 'Hand-tied finishing', 'Message card'],
+    image_path: 'bouquet-editorial-v2.png',
+    secondary_image_path: null,
+    visible: true,
+    sort_order: 3
+  },
+  {
+    id: 'fragrance-gift',
+    name: 'Fragrance & treats gift',
+    slug: 'fragrance-treats-gift',
+    category: 'hampers',
+    price: 950,
+    stock: 20,
+    low_stock_threshold: 3,
+    tag: 'FREQUENTLY CHOSEN',
+    description: 'A personalized combination of fragrance, premium chocolate, flowers and a handwritten card.',
+    details: ['Fragrance selection', 'Premium chocolates', 'Fresh floral accent', 'Handwritten card'],
+    image_path: 'basket-hamper-editorial-v2.png',
+    secondary_image_path: null,
+    visible: true,
+    sort_order: 4
+  },
+  {
+    id: 'personalized-bag',
+    name: 'Personalized wrist bag',
+    slug: 'personalized-wrist-bag',
+    category: 'personalized',
+    price: 650,
+    stock: 20,
+    low_stock_threshold: 3,
+    tag: 'PERSONALIZED',
+    description: 'A wrist bag gift with optional name engraving, wrapping and additional accessories.',
+    details: ['Wrist bag', 'Optional name finishing', 'Gift wrapping', 'Selected accessories'],
+    image_path: 'delivery-editorial-v2.png',
+    secondary_image_path: null,
+    visible: true,
+    sort_order: 5
+  },
+  {
+    id: 'embroidery',
+    name: 'Embroidery & personalization',
+    slug: 'embroidery-personalization',
+    category: 'personalized',
+    price: 180,
+    stock: 50,
+    low_stock_threshold: 10,
+    tag: 'MADE TO ORDER',
+    description: 'Add a name or short personal detail to selected shirts, fabric gifts and accessories.',
+    details: ['Name or short wording', 'Thread colour selection', 'Placement confirmation', 'Production approval'],
+    image_path: 'embroidery-editorial-v2.png',
+    secondary_image_path: null,
+    visible: true,
+    sort_order: 6
+  }
+];
 
 const CATEGORY_MAP = {
   hampers: 'Hampers',
@@ -39,6 +155,9 @@ export default function ProductsPage() {
   const [products, setProducts] = useState([]);
   const [promotions, setPromotions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showDefaults, setShowDefaults] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [productsSearchQuery, setProductsSearchQuery] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('ALL');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -59,19 +178,27 @@ export default function ProductsPage() {
   const [formDescription, setFormDescription] = useState('');
   const [formDetails, setFormDetails] = useState('');
   const [formImagePath, setFormImagePath] = useState('');
+  const [formSecondaryImagePath, setFormSecondaryImagePath] = useState('');
   const [formVisible, setFormVisible] = useState(true);
   const [formSortOrder, setFormSortOrder] = useState('0');
 
   // Load data on mount
   useEffect(() => {
     async function loadData() {
-      const [productsData, promotionsData] = await Promise.all([
-        listProducts(),
-        listPromotions()
-      ]);
-      setProducts(productsData);
-      setPromotions(promotionsData);
-      setLoading(false);
+      try {
+        const [productsData, promotionsData] = await Promise.all([
+          listProducts(),
+          listPromotions()
+        ]);
+        setProducts(productsData);
+        setPromotions(promotionsData);
+        setShowDefaults(productsData.length === 0);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error loading products:', err);
+        setError('Failed to load products. Please try again.');
+        setLoading(false);
+      }
     }
     loadData();
   }, []);
@@ -88,6 +215,7 @@ export default function ProductsPage() {
     setFormDescription('');
     setFormDetails('');
     setFormImagePath('');
+    setFormSecondaryImagePath('');
     setFormVisible(true);
     setFormSortOrder('0');
     setFormError('');
@@ -109,6 +237,7 @@ export default function ProductsPage() {
     setFormDescription(product.description || '');
     setFormDetails(Array.isArray(product.details) ? product.details.join(', ') : '');
     setFormImagePath(product.image_path || '');
+    setFormSecondaryImagePath(product.secondary_image_path || '');
     setFormVisible(product.visible);
     setFormSortOrder(String(product.sort_order));
     setFormError('');
@@ -152,6 +281,7 @@ export default function ProductsPage() {
       description: formDescription,
       details: formDetails ? formDetails.split(',').map(d => d.trim()) : [],
       image_path: formImagePath,
+      secondary_image_path: formSecondaryImagePath,
       visible: formVisible,
       sort_order: parseInt(formSortOrder)
     };
@@ -197,6 +327,26 @@ export default function ProductsPage() {
     }
   };
 
+  const handleImportDefaults = async () => {
+    setImporting(true);
+    try {
+      for (const product of DEFAULT_PRODUCTS) {
+        const existing = products.find(p => p.slug === product.slug);
+        if (!existing) {
+          await createProduct(product);
+        }
+      }
+      const updatedProducts = await listProducts();
+      setProducts(updatedProducts);
+      setShowDefaults(false);
+    } catch (err) {
+      console.error('Error importing default products:', err);
+      setFormError('Failed to import default products');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const lowStockCount = products.filter(p => p.stock <= p.low_stock_threshold && p.stock > 0).length;
   const outOfStockCount = products.filter(p => p.stock === 0).length;
 
@@ -221,9 +371,81 @@ export default function ProductsPage() {
     return promo.percent;
   };
 
+  if (showDefaults) {
+    return (
+      <div className="page-container">
+        <div className="page-header-row">
+          <div className="page-title-group">
+            <h2>Products</h2>
+            <p>Manage product catalog, stock, and promotions.</p>
+          </div>
+        </div>
+        <div style={{ padding: '48px', textAlign: 'center', background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid rgba(26,26,26,0.08)' }}>
+          <h3 style={{ marginBottom: '12px' }}>No Products Yet</h3>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '24px', maxWidth: '400px', margin: '0 auto 24px' }}>
+            Import the default product catalog to get started. These products will be stored in Supabase and can be edited later.
+          </p>
+          <button
+            type="button"
+            onClick={handleImportDefaults}
+            disabled={importing}
+            style={{ padding: '12px 24px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: '6px', cursor: importing ? 'not-allowed' : 'pointer', fontSize: '14px' }}
+          >
+            {importing ? 'Importing...' : 'Import Default Products'}
+          </button>
+          <div style={{ marginTop: '32px', textAlign: 'left' }}>
+            <h4 style={{ marginBottom: '16px', fontSize: '14px' }}>Default Products:</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
+              {DEFAULT_PRODUCTS.map(p => (
+                <div key={p.id} style={{ padding: '12px', background: 'rgba(26,26,26,0.04)', borderRadius: '6px', fontSize: '12px' }}>
+                  <div style={{ fontWeight: 600, marginBottom: '4px' }}>{p.name}</div>
+                  <div style={{ color: 'var(--text-muted)' }}>{CATEGORY_MAP[p.category] || p.category}</div>
+                  <div style={{ marginTop: '4px' }}>GHS {p.price}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return <div className="page-container">Loading products...</div>;
   }
+
+  if (error) {
+    return (
+      <div className="page-container">
+        <div style={{ padding: '32px', textAlign: 'center' }}>
+          <h3 style={{ marginBottom: '12px' }}>Error Loading Products</h3>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>{error}</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            style={{ padding: '10px 20px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const displayProducts = showDefaults ? DEFAULT_PRODUCTS.map(p => ({ ...p, _isDefault: true })) : products;
+
+  const lowStockCount = displayProducts.filter(p => p.stock <= p.low_stock_threshold && p.stock > 0).length;
+  const outOfStockCount = displayProducts.filter(p => p.stock === 0).length;
+
+  const categories = Array.from(new Set(displayProducts.map(p => p.category)));
+
+  const filteredProducts = displayProducts.filter(p => {
+    const matchSearch = !productsSearchQuery ||
+      p.name.toLowerCase().includes(productsSearchQuery.toLowerCase()) ||
+      p.id.toLowerCase().includes(productsSearchQuery.toLowerCase());
+    const matchCategory = selectedCategoryFilter === 'ALL' || p.category === selectedCategoryFilter;
+    return matchSearch && matchCategory;
+  });
 
   return (
     <div className="page-container">
@@ -304,7 +526,7 @@ export default function ProductsPage() {
               <div style={{ position: 'relative', aspectRatio: '1', background: '#f5f5f5' }}>
                 {product.image_path ? (
                   <img
-                    src={`/assets/${product.image_path}`}
+                    src={getImageUrl(product.image_path)}
                     alt={product.name}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
@@ -313,6 +535,20 @@ export default function ProductsPage() {
                     style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     dangerouslySetInnerHTML={{ __html: getPlaceholderSvg(product.category) }}
                   />
+                )}
+                {product._isDefault && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '8px',
+                    left: '8px',
+                    background: 'rgba(245, 158, 11, 0.9)',
+                    color: '#fff',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px'
+                  }}>
+                    Not yet imported
+                  </div>
                 )}
                 {!product.visible && (
                   <div style={{
@@ -356,14 +592,16 @@ export default function ProductsPage() {
                 <button
                   type="button"
                   onClick={() => openEditDrawer(product.id)}
-                  style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '13px' }}
+                  disabled={product._isDefault}
+                  style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', cursor: product._isDefault ? 'not-allowed' : 'pointer', fontSize: '13px', opacity: product._isDefault ? 0.5 : 1 }}
                 >
                   Edit
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmDeleteId(product.id)}
-                  style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderLeft: '1px solid rgba(26,26,26,0.08)', cursor: 'pointer', fontSize: '13px', color: '#ef4444' }}
+                  disabled={product._isDefault}
+                  style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderLeft: '1px solid rgba(26,26,26,0.08)', cursor: product._isDefault ? 'not-allowed' : 'pointer', fontSize: '13px', color: '#ef4444', opacity: product._isDefault ? 0.5 : 1 }}
                 >
                   Delete
                 </button>
@@ -536,7 +774,7 @@ export default function ProductsPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Image</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Primary Image</label>
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -547,6 +785,31 @@ export default function ProductsPage() {
                 {formImagePath && (
                   <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>
                     {formImagePath}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Secondary Image (optional)</label>
+                <input
+                  type="file"
+                  onChange={async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const productId = editingProductId || formSlug;
+                    const result = await uploadProductImage(file, `${productId}-secondary`);
+                    if (result.success) {
+                      setFormSecondaryImagePath(result.path);
+                    } else {
+                      setFormError(result.error);
+                    }
+                  }}
+                  accept="image/*"
+                  style={{ width: '100%' }}
+                />
+                {formSecondaryImagePath && (
+                  <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                    {formSecondaryImagePath}
                   </div>
                 )}
               </div>
