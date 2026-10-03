@@ -30,6 +30,8 @@ const defaults = {
   careers: [{ id: 'career-content', title: 'Content Creator & Social Media Manager', status: 'open' }],
 };
 
+let syncInProgress = false;
+
 // Match only unchanged built-in catalogue examples; edited or shared records stay visible.
 export function isDefaultAdminRecord(collection, record) {
   if (record.source === 'supabase' || record.createdAt || record.updatedAt) return false;
@@ -142,5 +144,36 @@ export async function resetTestDataApi(supabaseClient, userEmail = 'Admin') {
   }
 
   return { summaryCounts, auditEntry };
+}
+
+// Background sync: read from Supabase and update storefront cache
+export async function syncFromSupabase() {
+  if (syncInProgress) return;
+  syncInProgress = true;
+
+  try {
+    const { fetchSupabaseData } = await import('../data/supabaseSync');
+    const supabaseData = await fetchSupabaseData();
+
+    const current = readAdminData();
+    const next = {
+      ...current,
+      products: supabaseData.products,
+      promotions: supabaseData.promotions,
+      gallery: supabaseData.gallery,
+      ...(supabaseData.settings && { settings: { ...current.settings, ...supabaseData.settings } })
+    };
+
+    writeAdminData(next);
+  } catch (error) {
+    console.error('Supabase sync error:', error);
+  } finally {
+    syncInProgress = false;
+  }
+}
+
+// Start background sync on module load (client-side only)
+if (typeof window !== 'undefined') {
+  setTimeout(() => syncFromSupabase(), 1000);
 }
 
