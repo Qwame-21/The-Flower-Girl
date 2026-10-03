@@ -270,8 +270,28 @@ function DeleteModal({ item, onCancel, onConfirm }) {
           Are you sure you want to remove &ldquo;{item.label || 'this photo'}&rdquo; from the gallery?
         </p>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-          <button type="button" className="btn" onClick={onCancel}>No</button>
-          <button type="button" className="btn d" onClick={onConfirm}>Yes</button>
+          <button type="button" onClick={onCancel} style={{
+            padding: '10px 20px',
+            borderRadius: '9999px',
+            border: '1px solid #e5e7eb',
+            background: '#f3f4f6',
+            color: '#1a1a1a',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 500,
+            transition: 'all 0.15s ease'
+          }}>No</button>
+          <button type="button" onClick={onConfirm} style={{
+            padding: '10px 20px',
+            borderRadius: '9999px',
+            border: 'none',
+            background: '#dc2626',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 500,
+            transition: 'all 0.15s ease'
+          }}>Yes</button>
         </div>
       </div>
     </div>
