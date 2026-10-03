@@ -5,6 +5,7 @@ import { formatGHS, CATEGORY_MAP } from '../lib/ordersModel';
 import { listOrders } from '../data/orders';
 import { getInventorySummary } from '../data/products';
 import { FULFILLMENT_STATUS_LABELS } from '../data/statusMap';
+import { calculateOrderStats, calculateDailyTrend } from '../data/statsHelper';
 
 // SVG Icons matching monolith
 const SVG = {
@@ -452,56 +453,16 @@ export default function OverviewPage() {
     loadInventory();
   }, []);
 
-  // Compute stats from real orders
-  const calculateStats = (ordersList, periodDays) => {
-    const now = new Date();
-    const cutoffDate = periodDays !== Infinity ? new Date(now.getTime() - periodDays * 86400000) : null;
-    const cutoffStr = cutoffDate ? cutoffDate.toISOString().split('T')[0] : '0000-00-00';
-
-    let totalRevenue = 0;
-    let totalOrdersCount = 0;
-    let paidNonCancelledCount = 0;
-
-    const categoryRevenue = { hampers: 0, personalized: 0, bundles: 0, care: 0, flowers: 0 };
-
-    ordersList.forEach(o => {
-      const oDateStr = (o.orderDate || '').split('T')[0];
-      if (cutoffStr && oDateStr < cutoffStr) return;
-
-      if (o.fulfillmentStatus !== 'cancelled') {
-        totalOrdersCount++;
-        if (o.paymentStatus === 'paid') {
-          totalRevenue += o.total || 0;
-          paidNonCancelledCount++;
-        }
-
-        (o.items || []).forEach(item => {
-          const catKey = (item.category || '').toLowerCase();
-          if (categoryRevenue[catKey] !== undefined) {
-            categoryRevenue[catKey] += (item.unitPrice * item.qty);
-          }
-        });
-      }
-    });
-
-    const avgOrderValue = paidNonCancelledCount > 0 ? (totalRevenue / paidNonCancelledCount) : 0;
-
-    return {
-      totalRevenue,
-      totalOrdersCount,
-      paidNonCancelledCount,
-      avgOrderValue,
-      categoryRevenue
-    };
-  };
-
   const periodDays = period === '7d' ? 7 : period === '30d' ? 30 : Infinity;
-  const combinedStats = calculateStats(orders, periodDays);
+  const cutoffDate = periodDays !== Infinity ? new Date(new Date().getTime() - periodDays * 86400000) : null;
+  const combinedStats = calculateOrderStats(orders, { cutoffDate });
+  
   const prevPeriodDays = period === '7d' ? 30 : Infinity;
-  const prevStats = calculateStats(orders, prevPeriodDays);
+  const prevCutoffDate = prevPeriodDays !== Infinity ? new Date(new Date().getTime() - prevPeriodDays * 86400000) : null;
+  const prevStats = calculateOrderStats(orders, { cutoffDate: prevCutoffDate });
 
   const activeOrdersCount = orders.filter(o => o.fulfillmentStatus !== 'delivered' && o.fulfillmentStatus !== 'cancelled').length;
-  const pendingPaymentCount = orders.filter(o => o.paymentStatus === 'pending' && o.fulfillmentStatus !== 'cancelled').length;
+  const pendingPaymentCount = combinedStats.awaitingPaymentCount;
 
   const revDelta = prevStats.totalRevenue > 0 ? Math.round(((combinedStats.totalRevenue - prevStats.totalRevenue) / prevStats.totalRevenue) * 100) : null;
   const ordersDelta = prevStats.totalOrdersCount > 0 ? Math.round(((combinedStats.totalOrdersCount - prevStats.totalOrdersCount) / prevStats.totalOrdersCount) * 100) : null;
@@ -532,11 +493,8 @@ export default function OverviewPage() {
     runningLate: { key: 'runningLate', label: 'Running Late', value: 0, color: 'var(--chart-bad, #B9645C)' }
   };
 
-  const trendSeries = {
-    dates: ['Day 1', 'Day 5', 'Day 10', 'Day 15', 'Day 20', 'Day 25', 'Day 30'],
-    currentValues: hasData ? [1200, 2400, 1800, 3100, 2800, 3900, combinedStats.totalRevenue] : [0, 0, 0, 0, 0, 0, 0],
-    previousValues: hasData ? [1000, 2000, 1500, 2600, 2400, 3200, 3500] : [0, 0, 0, 0, 0, 0, 0]
-  };
+  // Calculate real daily trend data based on selected mode
+  const trendSeries = calculateDailyTrend(orders, trendMode, 30);
 
   // Derive activity log from order_events
   const activityLog = [];
@@ -594,7 +552,7 @@ export default function OverviewPage() {
             <div className="metric-icon-square">{SVG.shoppingBag}</div>
           </div>
           <div className="metric-label">Active Orders</div>
-          <div className="metric-value">{activeOrdersCount}</div>
+          <div className="metric-value">{combinedStats.totalOrdersCount}</div>
           <div className="metric-divider"></div>
           <div className="metric-comparison">
             <span className="comparison-label">vs prev period</span>
@@ -762,7 +720,7 @@ export default function OverviewPage() {
               .sort((a, b) => b.units - a.units)
               .slice(0, 4)
               .map((p, idx) => (
-                <div key={idx} className="top-product-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(26,26,26,0.05)' }}>
+                <div key={p.id || idx} className="top-product-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(26,26,26,0.05)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div className="product-rank" style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: '14px' }}>#{idx + 1}</div>
                     <div>
