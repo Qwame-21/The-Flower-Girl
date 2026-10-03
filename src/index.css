@@ -1483,6 +1483,7 @@ a {
 
 .application-section .date-field legend {
   margin-bottom: .5rem;
+  font-weight: 400;
 }
 
 .custom-builder legend span {
@@ -6100,7 +6101,8 @@ a {
 .date-field > div,
 .custom-builder .date-field > div,
 .checkout-modal .date-field > div,
-.request-modal .date-field > div {
+.request-modal .date-field > div,
+.application-section .date-field > div {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
@@ -6109,7 +6111,8 @@ a {
 
 .date-field .custom-select > button,
 .checkout-modal .date-field .custom-select > button,
-.request-modal .date-field .custom-select > button {
+.request-modal .date-field .custom-select > button,
+.application-section .date-field .custom-select > button {
   min-height: 42px;
   padding: .62rem 0;
   border: 0;
@@ -6119,7 +6122,8 @@ a {
 
 .date-field > div:focus-within,
 .checkout-modal .date-field > div:focus-within,
-.request-modal .date-field > div:focus-within {
+.request-modal .date-field > div:focus-within,
+.application-section .date-field > div:focus-within {
   border-bottom-color: #111;
 }
 
