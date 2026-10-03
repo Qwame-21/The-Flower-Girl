@@ -403,34 +403,30 @@ export default function ShopPOSPage() {
                 className={`shop-card shop-product-card ${isOutOfStock ? 'shop-out' : ''}`}
                 data-id={p.id}
               >
-                <div className="card-media-bg">
-                  {p.imageUrl ? (
+                <div className="shop-card-media">
+                  {p.image ? (
                     <>
                       <img
-                        src={p.imageUrl}
+                        src={p.image}
                         alt=""
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
                           if (e.currentTarget.nextElementSibling) {
-                            e.currentTarget.nextElementSibling.style.display = 'flex';
+                            e.currentTarget.nextElementSibling.style.display = 'grid';
                           }
                         }}
                       />
                       <div
-                        className="card-placeholder-fallback"
-                        style={{ display: 'none' }}
+                        style={{ display: 'none', width: '100%', height: '100%', placeItems: 'center' }}
                         dangerouslySetInnerHTML={{ __html: getPlaceholderSvg(p.category) }}
                       />
                     </>
                   ) : (
-                    <div
-                      className="card-placeholder-fallback"
-                      dangerouslySetInnerHTML={{ __html: getPlaceholderSvg(p.category) }}
-                    />
+                    <div dangerouslySetInnerHTML={{ __html: getPlaceholderSvg(p.category) }} />
                   )}
                 </div>
 
-                <div className="shop-tags">
+                <div className="shop-card-badges">
                   {isOutOfStock ? (
                     <span className="shop-badge shop-out-badge">Out of stock</span>
                   ) : isLowStock ? (

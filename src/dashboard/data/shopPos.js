@@ -1,5 +1,6 @@
 import { supabase } from '../../config/supabase';
 import { createStaffOrder } from './orders';
+import { getImageUrl } from '../lib/imageUrlHelper';
 
 // Load products for POS (visible only)
 export async function loadPosProducts() {
@@ -25,7 +26,7 @@ export async function loadPosProducts() {
     price: p.price,
     stock: p.stock,
     category: p.category,
-    image: p.image_path,
+    image: getImageUrl(p.image_path), // Use shared image helper
     tag: p.tag,
     description: p.description,
     code: p.id // Using product ID as code for now
