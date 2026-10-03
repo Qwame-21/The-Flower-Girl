@@ -79,6 +79,9 @@ export default function Header({ onToggleMobile }) {
   const [usingPolling, setUsingPolling] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
 
+  // Unread count for badge
+  const unreadCount = notifications.filter(n => !n.readAt).length;
+
   // Clear All inline confirm state (replaces modal)
   const [clearAllConfirm, setClearAllConfirm] = useState(false);
   const clearAllTimerRef = useRef(null);
@@ -149,13 +152,22 @@ export default function Header({ onToggleMobile }) {
       }
     }
 
+    function handleEscape(e) {
+      if (e.key === 'Escape') {
+        if (isNotifOpen) setIsNotifOpen(false);
+        if (isProfileOpen) setIsProfileOpen(false);
+      }
+    }
+
     document.addEventListener('click', handleOutsideClick);
     window.addEventListener('resize', handleReposition);
     window.addEventListener('scroll', handleReposition, true);
+    document.addEventListener('keydown', handleEscape);
     return () => {
       document.removeEventListener('click', handleOutsideClick);
       window.removeEventListener('resize', handleReposition);
       window.removeEventListener('scroll', handleReposition, true);
+      document.removeEventListener('keydown', handleEscape);
     };
   }, [isNotifOpen, isProfileOpen]);
 
@@ -302,10 +314,18 @@ export default function Header({ onToggleMobile }) {
 
   const navigate = useNavigate();
 
-  const handleNotificationClick = (notif) => {
+  const handleNotificationClick = async (notif) => {
     setIsNotifOpen(false);
     const type = notif.type;
     const recordId = notif.recordId;
+
+    // Optimistic mark as read
+    setNotifications(prev => prev.map(n =>
+      n.id === notif.id ? { ...n, readAt: new Date().toISOString() } : n
+    ));
+
+    // Mark as read in background
+    await markAllNotificationsRead();
 
     if (type === 'new_order') {
       if (recordId) {
@@ -379,7 +399,13 @@ export default function Header({ onToggleMobile }) {
                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </svg>
             </div>
-            <span className="notif-accent-badge" id="notifAccentBadge" style={{ display: 'none' }}></span>
+            <span
+              className="notif-accent-badge"
+              id="notifAccentBadge"
+              style={{ display: unreadCount > 0 ? 'block' : 'none' }}
+            >
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
             <span className="notif-btn-label" id="notifBtnLabel" aria-hidden="true"></span>
           </button>
 
@@ -393,6 +419,19 @@ export default function Header({ onToggleMobile }) {
             <div className="dropdown-header">
               <span className="meta-label">NOTIFICATIONS</span>
               <div className="dropdown-header-actions">
+                {/* Close button - fixed position, consistent hit area */}
+                <button
+                  className="notif-close-btn"
+                  onClick={() => setIsNotifOpen(false)}
+                  aria-label="Close notifications"
+                  title="Close"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+
                 {/* Mute toggle: speaker-with-X when muted (Feather volume-x), speaker-with-waves when unmuted */}
                 <button
                   className={`mute-toggle-btn ${isMuted ? 'muted' : ''} ${isExpanding ? 'expanding-capsule' : ''}`}
