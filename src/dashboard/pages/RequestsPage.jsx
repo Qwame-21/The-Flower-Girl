@@ -155,7 +155,7 @@ function showToast(msg) {
 
 export default function RequestsPage() {
   const navigate = useNavigate();
-  const [requests, setRequests] = useState(loadRequests);
+  const [requests, setRequests] = useState(loadRequestsData);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all'); // 'all'|'n'|'q'|'a'|'c'|'x'
 
