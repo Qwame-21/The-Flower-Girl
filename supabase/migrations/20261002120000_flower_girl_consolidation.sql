@@ -12,6 +12,7 @@
 -- 7. Add career application notification trigger
 -- 8. Add missing columns to site_settings
 -- 9. Add tables to realtime publication
+-- 10. Add phone normalization helper and update track_record function
 --
 BEGIN;
 
@@ -233,12 +234,41 @@ create trigger on_new_career_application
   after insert on public.career_applications
   for each row execute function public.notify_new_career_application();
 
--- Replace track_record RPC to support both tracking_number and order_code
+-- Phone normalization helper: keeps digits only, drops +, 00, and Ghana country code 233, drops single leading 0
+-- Returns national number for Ghana numbers, full digits for other countries
+create or replace function public.normalize_phone(phone text)
+returns text language sql immutable strict parallel safe
+as $$
+declare digits text;
+begin
+  digits := regexp_replace(phone, '[^0-9]', '', 'g');
+  -- Drop leading +
+  if digits like '+%' then
+    digits := substring(digits from 2);
+  end if;
+  -- Drop leading 00
+  if digits like '00%' then
+    digits := substring(digits from 3);
+  end if;
+  -- For Ghana numbers (start with 233), drop the country code
+  if digits like '233%' then
+    digits := substring(digits from 4);
+  end if;
+  -- Drop single leading 0
+  if digits like '0%' then
+    digits := substring(digits from 2);
+  end if;
+  return digits;
+end $$;
+
+-- Replace track_record RPC to support both tracking_number and order_code with normalized phone matching
 create or replace function public.track_record(lookup_reference text, lookup_contact text)
 returns jsonb language plpgsql security definer set search_path = public
 as $$
-declare result jsonb; normalized_contact text := regexp_replace(lower(trim(lookup_contact)), '[^0-9]', '', 'g');
+declare result jsonb; normalized_lookup_phone text; normalized_stored_phone text;
 begin
+  normalized_lookup_phone := public.normalize_phone(lookup_contact);
+  
   select jsonb_build_object(
     'kind','order','trackingNumber',o.tracking_number,'orderCode',o.order_code,'customerName',o.customer_name,
     'status',o.fulfillment_status,'paymentStatus',o.payment_status,
@@ -247,7 +277,7 @@ begin
     'events',coalesce((select jsonb_agg(jsonb_build_object('stage',e.stage,'note',e.customer_note,'createdAt',e.created_at) order by e.created_at) from public.order_events e where e.order_id=o.id),'[]'::jsonb)
   ) into result from public.orders o
   where (lower(o.tracking_number)=lower(trim(lookup_reference)) or lower(o.order_code)=lower(trim(lookup_reference)))
-    and (lower(coalesce(o.customer_email,''))=lower(trim(lookup_contact)) or (length(normalized_contact)>=9 and length(regexp_replace(o.customer_phone,'[^0-9]','','g'))>=9 and right(regexp_replace(o.customer_phone,'[^0-9]','','g),9)=right(normalized_contact,9)))
+    and (lower(coalesce(o.customer_email,''))=lower(trim(lookup_contact)) or public.normalize_phone(o.customer_phone)=normalized_lookup_phone)
   limit 1;
   if result is not null then return result; end if;
 
@@ -258,13 +288,22 @@ begin
     'adminNote',r.admin_note,'updatedAt',r.updated_at
   ) into result from public.customer_requests r
   where lower(r.reference)=lower(trim(lookup_reference))
-    and (lower(coalesce(r.email,''))=lower(trim(lookup_contact)) or (length(normalized_contact)>=9 and length(regexp_replace(r.phone,'[^0-9]','','g'))>=9 and right(regexp_replace(r.phone,'[^0-9]','','g),9)=right(normalized_contact,9)))
+    and (lower(coalesce(r.email,''))=lower(trim(lookup_contact)) or public.normalize_phone(r.phone)=normalized_lookup_phone)
   limit 1;
   return result;
 end $$;
 
 revoke all on function public.track_record(text,text) from public;
 grant execute on function public.track_record(text,text) to anon, authenticated;
+
+-- Test queries for phone normalization (run after migration to verify)
+-- select public.normalize_phone('+233 20 317 6791');  -- Expected: 203176791
+-- select public.normalize_phone('0203176791');       -- Expected: 203176791
+-- select public.normalize_phone('233203176791');      -- Expected: 203176791
+-- select public.normalize_phone('+233203176791');    -- Expected: 203176791
+-- select public.normalize_phone('020 317 6791');     -- Expected: 203176791
+-- select public.normalize_phone('+44 7700 900077'); -- Expected: 447700900077 (non-Ghana, keeps all digits)
+-- select public.normalize_phone('07700 900077');    -- Expected: 7700900077 (non-Ghana, drops leading 0)
 
 do $$ declare table_name text; begin
   foreach table_name in array array['products','gallery_items']

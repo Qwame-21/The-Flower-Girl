@@ -2,6 +2,28 @@ import { supabase } from '../../config/supabase';
 import { createStaffOrder } from './orders';
 import { getImageUrl } from '../lib/imageUrlHelper';
 
+// Normalize phone to international format (+233xxxxxxxxx for Ghana)
+function normalizePhone(phone) {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return null;
+  
+  // If starts with 0, treat as Ghana number
+  if (digits.startsWith('0')) {
+    return '+233' + digits.substring(1);
+  }
+  // If starts with 233 (no +), add +
+  if (digits.startsWith('233')) {
+    return '+' + digits;
+  }
+  // If starts with +, return as-is
+  if (phone.startsWith('+')) {
+    return '+' + digits;
+  }
+  // Otherwise assume Ghana and add +233
+  return '+233' + digits;
+}
+
 // Load products for POS (visible only)
 export async function loadPosProducts() {
   if (!supabase) {
@@ -45,7 +67,7 @@ export async function placeStaffOrder(formData, cart, userId) {
   const orderData = {
     customer_name: formData.fullName,
     customer_email: formData.email || null,
-    customer_phone: formData.phone,
+    customer_phone: normalizePhone(formData.phone),
     recipient_name: formData.fullName,
     delivery_address: formData.address,
     landmark: formData.townCity,
