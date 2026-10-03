@@ -3379,6 +3379,7 @@ input:checked + .toggle-slider:before {
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .metric-divider {
