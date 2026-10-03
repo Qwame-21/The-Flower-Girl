@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { readAdminData, subscribeAdminData } from '../../data/adminStore';
 import { supabase } from '../../config/supabase';
 import CustomDropdown from '../components/shared/CustomDropdown';
+import { getImageUrl } from '../lib/imageUrlHelper';
 
 // Toast helper
 function showToast(msg) {
@@ -253,6 +254,8 @@ export default function GalleryPage() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importMessage, setImportMessage] = useState('');
 
   // Load storefront gallery from adminStore (read-only)
   useEffect(() => {
@@ -287,6 +290,13 @@ export default function GalleryPage() {
 
     loadUploadedPhotos();
   }, []);
+
+  // Filter storefront gallery to show only not-yet-imported images
+  const notImportedStorefront = storefrontGallery.filter(item => {
+    const fileName = item.src.split('/').pop();
+    const targetPath = `gallery/imported-${fileName}`;
+    return !uploadedPhotos.some(up => up.image_path === targetPath);
+  });
 
   // Handle add photo upload
   async function handleAddPhoto({ title, category, file }) {
@@ -368,6 +378,132 @@ export default function GalleryPage() {
     setDeleteTarget(null);
   }
 
+  // Handle import storefront gallery
+  async function handleImportStorefrontGallery() {
+    if (!supabase) {
+      showToast('Supabase not configured');
+      return;
+    }
+
+    setImportLoading(true);
+    setImportMessage('');
+
+    let imported = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    try {
+      // Check if bucket exists
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const bucketExists = buckets?.some(b => b.name === 'storefront-media');
+
+      if (!bucketExists) {
+        setImportMessage('Storage bucket "storefront-media" not found. Please create it in Supabase.');
+        setImportLoading(false);
+        return;
+      }
+
+      // Check if table exists
+      const { error: tableError } = await supabase
+        .from('gallery_items')
+        .select('id')
+        .limit(1);
+
+      if (tableError) {
+        setImportMessage('Gallery table not found. Please run the migration.');
+        setImportLoading(false);
+        return;
+      }
+
+      // Get current max sort_order
+      const { data: existingItems } = await supabase
+        .from('gallery_items')
+        .select('sort_order')
+        .order('sort_order', { ascending: false })
+        .limit(1);
+
+      const maxSort = existingItems?.[0]?.sort_order || 0;
+
+      // Process each storefront gallery image
+      for (const item of storefrontGallery) {
+        try {
+          const fileName = item.src.split('/').pop();
+          const targetPath = `gallery/imported-${fileName}`;
+
+          // Check if already imported
+          const { data: existing } = await supabase
+            .from('gallery_items')
+            .select('id')
+            .eq('image_path', targetPath)
+            .single();
+
+          if (existing) {
+            skipped++;
+            continue;
+          }
+
+          // Fetch the image file
+          const response = await fetch(item.src);
+          if (!response.ok) {
+            failed++;
+            continue;
+          }
+
+          const blob = await response.blob();
+          const file = new File([blob], fileName, { type: blob.type });
+
+          // Upload to Supabase
+          const { error: uploadError } = await supabase
+            .storage
+            .from('storefront-media')
+            .upload(targetPath, file);
+
+          if (uploadError) {
+            failed++;
+            continue;
+          }
+
+          // Create gallery item
+          const { error: insertError } = await supabase
+            .from('gallery_items')
+            .insert({
+              image_path: targetPath,
+              label: item.label || fileName.replace(/-/g, ' ').replace(/\.[^/.]+$/, ''),
+              category: null,
+              visible: true,
+              sort_order: maxSort + imported + 1
+            });
+
+          if (insertError) {
+            failed++;
+            continue;
+          }
+
+          imported++;
+        } catch (err) {
+          failed++;
+          console.error('Error importing image:', item.src, err);
+        }
+      }
+
+      setImportMessage(`${imported} imported, ${skipped} skipped, ${failed} failed`);
+
+      // Reload photos if any were imported
+      if (imported > 0) {
+        const { data } = await supabase
+          .from('gallery_items')
+          .select('*')
+          .order('sort_order', { ascending: true });
+
+        setUploadedPhotos(data || []);
+      }
+    } catch (err) {
+      setImportMessage('Import failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setImportLoading(false);
+    }
+  }
+
   return (
     <div className="page-container">
       {/* Page header */}
@@ -388,15 +524,33 @@ export default function GalleryPage() {
         </div>
       </div>
 
-      {/* Storefront gallery section (read-only) */}
+      {/* Storefront gallery section (read-only, not yet imported) */}
       <div style={{ marginBottom: '32px' }}>
-        <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>Storefront gallery</h3>
-        {storefrontGallery.length > 0 ? (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Storefront gallery</h3>
+          {notImportedStorefront.length > 0 && (
+            <button
+              className="xp-pill xp-solid"
+              type="button"
+              onClick={handleImportStorefrontGallery}
+              disabled={importLoading}
+              style={{ opacity: importLoading ? 0.6 : 1 }}
+            >
+              {importLoading ? 'Importing...' : 'Import current storefront gallery'}
+            </button>
+          )}
+        </div>
+        {importMessage && (
+          <div style={{ fontSize: '12px', color: importMessage.includes('failed') ? '#dc2626' : '#059669', marginBottom: '12px' }}>
+            {importMessage}
+          </div>
+        )}
+        {notImportedStorefront.length > 0 ? (
           <div className="gallery-showcase">
-            {storefrontGallery.map((item) => (
+            {notImportedStorefront.map((item) => (
               <div key={item.id} className="gallery-item" data-id={item.id}>
                 <img
-                  src={item.src}
+                  src={getImageUrl(item.src)}
                   className="gallery-image"
                   alt={item.label || ''}
                 />
@@ -404,7 +558,7 @@ export default function GalleryPage() {
                 <hr className="gallery-divider" />
                 <div className="gallery-actions">
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                    Read-only (managed in storefront)
+                    Not yet imported
                   </span>
                 </div>
               </div>
@@ -416,10 +570,10 @@ export default function GalleryPage() {
             border: '1px solid rgba(26,26,26,0.08)', padding: '48px', textAlign: 'center'
           }}>
             <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px', color: 'var(--text-muted)' }}>
-              No storefront gallery photos
+              {storefrontGallery.length === 0 ? 'No storefront gallery photos' : 'All storefront images imported'}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Storefront gallery is empty
+              {storefrontGallery.length === 0 ? 'Storefront gallery is empty' : 'Storefront gallery images are now managed in Supabase'}
             </div>
           </div>
         )}
@@ -433,7 +587,7 @@ export default function GalleryPage() {
             {uploadedPhotos.map((item) => (
               <div key={item.id} className="gallery-item" data-id={item.id}>
                 <img
-                  src={`${supabase.storage.from('storefront-media').getPublicUrl(item.image_path)}`}
+                  src={getImageUrl(item.image_path)}
                   className="gallery-image"
                   alt={item.label || ''}
                 />
