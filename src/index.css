@@ -2943,7 +2943,7 @@ a {
 .application-section input:focus,
 .custom-builder input:focus,
 .flow-modal input:focus {
-  border-color: #111;
+  border-bottom-color: #111;
   outline: 0;
 }
 
