@@ -10121,7 +10121,6 @@ button[data-trend-mode].active {
 }
 
 .product-card-body,
-.xp-body,
 .shop-card-body {
   padding: 8px 16px 16px 16px !important;
   display: flex !important;
@@ -10134,6 +10133,18 @@ button[data-trend-mode].active {
   position: relative !important;
   inset: auto !important;
   text-shadow: none !important;
+}
+
+.xp-body {
+  position: relative;
+  padding: 10px 12px;
+  background: transparent;
+  color: #111827;
+  z-index: 1;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .product-card-title-row,
@@ -10589,23 +10600,36 @@ button[data-trend-mode].active {
 
 .xp-media-bg,
 .card-media-bg {
+  position: relative;
   width: 100%;
-  height: 160px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border-radius: 12px;
-  margin-bottom: 12px;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
+  display: grid;
+  place-items: center;
 }
 
 .xp-media-bg img,
-.card-media-bg img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  mix-blend-mode: multiply;
+.card-media-bg img,
+.xp-media-bg svg,
+.card-media-bg svg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  mix-blend-mode: normal;
+}
+
+.card-placeholder-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-placeholder-fallback svg {
+  width: 100%;
+  height: 100%;
 }
 
 .xp-name,
@@ -12784,6 +12808,161 @@ textarea:focus-visible {
   min-width: 32px !important;
   width: 32px !important;
   height: 32px !important;
+}
+
+/* ==========================================================================
+   PRODUCTS PAGE ADDITIONS - Matching HOPESON xp- classes
+   ========================================================================== */
+
+/* 4. BULK PROMO: compact, aligned, closed by default */
+.xp-bulk {
+  display: none;
+  background: var(--xp-surface, #fbfaf8);
+  border-radius: var(--xp-r-panel, 18px);
+  padding: var(--xp-s4, 16px) var(--xp-s5, 24px);
+  margin-bottom: var(--xp-s5, 32px);
+}
+
+.xp-bulk.xp-open {
+  display: block;
+}
+
+.xp-bulk-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--xp-s4, 16px);
+  flex-wrap: wrap;
+}
+
+.xp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.xp-field label {
+  font-size: 12px;
+  color: var(--xp-muted, #8a8984);
+}
+
+.xp-field .xp-ctl {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--xp-s2, 8px);
+  border-bottom: 1px solid #bdbab3;
+  font-size: 14px;
+}
+
+.xp-field.xp-cat {
+  width: 190px;
+}
+
+.xp-field.xp-pct {
+  width: 96px;
+}
+
+.xp-field .xp-ctl input,
+.xp-field .xp-ctl select {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  outline: 0;
+  color: var(--xp-ink, #111827);
+}
+
+.xp-field .xp-ctl select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+  background-size: 12px;
+  padding-right: 20px;
+  cursor: pointer;
+}
+
+.xp-bulk-msg {
+  display: none;
+  margin-top: var(--xp-s3, 12px);
+  font-size: 13px;
+  color: var(--xp-muted, #8a8984);
+}
+
+.xp-bulk-msg.xp-show {
+  display: block;
+}
+
+.xp-bulk-msg a {
+  color: var(--xp-ink, #111827);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: var(--xp-s2, 8px);
+}
+
+/* Form grid layouts (matching HOPESON form-grid-2col/3col) */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+/* Checkbox row styling */
+.form-checkbox-row {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.field-checkbox {
+  cursor: pointer;
+}
+
+/* Drawer form error styling */
+.drawer-form-error {
+  color: #dc2626;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+/* Mobile responsive for xp-bulk */
+@media (max-width: 640px) {
+  .xp-bulk {
+    padding: var(--xp-s4, 16px);
+  }
+
+  .xp-field.xp-cat,
+  .xp-field.xp-pct {
+    width: 100%;
+  }
+
+  .xp-bulk-row .xp-pill {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .form-grid-2,
+  .form-grid-3 {
+    grid-template-columns: 1fr;
+  }
 }
 
 
