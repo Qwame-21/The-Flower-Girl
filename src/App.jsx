@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, startTransition } from 'react';
 import Navigation from './components/Navigation';
 import DrawerMenu from './components/DrawerMenu';
 import SearchModal from './components/SearchModal';
@@ -26,6 +26,7 @@ export default function App() { return <Suspense fallback={null}><SiteApp /></Su
 function SiteApp() {
   // Pre-fetch storefront lazy route chunks immediately on mount for instant navigation
   useEffect(() => {
+    import('./storefront/home/HomePage');
     import('./storefront/pages/AboutPage');
     import('./storefront/pages/CareersPage');
     import('./storefront/pages/CustomizePage');
@@ -40,7 +41,7 @@ function SiteApp() {
   const [adminMode, setAdminMode] = useState(() => /^\/admin(?:\/login)?\/?$/.test(window.location.pathname));
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [activeTab, updateActiveTab] = useState(() => returningFromPayment ? 'shop' : pageForPath(window.location.pathname));
-  const setActiveTab = tab => { updateActiveTab(tab); if (pages[tab] && window.location.pathname !== pages[tab][0]) window.history.pushState({}, '', pages[tab][0]); };
+  const setActiveTab = tab => { startTransition(() => updateActiveTab(tab)); if (pages[tab] && window.location.pathname !== pages[tab][0]) window.history.pushState({}, '', pages[tab][0]); };
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [checkoutRequested, setCheckoutRequested] = useState(returningFromPayment);
@@ -134,7 +135,7 @@ function SiteApp() {
   }, [returningFromPayment]);
 
   useEffect(() => {
-    const syncRoute = () => { setAdminMode(/^\/admin(?:\/login)?\/?$/.test(window.location.pathname)); updateActiveTab(pageForPath(window.location.pathname)); };
+    const syncRoute = () => { setAdminMode(/^\/admin(?:\/login)?\/?$/.test(window.location.pathname)); startTransition(() => updateActiveTab(pageForPath(window.location.pathname))); };
     window.addEventListener('popstate', syncRoute);
     return () => window.removeEventListener('popstate', syncRoute);
   }, []);
@@ -145,7 +146,7 @@ function SiteApp() {
     return () => window.clearInterval(timer);
   }, [activeTab]);
 
-  const navigateStorefront = tab => { setCheckoutRequested(false); setWishlistRequested(false); if (tab === 'services') setPreferredService(null); setActiveTab(tab); };
+  const navigateStorefront = tab => { setCheckoutRequested(false); setWishlistRequested(false); if (tab === 'services') setPreferredService(null); startTransition(() => setActiveTab(tab)); };
 
   if (adminMode) {
     return (
@@ -176,10 +177,10 @@ function SiteApp() {
         onOpenDrawer={() => setDrawerOpen(true)}
         onOpenSearch={() => setSearchOpen(true)}
         onOpenShop={() => navigateStorefront('shop')}
-        onOpenCheckout={() => { setWishlistRequested(false); setActiveTab('shop'); setCheckoutRequested(true); }}
-        onOpenWishlist={() => { setCheckoutRequested(false); setActiveTab('shop'); setWishlistRequested(true); }}
+        onOpenCheckout={() => { setWishlistRequested(false); startTransition(() => setActiveTab('shop')); setCheckoutRequested(true); }}
+        onOpenWishlist={() => { setCheckoutRequested(false); startTransition(() => setActiveTab('shop')); setWishlistRequested(true); }}
         onOpenServices={() => navigateStorefront('services')}
-        onOpenGallery={() => setActiveTab('gallery')}
+        onOpenGallery={() => startTransition(() => setActiveTab('gallery'))}
         cartCount={cartCount}
         wishlistCount={wishlist.length}
       />
@@ -215,14 +216,14 @@ function SiteApp() {
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         currentSlideIndex={currentSlideIndex}
-        onSelectSlide={(idx) => { setCurrentSlideIndex(idx); setActiveTab('home'); }}
+        onSelectSlide={(idx) => { setDrawerOpen(false); setCurrentSlideIndex(idx); setActiveTab('home'); }}
         onNavigate={navigateStorefront}
       />
 
       <SearchModal
         isOpen={searchOpen}
         onClose={() => setSearchOpen(false)}
-        onSelectSlide={(idx) => { setCurrentSlideIndex(idx); setActiveTab('home'); }}
+        onSelectSlide={(idx) => { setSearchOpen(false); setCurrentSlideIndex(idx); setActiveTab('home'); }}
         onNavigate={navigateStorefront}
       />
 

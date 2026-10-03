@@ -54,9 +54,9 @@ export default function SearchModal({ isOpen, onClose, onSelectSlide, onNavigate
                   key={item.id}
                   style={styles.itemRow}
                   onClick={() => {
+                    onClose();
                     const originalIdx = PORTFOLIO_SERIES.findIndex(s => s.id === item.id);
                     onSelectSlide(originalIdx);
-                    onClose();
                   }}
                   className="hover-lift"
                 >
@@ -77,7 +77,7 @@ export default function SearchModal({ isOpen, onClose, onSelectSlide, onNavigate
             <span style={styles.sectionHeader}>PRODUCTS ({filteredProducts.length})</span>
             <div style={styles.list}>
               {filteredProducts.map((item) => (
-                <div key={item.id} style={styles.itemRow} onClick={() => { onNavigate('shop'); onClose(); }} className="hover-lift">
+                <div key={item.id} style={styles.itemRow} onClick={() => { onClose(); onNavigate('shop'); }} className="hover-lift">
                   <img src={item.image} alt="" style={styles.thumb} />
                   <div style={styles.itemMeta}>
                     <span style={styles.code}>{item.tag}</span>
@@ -95,7 +95,7 @@ export default function SearchModal({ isOpen, onClose, onSelectSlide, onNavigate
             <span style={styles.sectionHeader}>EXPLORE THE SITE ({filteredPaths.length})</span>
             <div style={styles.list}>
               {filteredPaths.map((item) => (
-                <div key={item.id} style={styles.itemRow} onClick={() => { onNavigate(item.id); onClose(); }} className="hover-lift">
+                <div key={item.id} style={styles.itemRow} onClick={() => { onClose(); onNavigate(item.id); }} className="hover-lift">
                   <img src={item.image} alt="" style={styles.thumb} />
                   <div style={styles.itemMeta}>
                     <span style={styles.code}>{item.label}</span>

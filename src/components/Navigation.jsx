@@ -1,4 +1,5 @@
 import { Menu, Search, ShoppingBag, Heart } from 'lucide-react';
+import { startTransition } from 'react';
 
 export default function Navigation({ activeTab, setActiveTab, onOpenDrawer, onOpenSearch, onOpenShop, onOpenCheckout, onOpenWishlist, onOpenServices, onOpenGallery, cartCount, wishlistCount }) {
   return (
@@ -17,7 +18,7 @@ export default function Navigation({ activeTab, setActiveTab, onOpenDrawer, onOp
       {/* ── LOGO — left on desktop, centered on mobile ── */}
       <button
         className="header-wordmark"
-        onClick={() => setActiveTab('home')}
+        onClick={() => startTransition(() => setActiveTab('home'))}
         aria-label="The Gifting Factory by Flower Girl – go home"
       >
         <img
@@ -31,13 +32,13 @@ export default function Navigation({ activeTab, setActiveTab, onOpenDrawer, onOp
       <nav style={styles.rightNav} className="desktop-nav">
         <button
           style={{ ...styles.navLink, fontWeight: activeTab === 'home' ? '600' : '400', opacity: activeTab === 'home' ? 1 : 0.8 }}
-          onClick={() => setActiveTab('home')}
+          onClick={() => startTransition(() => setActiveTab('home'))}
           className="link-underline"
         >HOME</button>
 
         <button
           style={{ ...styles.navLink, fontWeight: activeTab === 'about' ? '600' : '400', opacity: activeTab === 'about' ? 1 : 0.8 }}
-          onClick={() => setActiveTab('about')}
+          onClick={() => startTransition(() => setActiveTab('about'))}
           className="link-underline"
         >ABOUT</button>
 
@@ -61,13 +62,13 @@ export default function Navigation({ activeTab, setActiveTab, onOpenDrawer, onOp
 
         <button
           style={{ ...styles.navLink, fontWeight: activeTab === 'careers' ? '600' : '400', opacity: activeTab === 'careers' ? 1 : 0.8 }}
-          onClick={() => setActiveTab('careers')}
+          onClick={() => startTransition(() => setActiveTab('careers'))}
           className="link-underline"
         >CAREERS</button>
 
         <button
           style={{ ...styles.navLink, fontWeight: activeTab === 'track' ? '600' : '400', opacity: activeTab === 'track' ? 1 : 0.8 }}
-          onClick={() => setActiveTab('track')}
+          onClick={() => startTransition(() => setActiveTab('track'))}
           className="link-underline"
         >TRACK ORDER</button>
 

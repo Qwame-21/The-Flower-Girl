@@ -35,7 +35,7 @@ export default function DrawerMenu({ isOpen, onClose, onNavigate }) {
           ].map(([page, label]) => (
             <button
               key={page}
-              onClick={() => { onNavigate(page); onClose(); }}
+              onClick={() => { onClose(); onNavigate(page); }}
               style={styles.pageBtn}
               className="storefront-drawer__page"
             >
@@ -44,7 +44,7 @@ export default function DrawerMenu({ isOpen, onClose, onNavigate }) {
           ))}
         </nav>
 
-        <button className="storefront-drawer__announcement" onClick={() => { onNavigate(promotion ? 'shop' : 'home'); onClose(); }}>
+        <button className="storefront-drawer__announcement" onClick={() => { onClose(); onNavigate(promotion ? 'shop' : 'home'); }}>
           <small>{promotion ? 'CURRENT OFFER' : 'FROM THE STUDIO'}</small>
           <strong>{promotion ? `${Number(promotion.percent)}% off ${promotedProduct?.name || 'selected gifts'}` : adminData.content?.announcement}</strong>
           <span>{promotion ? 'View the offer →' : 'Return to the storefront →'}</span>
