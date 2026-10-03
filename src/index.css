@@ -5186,7 +5186,8 @@ a {
 }
 
 .date-field .custom-select>button,
-.checkout-modal .custom-select>button {
+.checkout-modal .custom-select>button,
+.request-modal .custom-select>button {
   font-family: var(--font-main);
   font-size: 1rem;
   font-weight: 400;
