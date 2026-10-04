@@ -24,6 +24,8 @@ function normalizePhone(phone) {
   return '+233' + digits;
 }
 
+import { PRODUCTS } from '../../data/products';
+
 // Load products for POS (visible only)
 export async function loadPosProducts() {
   if (!supabase) {
@@ -37,8 +39,8 @@ export async function loadPosProducts() {
     .eq('visible', true)
     .order('sort_order', { ascending: true });
 
-  if (error) {
-    console.error('Error loading POS products:', error);
+  if (error || !products) {
+    console.warn('Error fetching POS products from DB:', error);
     return [];
   }
 
@@ -48,10 +50,11 @@ export async function loadPosProducts() {
     price: p.price,
     stock: p.stock,
     category: p.category,
-    image: getImageUrl(p.image_path), // Use shared image helper
+    image: getImageUrl(p.image_path),
+    imageUrl: getImageUrl(p.image_path),
     tag: p.tag,
     description: p.description,
-    code: p.id // Using product ID as code for now
+    code: p.id
   }));
 }
 

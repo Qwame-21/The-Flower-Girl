@@ -171,7 +171,23 @@ export default function Sidebar({
               <span className="menu-item-label">Products</span>
             </NavLink>
 
-            {/* 06. Shop/POS */}
+            {/* 06. Customization */}
+            <NavLink
+              to="/customization"
+              className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+              data-page="Customization"
+              onClick={onCloseMobile}
+            >
+              <div className="menu-item-icon-wrapper">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+              </div>
+              <span className="menu-item-label">Customization</span>
+            </NavLink>
+
+            {/* 07. Shop/POS */}
             <NavLink
               to="/shop-pos"
               className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}

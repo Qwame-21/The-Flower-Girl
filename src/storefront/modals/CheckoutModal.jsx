@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Check, LoaderCircle, LocateFixed, MapPin, Trash2 } from 'lucide-react';
-import { initializeCheckout } from '../api/checkoutApi';
+import { initializeCheckout, verifyCheckoutPayment } from '../api/checkoutApi';
 import { hasTrackingApi, trackRecord } from '../api/trackingApi';
 import { formIsoDateOptional } from '../utils/date';
 import CardStylePicker from '../components/CardStylePicker';
@@ -45,24 +45,55 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
   };
 
   useEffect(() => {
-    if (!complete?.trackingNumber || ['paid', 'pending'].includes(complete.status) || !hasTrackingApi()) return undefined;
+    if (!complete?.reference || ['paid', 'pending', 'failed'].includes(complete.status)) return undefined;
     let stopped = false;
     let attempts = 0;
-    const check = async () => {
+    const ref = complete.reference;
+    const trackNum = complete.trackingNumber;
+    const email = complete.customerEmail;
+
+    const verifyAndCheck = async () => {
       attempts += 1;
-      const { data } = await trackRecord(complete.trackingNumber, complete.customerEmail);
-      if (!stopped && data?.kind === 'order' && data.paymentStatus === 'paid') {
-        setComplete(current => ({ ...current, status: 'paid' }));
-        window.sessionStorage.setItem('gifting-factory-payment-return', JSON.stringify({ ...complete, status: 'paid' }));
-      } else if (!stopped && attempts < 12) window.setTimeout(check, 1500);
-      else if (!stopped) {
+      try {
+        const res = await verifyCheckoutPayment(ref);
+        const resJson = await res.json().catch(() => null);
+        if (!stopped && res.ok && resJson?.success) {
+          setComplete(current => ({ ...current, status: 'paid' }));
+          window.sessionStorage.setItem('gifting-factory-payment-return', JSON.stringify({ ...complete, status: 'paid' }));
+          return;
+        }
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.warn('[checkout-verify] Server verification attempt error:', err);
+        }
+      }
+
+      if (trackNum && hasTrackingApi()) {
+        try {
+          const { data } = await trackRecord(trackNum, email);
+          if (!stopped && data?.kind === 'order' && data.paymentStatus === 'paid') {
+            setComplete(current => ({ ...current, status: 'paid' }));
+            window.sessionStorage.setItem('gifting-factory-payment-return', JSON.stringify({ ...complete, status: 'paid' }));
+            return;
+          }
+        } catch (trackErr) {
+          if (import.meta.env.DEV) {
+            console.warn('[checkout-verify] Tracking API error:', trackErr);
+          }
+        }
+      }
+
+      if (!stopped && attempts < 10) {
+        window.setTimeout(verifyAndCheck, 3000);
+      } else if (!stopped) {
         setComplete(current => ({ ...current, status: 'pending' }));
         window.sessionStorage.setItem('gifting-factory-payment-return', JSON.stringify({ ...complete, status: 'pending' }));
       }
     };
-    check();
+
+    verifyAndCheck();
     return () => { stopped = true; };
-  }, [complete]);
+  }, [complete?.reference, complete?.status]);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -79,12 +110,14 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
 
     try {
       const customerPhone = String(data.get('phone') || '').trim() || combinePhone(data.get('phone-code') || '+233', data.get('phone-number'));
+      const deliveryAddress = formatDeliveryAddress(data);
+
       const res = await initializeCheckout({
         customerName: String(data.get('customer') || '').trim(),
         customerEmail: String(data.get('email') || '').trim(),
         customerPhone,
         recipientName: String(data.get('recipient-name') || data.get('customer') || '').trim(),
-        deliveryAddress: formatDeliveryAddress(data),
+        deliveryAddress,
         landmark: String(data.get('landmark') || '').trim(),
         locationLink,
         customerNote: instructionParts.join('\n'),

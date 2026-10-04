@@ -26,6 +26,7 @@ interface InitPayload {
   customerPhone: string;
   recipientName?: string;
   deliveryAddress: string;
+  deliveryType?: 'sameday' | 'scheduled' | 'surprise' | 'collection';
   landmark?: string;
   locationLink?: string;
   customerNote?: string;
@@ -70,7 +71,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const {
     customerName, customerEmail, customerPhone, recipientName,
-    deliveryAddress, landmark, locationLink, customerNote,
+    deliveryAddress, deliveryType, landmark, locationLink, customerNote,
     cardMessage, cardStyleNotes, requestedDeliveryDate, cart,
   } = payload;
 
@@ -91,10 +92,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const productIds = [...new Set(cart.map((item) => item.id))];
   const now = new Date().toISOString();
-  const [{ data: dbProducts, error: productError }, { data: promotions, error: promotionError }] = await Promise.all([
+  const [
+    { data: dbProducts, error: productError },
+    { data: promotions, error: promotionError },
+    { data: siteSettings, error: settingsError },
+  ] = await Promise.all([
     supabase.from('products').select('id, name, price, stock, visible').in('id', productIds),
     supabase.from('promotions').select('product_id, percent').eq('status', 'active').or(`starts_at.is.null,starts_at.lte.${now}`).or(`ends_at.is.null,ends_at.gte.${now}`),
+    supabase.from('site_settings').select('*').eq('id', 'global').maybeSingle(),
   ]);
+  if (settingsError || !siteSettings) {
+    return new Response(JSON.stringify({ error: 'Delivery settings could not be loaded. Try again.' }), {
+      status: 503,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
+  }
   if (productError || promotionError || !dbProducts || dbProducts.length !== productIds.length) {
     return new Response(JSON.stringify({ error: 'The live catalogue could not validate every item. Refresh the shop and try again.' }), {
       status: 409,
@@ -129,6 +141,51 @@ Deno.serve(async (req: Request): Promise<Response> => {
     validatedItems.push({ product_id: cartItem.id, item_name: dbProduct.name, quantity: qty, unit_price: itemPrice, metadata: { discount_percent: discountPercent } });
   }
 
+  // ── Delivery Fee computation from site_settings ──────────────────────────────
+  let deliveryFee = 0;
+  if (!deliveryType) {
+    deliveryFee = 0;
+  } else if (deliveryType === 'sameday') {
+    if (siteSettings.delivery_sameday_enabled === false) {
+      return new Response(JSON.stringify({ error: 'Same-day delivery is currently disabled.' }), {
+        status: 400,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    }
+    deliveryFee = Number(siteSettings.delivery_sameday_fee);
+  } else if (deliveryType === 'scheduled') {
+    if (siteSettings.delivery_scheduled_enabled === false) {
+      return new Response(JSON.stringify({ error: 'Scheduled delivery is currently disabled.' }), {
+        status: 400,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    }
+    deliveryFee = Number(siteSettings.delivery_scheduled_fee);
+  } else if (deliveryType === 'surprise') {
+    if (siteSettings.delivery_surprise_enabled === false) {
+      return new Response(JSON.stringify({ error: 'Surprise delivery is currently disabled.' }), {
+        status: 400,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    }
+    deliveryFee = Number(siteSettings.delivery_surprise_fee);
+  } else if (deliveryType === 'collection') {
+    if (siteSettings.delivery_collection_enabled === false) {
+      return new Response(JSON.stringify({ error: 'Store collection is currently disabled.' }), {
+        status: 400,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    }
+    deliveryFee = Number(siteSettings.delivery_collection_fee);
+  } else {
+    return new Response(JSON.stringify({ error: `Invalid delivery type: ${deliveryType}` }), {
+      status: 400,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const grandTotal = serverTotal + deliveryFee;
+
   // ── Generate references ───────────────────────────────────────────────────────
   const timestamp = Date.now();
   const tracking   = `GF-${String(timestamp).slice(-6)}`;
@@ -146,6 +203,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       customer_phone: customerPhone,
       recipient_name: recipientName || customerName,
       delivery_address: deliveryAddress,
+      delivery_type: deliveryType || null,
+      delivery_fee: deliveryFee,
       landmark: landmark || '',
       location_link: locationLink || '',
       customer_note: customerNote || '',
@@ -155,7 +214,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     },
     items: validatedItems,
     subtotal: serverTotal,
-    total: serverTotal,
+    total: grandTotal,
     currency: 'GHS',
   });
   if (attemptError) {
@@ -167,7 +226,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // ── Call Paystack transaction/initialize ──────────────────────────────────────
-  const amountInPesewas = Math.round(serverTotal * 100);
+  const amountInPesewas = Math.round(grandTotal * 100);
   let callbackUrl: string | undefined;
   if (payload.callbackUrl) {
     try {
@@ -221,7 +280,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       reference: paystackRef,
       trackingNumber: tracking,
       orderCode,
-      total: serverTotal,
+      subtotal: serverTotal,
+      deliveryFee,
+      total: grandTotal,
     }),
     { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
   );

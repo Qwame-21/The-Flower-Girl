@@ -3,6 +3,7 @@
 
 import { listOrders } from './orders';
 import { formatGHS } from '../lib/ordersModel';
+import { supabase } from '../../config/supabase';
 
 const CUSTOMERS_KEY = 'xa12-customers-data-v1';
 
@@ -17,10 +18,26 @@ export function loadCustomersData() {
   return [];
 }
 
-// Save customers overrides to localStorage
-export function saveCustomersData(list) {
+// Save customers overrides to localStorage & Supabase
+export async function saveCustomersData(list) {
   try {
     localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(list));
+    if (supabase) {
+      for (const c of list) {
+        try {
+          if (c.email && c.email !== 'N/A') {
+            await supabase.from('customers').upsert({
+              name: c.name,
+              email: c.email,
+              phone: c.phone !== 'N/A' ? c.phone : null,
+              is_vip: Boolean(c.isVip),
+              total_orders: c.orderCount || 0,
+              total_spent: c.totalSpend || 0
+            }, { onConflict: 'email' });
+          }
+        } catch {}
+      }
+    }
   } catch {}
 }
 

@@ -5,6 +5,7 @@ import { ORDER_CATEGORIES, formatGHS } from '../lib/ordersModel';
 import { listOrders, updateOrderStatus, deleteOrder, updateOrderNote } from '../data/orders';
 import { supabase } from '../../config/supabase';
 import { DASHBOARD_TO_DB_FULFILLMENT, DB_TO_DASHBOARD_FULFILLMENT, STEPPER_TO_EVENT_STAGE } from '../data/statusMap';
+import { getImageUrl } from '../lib/imageUrlHelper';
 
 // SVG Icons
 const SVG = {
@@ -47,7 +48,7 @@ export default function OrdersPage() {
   // Track in-flight updates per order to prevent race conditions
   const [updatingOrders, setUpdatingOrders] = useState(new Set());
 
-  // Load orders from Supabase on mount
+  // Load orders from Supabase on mount and subscribe to realtime
   useEffect(() => {
     async function loadOrders() {
       setLoading(true);
@@ -57,6 +58,34 @@ export default function OrdersPage() {
       setLoading(false);
     }
     loadOrders();
+
+    if (!supabase) return undefined;
+
+    const channel = supabase
+      .channel('orders-realtime-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        async () => {
+          const fresh = await listOrders();
+          setOrdersList(fresh);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'admin_notifications' },
+        async (payload) => {
+          if (payload.new?.type === 'new_order') {
+            const fresh = await listOrders();
+            setOrdersList(fresh);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Filters state
@@ -749,10 +778,6 @@ export default function OrdersPage() {
 
                     <div className="order-amount-block">
                       <div className="order-amount-text">GHS {amount.toLocaleString('en-US')}</div>
-                      <div className="order-code-muted code-with-copy">
-                        {displayCode}
-                        <CopyIcon text={displayCode} />
-                      </div>
                     </div>
 
                     <div className={`expand-chevron ${isExpanded ? 'expanded' : ''}`}>
@@ -784,11 +809,14 @@ export default function OrdersPage() {
                               <div className="contact-icon-tile">{SVG.phone}</div>
                               <div className="contact-detail-content">
                                 <div className="contact-detail-label">PHONE</div>
-                                <div className="contact-detail-value">
+                                <div className="contact-detail-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                   {order.customerPhone || order.phone ? (
-                                    <a href={`tel:${order.customerPhone || order.phone}`} className="contact-link">
-                                      {order.customerPhone || order.phone}
-                                    </a>
+                                    <>
+                                      <a href={`tel:${order.customerPhone || order.phone}`} className="contact-link">
+                                        {order.customerPhone || order.phone}
+                                      </a>
+                                      <CopyIcon text={order.customerPhone || order.phone} />
+                                    </>
                                   ) : 'N/A'}
                                 </div>
                               </div>
@@ -828,46 +856,35 @@ export default function OrdersPage() {
                                   <div className="contact-detail-value">
                                     {(() => {
                                       const phone = order.customerPhone || order.phone;
-                                      // Normalize Ghana phone to international format (+233)
-                                      const normalizedPhone = phone.replace(/\D/g, '');
-                                      const internationalPhone = normalizedPhone.startsWith('0')
-                                        ? `+233${normalizedPhone.slice(1)}`
-                                        : normalizedPhone.startsWith('233')
-                                          ? `+${normalizedPhone}`
-                                          : normalizedPhone;
+                                      const digits = phone.replace(/\D/g, '');
+                                      // Normalise to international format for wa.me
+                                      let internationalPhone;
+                                      if (phone.startsWith('+')) {
+                                        // Already international — keep as-is (digits already stripped +)
+                                        internationalPhone = digits;
+                                      } else if (digits.startsWith('0')) {
+                                        // Local Ghana format: 0XXXXXXXXX → 233XXXXXXXXX
+                                        internationalPhone = '233' + digits.slice(1);
+                                      } else if (digits.startsWith('233')) {
+                                        // Already has country code without +
+                                        internationalPhone = digits;
+                                      } else {
+                                        // No country code — assume Ghana
+                                        internationalPhone = '233' + digits;
+                                      }
                                       const statusLabel = order.fulfillmentStatus || 'Unknown';
-                                      const message = encodeURIComponent(
+                                      const waMessage = encodeURIComponent(
                                         `Hello! Your order ${order.orderCode || order.trackingNumber} is currently ${statusLabel}. Tracking: ${order.trackingNumber || 'N/A'}`
                                       );
-                                      const handleCopyPhone = () => {
-                                        navigator.clipboard.writeText(internationalPhone);
-                                      };
                                       return (
-                                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                                          <a
-                                            href={`https://wa.me/${internationalPhone}?text=${message}`}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="contact-link"
-                                          >
-                                            Message on WhatsApp
-                                          </a>
-                                          <button
-                                            type="button"
-                                            onClick={handleCopyPhone}
-                                            style={{
-                                              padding: '4px 8px',
-                                              fontSize: '11px',
-                                              background: 'rgba(26,26,26,0.08)',
-                                              border: 'none',
-                                              borderRadius: '4px',
-                                              cursor: 'pointer',
-                                              color: 'var(--text-muted)'
-                                            }}
-                                          >
-                                            Copy number
-                                          </button>
-                                        </div>
+                                        <a
+                                          href={`https://wa.me/${internationalPhone}?text=${waMessage}`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="contact-link"
+                                        >
+                                          Message on WhatsApp
+                                        </a>
                                       );
                                     })()}
                                   </div>
@@ -884,20 +901,37 @@ export default function OrdersPage() {
                           <span className="column-title">ITEMS</span>
                         </div>
                         <div className="items-list">
-                          {(order.items || []).map((item, idx) => (
-                            <div key={idx} className="item-entry">
-                              <span className="item-entry-left">
-                                <span className="item-code">{item.sku || 'w01'}</span>
-                                <span className="item-name">{item.name}</span>
-                                <span className="item-qty">×{item.qty}</span>
-                              </span>
-                              <span className="item-entry-price">GHS {(item.unitPrice * item.qty).toFixed(0)}</span>
-                            </div>
-                          ))}
+                          {(order.items || []).map((item, idx) => {
+                            const rawImg = item.image || item.imageUrl || item.image_path || item.metadata?.image || item.metadata?.imageUrl;
+                            const itemImg = getImageUrl(rawImg);
+                            return (
+                              <div key={idx} className="item-entry" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{
+                                  width: '36px', height: '36px', borderRadius: '6px', overflow: 'hidden',
+                                  background: 'rgba(26,26,26,0.04)', border: '1px solid rgba(26,26,26,0.08)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                                }}>
+                                  {itemImg ? (
+                                    <img src={itemImg} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                  ) : (
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5">
+                                      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/>
+                                    </svg>
+                                  )}
+                                </div>
+                                <span className="item-entry-left" style={{ flex: 1 }}>
+                                  <span className="item-code">{item.sku || 'w01'}</span>
+                                  <span className="item-name">{item.name}</span>
+                                  <span className="item-qty">×{item.qty}</span>
+                                </span>
+                                <span className="item-entry-price">GHS {(item.unitPrice * item.qty).toFixed(0)}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                         <div className="items-total-row">
                           <span className="total-label">Total:</span>
-                          <span className="total-amount-pink">GHS {Math.round(amount)}</span>
+                          <span className="total-amount-pink">GHS {Math.round(amount).toLocaleString('en-US')}</span>
                         </div>
                       </div>
                     </div>

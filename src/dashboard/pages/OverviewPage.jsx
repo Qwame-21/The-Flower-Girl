@@ -173,9 +173,9 @@ function TrendChart({ series, mode }) {
   const { dates = [], currentValues = [], previousValues = [] } = series;
   const rawMax = Math.max(...currentValues, ...previousValues, 0);
   const maxVal = rawMax > 0 ? rawMax : 100;
-  const width = 640;
-  const height = 220;
-  const padding = { top: 35, right: 30, bottom: 40, left: 65 };
+  const width = 600;
+  const height = 180;
+  const padding = { top: 28, right: 24, bottom: 34, left: 58 };
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
   const count = currentValues.length;
@@ -623,7 +623,7 @@ export default function OverviewPage() {
             </div>
             <button className="btn-capsule" onClick={() => navigate('/log')} style={{ fontSize: '11px', cursor: 'pointer' }}>View all</button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1, paddingTop: '4px' }}>
+          <div className="activity-tile-card-body" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1, paddingTop: '4px' }}>
             {activityLog.length > 0 ? (
               activityLog.map(item => {
                 let icon = SVG.clock;

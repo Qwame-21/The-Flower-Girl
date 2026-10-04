@@ -6,6 +6,17 @@ import { Link } from 'react-router-dom';
 import { loadPosProducts, placeStaffOrder } from '../data/shopPos';
 import CustomDropdown from '../components/shared/CustomDropdown';
 import CopyIcon from '../components/shared/CopyIcon';
+import DatePickerDropdowns from '../components/shared/DatePickerDropdowns';
+import { focusAndScrollToFirstError } from '../lib/formValidationHelper';
+import { getImageUrl } from '../lib/imageUrlHelper';
+
+const CATEGORY_IMAGE_FALLBACKS = {
+  hampers: '/assets/hamper-editorial-v2.png',
+  bundles: '/assets/engagement-presentation-v2.png',
+  care: '/assets/wrapping-editorial-v2.png',
+  flowers: '/assets/bouquet-editorial-v2.png',
+  personalized: '/assets/embroidery-editorial-v2.png'
+};
 
 // Shared line-art motif set — thin single-weight stroke, no fill, ink-colored (Monolith lines 16732-16810)
 function getPlaceholderSvg(category) {
@@ -140,7 +151,7 @@ function normalizeProduct(p, idx = 0) {
     occasion: p.occasion || (p.tags && p.tags[0]) || 'Signature',
     isBundle: !!p.isBundle || categoryTitle === 'Bundles' || categoryTitle === 'Hampers',
     variants: p.variants || [],
-    imageUrl: p.imageUrl || p.image || '',
+    imageUrl: getImageUrl(p.imageUrl || p.image || p.image_path) || CATEGORY_IMAGE_FALLBACKS[categoryTitle.toLowerCase()] || '/assets/hamper-editorial-v2.png',
     description: p.description || '',
     sizeType: p.sizeType || '',
     isBestseller: !!p.isBestseller,
@@ -303,6 +314,7 @@ export default function ShopPOSPage() {
 
     if (Object.keys(errors).length > 0) {
       setShopFormErrors(errors);
+      setTimeout(() => focusAndScrollToFirstError('#shopCurrentOrderPanel'), 50);
       return;
     }
 
@@ -310,6 +322,7 @@ export default function ShopPOSPage() {
 
     if (!result.success) {
       setShopFormErrors({ general: result.error || 'Failed to place order' });
+      setTimeout(() => focusAndScrollToFirstError('#shopCurrentOrderPanel'), 50);
       return;
     }
 
@@ -397,6 +410,7 @@ export default function ShopPOSPage() {
             const isOutOfStock = p.stock === 0;
             const isLowStock = p.stock > 0 && p.stock <= lowThreshold;
             const canAdd = !isOutOfStock && cartQty < p.stock;
+            const displayImg = p.imageUrl || CATEGORY_IMAGE_FALLBACKS[(p.category || '').toLowerCase()] || '/assets/hamper-editorial-v2.png';
 
             return (
               <div
@@ -405,26 +419,13 @@ export default function ShopPOSPage() {
                 data-id={p.id}
               >
                 <div className="shop-card-media">
-                  {p.image ? (
-                    <>
-                      <img
-                        src={p.image}
-                        alt=""
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          if (e.currentTarget.nextElementSibling) {
-                            e.currentTarget.nextElementSibling.style.display = 'grid';
-                          }
-                        }}
-                      />
-                      <div
-                        style={{ display: 'none', width: '100%', height: '100%', placeItems: 'center' }}
-                        dangerouslySetInnerHTML={{ __html: getPlaceholderSvg(p.category) }}
-                      />
-                    </>
-                  ) : (
-                    <div dangerouslySetInnerHTML={{ __html: getPlaceholderSvg(p.category) }} />
-                  )}
+                  <img
+                    src={displayImg}
+                    alt={p.name}
+                    onError={(e) => {
+                      e.currentTarget.src = '/assets/hamper-editorial-v2.png';
+                    }}
+                  />
                 </div>
 
                 <div className="shop-card-badges">
@@ -438,10 +439,11 @@ export default function ShopPOSPage() {
                 </div>
 
                 <div className="shop-card-body">
-                  <span className="shop-card-name">{p.name}</span>
                   <div className="shop-card-bottom">
-                    <span className="shop-card-code">{p.code}</span>
-                    <span className="shop-card-price">GHS {Math.round(p.price)}</span>
+                    <span className="shop-card-name" title={p.name}>{p.name}</span>
+                    <div className="shop-card-price">
+                      <span>GHS {Math.round(p.price).toLocaleString('en-US')}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -658,7 +660,15 @@ export default function ShopPOSPage() {
               {renderFormField('landmark', 'Nearest landmark', shopFormData.landmark, shopFormErrors.landmark)}
               {renderFormField('locationLink', 'Google Maps link (optional)', shopFormData.locationLink, shopFormErrors.locationLink)}
               {renderFormField('deliveryInstructions', 'Delivery instructions', shopFormData.deliveryInstructions, shopFormErrors.deliveryInstructions)}
-              {renderFormField('deliveryDate', 'Delivery date *', shopFormData.deliveryDate, shopFormErrors.deliveryDate, 'date')}
+              <div className="shop-field-group">
+                <label className="shop-field-label">Delivery date *</label>
+                <DatePickerDropdowns
+                  value={shopFormData.deliveryDate}
+                  onChange={(val) => handleFormFieldChange('deliveryDate', val)}
+                  hasError={!!shopFormErrors.deliveryDate}
+                />
+                {shopFormErrors.deliveryDate && <span className="shop-field-error" style={{ color: '#e11d48', fontSize: '12px', marginTop: '4px', display: 'block' }}>{shopFormErrors.deliveryDate}</span>}
+              </div>
             </div>
 
             {/* Order Options */}

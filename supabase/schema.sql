@@ -245,9 +245,7 @@ do $$ begin
   create policy "public reads open careers" on public.careers for select using (status = 'open');
   create policy "public reads site content" on public.site_content for select using (true);
   create policy "public reads site settings" on public.site_settings for select using (true);
-  do $$ begin
-    create policy "public reads visible customization options" on public.customization_options for select using (visible);
-  exception when duplicate_object then null; end $$;
+  create policy "public reads visible customization options" on public.customization_options for select using (visible);
 exception when duplicate_object then null; end $$;
 
 do $$ declare table_name text; begin
@@ -476,7 +474,7 @@ create trigger on_new_career_application
 -- Phone normalization helper: keeps digits only, drops +, 00, and Ghana country code 233, drops single leading 0
 -- Returns national number for Ghana numbers, full digits for other countries
 create or replace function public.normalize_phone(phone text)
-returns text language sql immutable strict parallel safe
+returns text language plpgsql immutable strict parallel safe
 as $$
 declare digits text;
 begin

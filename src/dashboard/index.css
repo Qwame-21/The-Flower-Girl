@@ -14,6 +14,7 @@
    -------------------------------------------------------------------------- */
 
 :root {
+  --admin-input-font-size: 16px;
   --xp-r-pill: 9999px;
   /* Color Palette System (Style Lock 001) */
   --bg-gradient-start: #e4e4e2;
@@ -111,6 +112,12 @@
   /* Side Navigation Width Tokens */
   --side-nav-collapsed-width: 68px;
   --side-nav-expanded-width: 276px;
+
+  /* Motion Tokens (Phase 3A — shared animation system) */
+  --dur-fast: 160ms;
+  --dur: 240ms;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* Z-Index System - Architectural Standard */
   --z-base: 1;
@@ -655,6 +662,8 @@ html, body {
   height: 100%;
   display: flex;
   flex-direction: column;
+  /* gap removed — margin-top on the scroll body owns the separation so
+     no transparent hole exists between the two islands. */
   gap: 0;
   min-width: 0;
   min-height: 0;
@@ -679,7 +688,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 6px 32px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   box-sizing: border-box;
 }
 
@@ -1148,31 +1157,30 @@ html, body {
   border-radius: 3px;
 }
 
-/* Copy icon button - shown on hover/focus, reserved space to prevent layout shift */
+/* Copy icon button - universal rounded circle style */
 .copy-icon-btn {
-  background: rgba(26, 26, 26, 0.04);
-  border: 1px solid rgba(26, 26, 26, 0.12);
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  color: var(--text-muted);
+  background: rgba(26, 26, 26, 0.05) !important;
+  border: 1px solid rgba(26, 26, 26, 0.12) !important;
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  color: var(--text-muted) !important;
   cursor: pointer;
-  border-radius: 4px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
+  border-radius: 50% !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
   flex-shrink: 0;
-  opacity: 0;
+  opacity: 1 !important;
   margin-left: 6px;
 }
 
 .copy-icon-btn:hover,
 .copy-icon-btn:focus {
-  opacity: 1;
-  background: rgba(26, 26, 26, 0.08);
-  border-color: rgba(26, 26, 26, 0.2);
-  color: var(--text-primary);
+  background: rgba(26, 26, 26, 0.1) !important;
+  border-color: rgba(26, 26, 26, 0.25) !important;
+  color: var(--text-primary) !important;
 }
 
 .copy-icon-btn:focus-visible {
@@ -1310,7 +1318,9 @@ html, body {
   border-radius: 20px;
   padding: 0;
   margin: 0;
-  padding-top: 8px;
+  /* margin-top owns the 8px gap between header pill and scroll body.
+     This avoids a transparent hole owned by the parent canvas. */
+  margin-top: 8px;
 }
 
 .extendable-content-body::-webkit-scrollbar {
@@ -11976,15 +11986,12 @@ button[data-trend-mode].active {
    ========================================================================== */
 .product-card-actions button,
 .btn-card-action,
-.xp-ib,
 .shop-add-btn,
 .pos-add-btn,
 .product-card button,
 .shop-product-card button,
 .pos-product-card button,
-.xp-card button,
-.xp-edit-btn,
-.xp-del-btn {
+.xp-card button {
   background: #1a1a1a !important;
   color: #ffffff !important;
   border: 1px solid #1a1a1a !important;
@@ -12934,5 +12941,783 @@ textarea:focus-visible {
   width: 32px !important;
   height: 32px !important;
 }
+
+/* =========================================================
+   NOTIFICATION PANEL — CLEAR OVERLAY + SELECT DOTS
+   ========================================================= */
+
+/* Full-panel clear-all confirmation overlay */
+
+.notif-clear-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 20;
+  border-radius: inherit;
+  padding: 24px;
+  animation: fadeInOverlay 0.18s ease;
+}
+
+@keyframes fadeInOverlay {
+  from { opacity: 0; transform: scale(0.98); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.notif-clear-question {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #1a1a1a);
+  text-align: center;
+  margin: 0;
+}
+
+.notif-clear-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.notif-clear-yes {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  padding: 0 20px;
+  height: 34px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+.notif-clear-yes:hover { background: #b91c1c; }
+
+.notif-clear-no {
+  background: rgba(26,26,26,0.06);
+  color: var(--text-primary, #1a1a1a);
+  border: 1px solid rgba(26,26,26,0.12);
+  border-radius: 20px;
+  padding: 0 20px;
+  height: 34px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+.notif-clear-no:hover { background: rgba(26,26,26,0.1); }
+
+/* Multi-select dot on notification items */
+.notif-item {
+  gap: 8px;
+}
+
+.notif-select-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(26,26,26,0.25);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  display: inline-block;
+}
+
+.notif-select-dot:hover {
+  border-color: rgba(26,26,26,0.5);
+}
+
+.notif-select-dot.selected {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+}
+
+.notif-item.notif-selected {
+  background: rgba(26,26,26,0.06);
+  border-color: rgba(26,26,26,0.2);
+}
+
+/* Clean SVG dismiss button */
+.notif-clear-item-btn {
+  background: transparent;
+  border: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.5;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.notif-clear-item-btn:hover {
+  opacity: 1;
+  color: var(--text-primary, #1a1a1a);
+  background: rgba(26,26,26,0.08);
+}
+
+/* =========================================================
+   PRODUCT CARD — FULL-IMAGE LAYOUT, NO BLACK BOX
+   ========================================================= */
+
+/* When card has a photo: make image fill the entire card area above the body */
+.xp-card.has-photo .card-media-bg,
+.xp-card.has-photo .xp-media {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.xp-card.has-photo .card-media-bg img,
+.xp-card.has-photo .xp-media img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  mix-blend-mode: normal !important;
+  display: block !important;
+  margin: 0 !important;
+}
+
+/* When card has no photo: remove dark/black background, show clean SVG placeholder */
+.xp-card.has-placeholder .card-media-bg,
+.xp-card.has-placeholder .xp-media {
+  background: #f5f4f2 !important;
+  padding: 24px !important;
+}
+
+.card-media-bg {
+  width: 100% !important;
+  flex: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+  overflow: hidden !important;
+  background: transparent !important;
+  min-height: 160px;
+}
+
+.card-media-bg img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  mix-blend-mode: normal !important;
+  display: block !important;
+  margin: 0 !important;
+}
+
+.card-placeholder-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: #f5f4f2;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.card-placeholder-fallback svg {
+  opacity: 0.45;
+  max-width: 80px;
+  max-height: 80px;
+}
+
+/* Shop card same treatment */
+.shop-card-media {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.shop-card-media img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  mix-blend-mode: normal !important;
+  display: block !important;
+  margin: 0 !important;
+}
+
+/* =========================================================
+   ACTIVITY CARD — CONSTRAINED HEIGHT
+   ========================================================= */
+
+.activity-tile-card {
+  max-height: 340px;
+  overflow: hidden;
+}
+
+.activity-tile-card .card-header {
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   COPY ICON — ALWAYS VISIBLE ON PHONE ROW
+   ========================================================= */
+
+.contact-detail-value .copy-icon-btn {
+  opacity: 1 !important;
+  background: rgba(26,26,26,0.05) !important;
+  border-color: rgba(26,26,26,0.12) !important;
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 50% !important;
+}
+
+.contact-detail-value .copy-icon-btn:hover {
+  background: rgba(26,26,26,0.1) !important;
+  color: var(--text-primary) !important;
+}
+
+/* =========================================================
+   SMOOTH HOVER — REMOVE JITTERY TRANSFORMS ON STATUS PILLS
+   ========================================================= */
+
+.stepper-box {
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease !important;
+}
+.stepper-box:not([disabled]):hover {
+  transform: none !important;
+}
+
+/* Smooth filter pill toggles */
+.status-filter,
+.category-tab {
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease !important;
+}
+
+/* =========================================================
+   PRICE FORMATTING — NUMBER DISPLAY CONSISTENCY
+   ========================================================= */
+
+.xp-price,
+.shop-card-price,
+.stat-card-value,
+.metric-value,
+.order-amount-text,
+.total-amount-pink {
+  font-variant-numeric: tabular-nums;
+}
+
+/* =========================================================
+   FONT CONSISTENCY — ADMIN INPUT/TEXTAREA
+   ========================================================= */
+
+.dashboard-root input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']),
+.dashboard-root textarea,
+.dashboard-root select {
+  font-family: var(--font-family-base, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif) !important;
+}
+
+/* =========================================================
+   TREND CHART — COMPACT CARD
+   ========================================================= */
+
+.trend-chart-card {
+  padding-bottom: 16px !important;
+}
+
+
+/* =========================================================
+   PRODUCT CARD SKELETON PLACEHOLDER
+   ========================================================= */
+
+.card-skeleton-bg {
+  width: 100%;
+  height: 100%;
+  min-height: 180px;
+  background: linear-gradient(90deg, #efefef 0%, #f8f8f8 40%, #efefef 80%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+  display: block;
+}
+
+@keyframes skeletonShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.xp-card .card-media-bg,
+.xp-card .xp-media {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+/* =========================================================
+   ORDER CODE COPY BUTTON — VISIBLE & ROUNDED
+   ========================================================= */
+
+.order-code-copy-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 20px !important;
+  height: 20px !important;
+  padding: 0 !important;
+  border: 1px solid rgba(26,26,26,0.18) !important;
+  border-radius: 50% !important;
+  background: rgba(26,26,26,0.05) !important;
+  color: #6b7280 !important;
+  cursor: pointer !important;
+  transition: background 0.15s, color 0.15s, border-color 0.15s !important;
+  flex-shrink: 0 !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+}
+
+.order-code-copy-btn:hover {
+  background: rgba(26,26,26,0.12) !important;
+  color: #1a1a1a !important;
+  border-color: rgba(26,26,26,0.3) !important;
+}
+
+.order-code-copy-btn[data-copied='true'] {
+  color: #5E9470 !important;
+  border-color: #5E9470 !important;
+  background: rgba(94,148,112,0.1) !important;
+}
+
+/* =========================================================
+   NOTIFICATION BELL — FORCE VISIBLE
+   ========================================================= */
+
+.notif-wrapper { display: flex !important; align-items: center !important; }
+.notif-btn { display: flex !important; visibility: visible !important; opacity: 1 !important; }
+
+/* =========================================================
+   RECENT ACTIVITY CARD — SCROLLABLE BODY
+   ========================================================= */
+
+.activity-tile-card {
+  display: flex;
+  flex-direction: column;
+  max-height: 380px;
+  overflow: hidden;
+}
+.activity-tile-card .card-header { flex-shrink: 0; }
+.activity-tile-card-body {
+  overflow-y: auto !important;
+  flex: 1;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(26,26,26,0.15) transparent;
+}
+.activity-tile-card-body::-webkit-scrollbar { width: 4px; }
+.activity-tile-card-body::-webkit-scrollbar-thumb { background: rgba(26,26,26,0.15); border-radius: 2px; }
+
+/* =========================================================
+   CONSISTENT TOP BAR & CARD SIZE — Products & ShopPOS
+   ========================================================= */
+
+/* Top Bar Padding & Proper Element Breathing Room — Universal Navigation Bar */
+.top-title-bar {
+  height: 60px !important;
+  min-height: 60px !important;
+  max-height: 60px !important;
+  padding: 0 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  border-radius: 28px !important;
+  background: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+}
+
+.title-bar-right {
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+}
+
+.notif-admin-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.top-bar-clock-box {
+  height: 30px !important;
+  padding: 0 12px !important;
+  margin-right: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  border-radius: 9999px !important;
+  background: rgba(255, 255, 255, 0.4) !important;
+  border: 1px solid rgba(26, 26, 26, 0.08) !important;
+  /* Tight horizontal fit hugging clock text without width jitter */
+  min-width: 175px !important;
+  white-space: nowrap !important;
+}
+
+.top-bar-clock-box .top-bar-clock {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: var(--text-muted, #555555) !important;
+  font-variant-numeric: tabular-nums !important;
+  white-space: nowrap !important;
+  letter-spacing: 0.02em !important;
+}
+
+.title-bar-right .notif-wrapper {
+  display: flex !important;
+  align-items: center !important;
+  position: relative !important;
+}
+
+.title-bar-right .notif-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: 38px !important;
+  width: 38px !important;
+  min-width: 38px !important;
+  max-width: 38px !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.4) !important;
+  border: 1px solid rgba(26, 26, 26, 0.12) !important;
+}
+
+.admin-profile-pill.prominent {
+  height: 38px !important;
+  padding: 0 16px 0 10px !important;
+  border-radius: 9999px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  background: rgba(255, 255, 255, 0.4) !important;
+  border: 1px solid rgba(26, 26, 26, 0.12) !important;
+}
+
+.notif-accent-badge {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 10px !important;
+  box-shadow: 0 0 0 2px #ffffff !important;
+  border-radius: 9999px !important;
+  min-width: 16px !important;
+  height: 16px !important;
+  padding: 0 4px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: absolute !important;
+  top: -2px !important;
+  right: -2px !important;
+  z-index: 2 !important;
+}
+
+/* Lock notif-btn size when dropdown is open — prevents any layout shift on click */
+.title-bar-right .notif-btn[aria-expanded="true"] {
+  height: 38px !important;
+  width: 38px !important;
+  min-width: 38px !important;
+  max-width: 38px !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+}
+
+/* Stat Card Container & Number Formatting (Clean, un-cramped currency figures) */
+.metric-card {
+  padding: 24px !important;
+  gap: 12px !important;
+}
+
+.metric-card .metric-value {
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  letter-spacing: -0.015em !important;
+  color: var(--text-primary) !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  margin: 8px 0 12px 0 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* Product Cards & Shop POS Cards — Target Gallery Layout (The Ordinary Style) */
+.xp-grid,
+.shop-product-grid {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+  gap: 16px !important;
+}
+
+.xp-card.product-card,
+.shop-card.shop-product-card {
+  position: relative !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(26, 26, 26, 0.06) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.xp-card.product-card:hover,
+.shop-card.shop-product-card:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06) !important;
+}
+
+.card-media-bg,
+.shop-card-media {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  aspect-ratio: 1 / 1 !important;
+  min-height: 220px !important;
+  position: relative !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Clear all cover overlays, tint boxes, and blend modes */
+.card-media-bg::before,
+.card-media-bg::after,
+.shop-card-media::before,
+.shop-card-media::after,
+.xp-card::before,
+.xp-card::after,
+.shop-card::before,
+.shop-card::after {
+  display: none !important;
+  content: none !important;
+}
+
+.card-media-bg img,
+.shop-card-media img,
+.product-card-img,
+.xp-card img,
+.shop-card img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  mix-blend-mode: normal !important;
+  opacity: 1 !important;
+  filter: none !important;
+  display: block !important;
+}
+
+.xp-card.xp-out .card-media-bg img,
+.shop-card.shop-out .shop-card-media img {
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* Edit & Delete Action Buttons (Top-Right) — White circular background with black icon */
+.xp-icons {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  z-index: 3 !important;
+  display: flex !important;
+  gap: 6px !important;
+}
+
+.xp-ib,
+.xp-edit-btn,
+.xp-del-btn {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  background: #ffffff !important;
+  color: #000000 !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  display: grid !important;
+  place-items: center !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+
+.xp-ib svg,
+.xp-edit-btn svg,
+.xp-del-btn svg {
+  stroke: #000000 !important;
+  color: #000000 !important;
+}
+
+.xp-ib:hover,
+.xp-edit-btn:hover {
+  background: #f3f4f6 !important;
+  color: #000000 !important;
+  border-color: rgba(0, 0, 0, 0.25) !important;
+  transform: translateY(-1px) !important;
+}
+
+.xp-ib.xp-del-btn:hover,
+.xp-del-btn:hover {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+  border-color: rgba(220, 38, 38, 0.3) !important;
+  transform: translateY(-1px) !important;
+}
+
+.xp-ib.xp-del-btn:hover svg,
+.xp-del-btn:hover svg {
+  stroke: #dc2626 !important;
+  color: #dc2626 !important;
+}
+
+/* Shop POS Add Button — Matching White background with black text/icon */
+.shop-add-btn {
+  background: #ffffff !important;
+  color: #000000 !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+  transition: all 0.2s ease !important;
+  border-radius: 9999px !important;
+  padding: 6px 14px !important;
+  font-weight: 600 !important;
+}
+
+.shop-add-btn svg {
+  stroke: #000000 !important;
+  color: #000000 !important;
+}
+
+.shop-add-btn:hover {
+  background: #f3f4f6 !important;
+  color: #000000 !important;
+  border-color: rgba(0, 0, 0, 0.25) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Card Body (Centered Name & Muted Grey Price Below) */
+.xp-card .xp-body,
+.shop-card .shop-card-body {
+  flex: 0 0 auto !important;
+  padding: 14px 16px !important;
+  background: #ffffff !important;
+  border-top: 1px solid rgba(26, 26, 26, 0.04) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  text-align: center !important;
+  justify-content: space-between !important;
+}
+
+.xp-card-footer-row,
+.shop-card-bottom {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  text-align: center !important;
+}
+
+.xp-name,
+.shop-card-name {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+  color: #111827 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+  min-height: 2.7em !important;
+  max-height: 2.7em !important;
+  word-break: break-word !important;
+  white-space: normal !important;
+  text-align: center !important;
+}
+
+.xp-price,
+.shop-card-price {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #6b7280 !important;
+  font-variant-numeric: tabular-nums !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+}
+
+.xp-old-price {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: #9ca3af !important;
+  text-decoration: line-through !important;
+}
+
+/* Universal Copy Icon & Action Button Hover Fix */
+.copy-icon-btn,
+.btn-icon-action {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 26px !important;
+  height: 26px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  background: rgba(26, 26, 26, 0.06) !important;
+  border: 1px solid rgba(26, 26, 26, 0.12) !important;
+  color: #374151 !important;
+  cursor: pointer !important;
+  opacity: 1 !important;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease !important;
+  flex-shrink: 0 !important;
+}
+
+.copy-icon-btn:hover,
+.btn-icon-action:hover {
+  opacity: 1 !important;
+  background: rgba(26, 26, 26, 0.14) !important;
+  border-color: rgba(26, 26, 26, 0.28) !important;
+  color: #111827 !important;
+}
+
+.copy-icon-btn svg,
+.btn-icon-action svg {
+  stroke: currentColor !important;
+  color: currentColor !important;
+}
+
+/* Universal Admin Input Font Size Lock (16px) */
+input,
+textarea,
+select,
+.login-form input {
+  font-size: var(--admin-input-font-size, 16px) !important;
+}
+
+input::placeholder,
+textarea::placeholder,
+select::placeholder,
+.login-form input::placeholder {
+  font-size: var(--admin-input-font-size, 16px) !important;
+}
+
 
 

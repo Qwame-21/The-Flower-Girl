@@ -10,6 +10,7 @@ export async function listNotifications() {
   const { data, error } = await supabase
     .from('admin_notifications')
     .select('*')
+    .neq('type', 'status_change')
     .order('created_at', { ascending: false })
     .limit(50);
 

@@ -36,13 +36,13 @@ export default function DashboardEntry({ onSignOut }) {
     metaDesc.content = 'X-A12 Master Baseline Admin Dashboard.';
     document.head.appendChild(metaDesc);
 
-    // Cleanup function to remove injected elements
+    // Cleanup function to remove injected elements safely
     return () => {
-      document.head.removeChild(preconnect1);
-      document.head.removeChild(preconnect2);
-      document.head.removeChild(fontLink);
-      document.head.removeChild(faviconLink);
-      document.head.removeChild(metaDesc);
+      if (preconnect1.parentNode) document.head.removeChild(preconnect1);
+      if (preconnect2.parentNode) document.head.removeChild(preconnect2);
+      if (fontLink.parentNode) document.head.removeChild(fontLink);
+      if (faviconLink.parentNode) document.head.removeChild(faviconLink);
+      if (metaDesc.parentNode) document.head.removeChild(metaDesc);
     };
   }, []);
 

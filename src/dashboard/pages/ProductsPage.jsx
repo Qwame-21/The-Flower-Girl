@@ -142,6 +142,14 @@ const CATEGORY_MAP = {
   personalized: 'Personalized'
 };
 
+const CATEGORY_IMAGE_FALLBACKS = {
+  hampers: '/assets/hamper-editorial-v2.png',
+  bundles: '/assets/engagement-presentation-v2.png',
+  care: '/assets/wrapping-editorial-v2.png',
+  flowers: '/assets/bouquet-editorial-v2.png',
+  personalized: '/assets/embroidery-editorial-v2.png'
+};
+
 // Shared line-art motif set — thin single-weight stroke, no fill, ink-colored (Monolith lines 16732-16810)
 function getPlaceholderSvg(category) {
   const motifs = {
@@ -161,6 +169,8 @@ function normalizeProduct(p, idx = 0) {
   const categoryTitle = CATEGORY_MAP[categoryRaw.toLowerCase()] || (categoryRaw.charAt(0).toUpperCase() + categoryRaw.slice(1).toLowerCase());
   const catPrefix = categoryTitle.slice(0, 3).toUpperCase();
   const defaultCode = p.id || `${catPrefix}-${101 + idx}`;
+  const catKey = categoryTitle.toLowerCase();
+  const fallbackImg = CATEGORY_IMAGE_FALLBACKS[catKey] || '/assets/hamper-editorial-v2.png';
 
   return {
     id: String(p.id || `prod-${Date.now()}-${idx}`),
@@ -174,7 +184,7 @@ function normalizeProduct(p, idx = 0) {
     occasion: p.tag || (p.tag && p.tag[0]) || 'Signature',
     isBundle: categoryTitle === 'Bundles' || categoryTitle === 'Hampers',
     variants: [],
-    imageUrl: getImageUrl(p.image_path) || '',
+    imageUrl: getImageUrl(p.image_path) || fallbackImg,
     description: p.description || '',
     sizeType: '',
     isBestseller: false,
@@ -221,24 +231,29 @@ export default function ProductsPage() {
 
   // Load data on mount
   useEffect(() => {
+    let isMounted = true;
     async function loadData() {
+      setLoading(true);
+      setError(null);
       try {
         const [productsData, promotionsData] = await Promise.all([
           listProducts(),
           listPromotions()
         ]);
-        const normalizedProducts = productsData.map((p, idx) => normalizeProduct(p, idx));
+        if (!isMounted) return;
+        const normalizedProducts = (productsData || []).map((p, idx) => normalizeProduct(p, idx));
         setProducts(normalizedProducts);
-        setPromotions(promotionsData);
-        setShowDefaults(productsData.length === 0);
+        setPromotions(promotionsData || []);
         setLoading(false);
       } catch (err) {
         console.error('Error loading products:', err);
-        setError('Failed to load products. Please try again.');
+        if (!isMounted) return;
+        setError(err.message || 'Failed to load products');
         setLoading(false);
       }
     }
     loadData();
+    return () => { isMounted = false; };
   }, []);
 
   const updateProducts = (newList) => {
@@ -543,7 +558,7 @@ export default function ProductsPage() {
         <div style={{ padding: '48px', textAlign: 'center', background: 'var(--xp-card)', borderRadius: '12px', border: '1px solid rgba(26,26,26,0.08)' }}>
           <h3 style={{ marginBottom: '12px' }}>No Products Yet</h3>
           <p style={{ color: 'var(--text-muted)', marginBottom: '24px', maxWidth: '400px', margin: '0 auto 24px' }}>
-            Import the default product catalog to get started. These products will be stored in Supabase and can be edited later.
+            Import the default product catalog to get started. These products will be stored in the live database and can be edited later.
           </p>
           <button
             type="button"
@@ -756,41 +771,24 @@ export default function ProductsPage() {
                     const lowThreshold = getGlobalThreshold(p);
                     const isLowStock = p.stock <= lowThreshold && p.stock > 0;
                     const isOutOfStock = p.stock === 0;
-                    const hasPhoto = Boolean(p.imageUrl && p.imageUrl.trim());
                     const isConfirming = confirmDeleteId === p.id;
+                    const displayImg = p.imageUrl || CATEGORY_IMAGE_FALLBACKS[(p.category || '').toLowerCase()] || '/assets/hamper-editorial-v2.png';
 
                     return (
                       <article
                         key={p.id}
-                        className={`xp-card product-card ${hasPhoto ? 'has-photo' : 'has-placeholder'} ${isOutOfStock ? 'xp-out' : ''} ${isConfirming ? 'confirming' : ''}`}
+                        className={`xp-card product-card ${isOutOfStock ? 'xp-out' : ''} ${isConfirming ? 'confirming' : ''}`}
                         data-id={p.id}
                         data-name={p.name.toLowerCase()}
                       >
                         <div className="card-media-bg">
-                          {hasPhoto ? (
-                            <>
-                              <img
-                                src={p.imageUrl}
-                                alt=""
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                  if (e.currentTarget.nextElementSibling) {
-                                    e.currentTarget.nextElementSibling.style.display = 'flex';
-                                  }
-                                }}
-                              />
-                              <div
-                                className="card-placeholder-fallback"
-                                style={{ display: 'none' }}
-                                dangerouslySetInnerHTML={{ __html: getPlaceholderSvg(p.category) }}
-                              />
-                            </>
-                          ) : (
-                            <div
-                              className="card-placeholder-fallback"
-                              dangerouslySetInnerHTML={{ __html: getPlaceholderSvg(p.category) }}
-                            />
-                          )}
+                          <img
+                            src={displayImg}
+                            alt={p.name}
+                            onError={(e) => {
+                              e.currentTarget.src = '/assets/hamper-editorial-v2.png';
+                            }}
+                          />
                         </div>
 
                         <div className="xp-tags">
@@ -813,8 +811,9 @@ export default function ProductsPage() {
                             data-id={p.id}
                             aria-label="Edit"
                             onClick={() => openEditDrawer(p.id)}
+                            title="Edit product"
                           >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M12 20h9" />
                               <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
                             </svg>
@@ -825,23 +824,21 @@ export default function ProductsPage() {
                             data-id={p.id}
                             aria-label="Delete"
                             onClick={() => setConfirmDeleteId(p.id)}
+                            title="Delete product"
                           >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" />
                             </svg>
                           </button>
                         </div>
 
                         <div className="xp-body">
-                          <span className="xp-name">{p.name}</span>
-                          <div className="xp-row2">
-                            <span className="xp-sub">
-                              {p.code}{p.sizeType ? ` · ${p.sizeType}` : ''}
-                            </span>
-                            <span className="xp-price">
-                              {discountVal > 0 && <s>GHS {Math.round(p.price)}</s>}
-                              {" "}GHS {Math.round(discountedPrice)}
-                            </span>
+                          <div className="xp-card-footer-row">
+                            <span className="xp-name" title={p.name}>{p.name}</span>
+                            <div className="xp-price">
+                              {discountVal > 0 && <s className="xp-old-price">GHS {Math.round(p.price).toLocaleString('en-US')}</s>}
+                              <span>GHS {Math.round(discountedPrice).toLocaleString('en-US')}</span>
+                            </div>
                           </div>
                         </div>
 

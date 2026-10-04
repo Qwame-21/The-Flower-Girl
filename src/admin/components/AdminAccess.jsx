@@ -4,6 +4,7 @@ import { supabase } from '../../config/supabase';
 import '../login.css';
 import { logoutToLogin } from '../utils/logout';
 import { getStaffIdentity } from '../utils/staffAccess';
+import { recordSignIn } from '../../dashboard/lib/signinLog';
 import floralSrc from '../assets/floral_corner.png';
 
 /* ─── Preload decorative floral asset immediately ───────────────────── */
@@ -75,9 +76,41 @@ export function StaffLogin({ message = '', onSubmitted }) {
     return valid;
   };
 
+  const [lockoutTimer, setLockoutTimer] = useState(0);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('admin_login_lockout');
+      if (stored) {
+        const lockoutTime = parseInt(stored, 10);
+        const remaining = Math.ceil((lockoutTime - Date.now()) / 1000);
+        if (remaining > 0) setLockoutTimer(remaining);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (lockoutTimer <= 0) return;
+    const interval = setInterval(() => {
+      setLockoutTimer(prev => {
+        if (prev <= 1) {
+          localStorage.removeItem('admin_login_lockout');
+          localStorage.removeItem('admin_login_attempts');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutTimer]);
+
   const submit = async event => {
     event.preventDefault();
     if (busy) return;
+    if (lockoutTimer > 0) {
+      setError(`Too many failed sign-in attempts. Please wait ${lockoutTimer} second${lockoutTimer !== 1 ? 's' : ''} before trying again.`);
+      return;
+    }
     if (!validate()) return;
     if (!supabase) {
       setError('Staff sign-in backend is unavailable in this environment.');
@@ -92,11 +125,37 @@ export function StaffLogin({ message = '', onSubmitted }) {
         password: password,
       });
       if (signInError) {
+        let attempts = 0;
+        try {
+          attempts = (parseInt(localStorage.getItem('admin_login_attempts') || '0', 10)) + 1;
+          localStorage.setItem('admin_login_attempts', String(attempts));
+          if (attempts >= 5) {
+            const until = Date.now() + 60000;
+            localStorage.setItem('admin_login_lockout', String(until));
+            setLockoutTimer(60);
+          }
+        } catch {}
+
         if (signInError.message?.toLowerCase().includes('invalid login credentials') || signInError.status === 400) {
+          if (attempts >= 5) {
+            throw new Error('Too many failed sign-in attempts. Temporarily locked out for 60 seconds.');
+          }
           throw new Error('Invalid email or password. Check your credentials or contact your administrator.');
         } else {
           throw new Error(signInError.message || 'Could not connect to sign-in service. Check your connection.');
         }
+      }
+      try {
+        localStorage.removeItem('admin_login_attempts');
+        localStorage.removeItem('admin_login_lockout');
+      } catch {}
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user?.id) {
+          await recordSignIn(authData.user.id);
+        }
+      } catch (logErr) {
+        console.error('[signin_log] Error recording sign-in:', logErr);
       }
       onSubmitted?.();
     } catch (err) {
@@ -220,21 +279,62 @@ const hasSavedSessionToken = () => {
 
 /* ─── Shared Two-Stage Loading Fallback UI ───────────────────────────── */
 export function AdminLoadingFallback({ stage = 1, message }) {
-  const defaultSubtext = stage === 1 ? 'Loading workspace…' : 'Verifying your session…';
-  const subtext = message || defaultSubtext;
-
   return (
-    <main className="admin-login admin-loading-stage-wrap" aria-busy="true" role="status" aria-label="Verifying staff session">
-      <FloralCorners />
-      <div className={`login-center admin-stage-content admin-stage--${stage}`}>
-        <span className="login-eyebrow">The Gifting Factory</span>
-        <h1>Staff access</h1>
-        <p className="login-subtext admin-stage-text">{subtext}</p>
-        <div className="admin-stage-indicator" aria-hidden="true">
-          <div className={`admin-stage-pill ${stage >= 1 ? 'is-active' : ''}`} />
-          <div className={`admin-stage-pill ${stage >= 2 ? 'is-active' : ''}`} />
-        </div>
-      </div>
+    <main
+      style={{
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#fff',
+        zIndex: 9999,
+        gap: '16px',
+      }}
+      aria-busy="true"
+      role="status"
+      aria-label="Loading"
+    >
+      {/* Circular spinner */}
+      <svg
+        width="36"
+        height="36"
+        viewBox="0 0 36 36"
+        fill="none"
+        style={{ animation: 'adminSpinnerRotate 0.8s linear infinite' }}
+      >
+        <circle
+          cx="18" cy="18" r="15"
+          stroke="#e5e5e3"
+          strokeWidth="3"
+          fill="none"
+        />
+        <circle
+          cx="18" cy="18" r="15"
+          stroke="#1a1a1a"
+          strokeWidth="3"
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray="30 65"
+        />
+      </svg>
+      <p style={{
+        fontSize: '14px',
+        fontWeight: 500,
+        color: '#555555',
+        letterSpacing: '0.01em',
+        margin: 0,
+        textAlign: 'center'
+      }}>
+        {message || 'Loading, please wait a moment...'}
+      </p>
+      <style>{`
+        @keyframes adminSpinnerRotate {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+      `}</style>
     </main>
   );
 }

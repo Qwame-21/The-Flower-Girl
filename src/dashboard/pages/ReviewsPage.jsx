@@ -103,6 +103,7 @@ function AddTestimonialDrawer({ draft, onDraftChange, onClose, onSave }) {
 // ── Main ReviewsPage ─────────────────────────────────────────────────────────
 export default function ReviewsPage() {
   const [reviews,          setReviews]          = useState(loadReviews);
+  const [loading,          setLoading]          = useState(true);
   const [ratingFilter,     setRatingFilter]     = useState('all');   // monolith: reviewRatingFilter
   const [statusFilter,     setStatusFilter]     = useState('all');   // monolith: reviewStatusFilter
   const [sortOrder,        setSortOrder]        = useState('newest'); // monolith: reviewSortOrder
@@ -125,9 +126,19 @@ export default function ReviewsPage() {
 
   // Sync with Supabase on mount
   useEffect(() => {
-    syncReviewsWithSupabase().then(mapped => {
-      setReviews(mapped);
-    });
+    let isMounted = true;
+    syncReviewsWithSupabase()
+      .then(mapped => {
+        if (isMounted) {
+          setReviews(mapped || []);
+          setLoading(false);
+        }
+      })
+      .catch(err => {
+        console.error('Error syncing reviews:', err);
+        if (isMounted) setLoading(false);
+      });
+    return () => { isMounted = false; };
   }, []);
 
   // ── Computed metrics (monolith lines 21885–21893) ─────────────────────────
@@ -342,91 +353,100 @@ export default function ReviewsPage() {
       </div>
 
       {/* Testimonial Grid — monolith lines 21989–22035 */}
-      <div className="reviews-grid">
-        {filtered.length > 0 ? filtered.map(r => {
-          const isShown    = r.status === 'published';
-          const isDeleting = inlineDeleteId === r.id;
-          return (
-            <div key={r.id} className="review-card" data-id={r.id}>
-              <div className="review-card-header">
-                <div className="review-author-box">
-                  <div className="author-avatar">{(r.customerName || '?').charAt(0)}</div>
-                  <div>
-                    <h3 className="author-name">{r.customerName}</h3>
-                    <span className="review-date">{r.date || ''}</span>
+      {loading ? (
+        <div style={{
+          padding: '48px', textAlign: 'center',
+          background: 'var(--card-bg,#f2f1ef)', borderRadius: '12px', color: 'var(--text-muted)'
+        }}>
+          Loading testimonials...
+        </div>
+      ) : (
+        <div className="reviews-grid">
+          {filtered.length > 0 ? filtered.map(r => {
+            const isShown    = r.status === 'published';
+            const isDeleting = inlineDeleteId === r.id;
+            return (
+              <div key={r.id} className="review-card" data-id={r.id}>
+                <div className="review-card-header">
+                  <div className="review-author-box">
+                    <div className="author-avatar">{(r.customerName || '?').charAt(0)}</div>
+                    <div>
+                      <h3 className="author-name">{r.customerName}</h3>
+                      <span className="review-date">{r.date || ''}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <StarsSVG rating={r.rating} />
+                    <span className={`status-badge ${isShown ? 'status-published' : 'status-pending'}`}>
+                      {isShown ? 'Shown' : 'Hidden'}
+                    </span>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <StarsSVG rating={r.rating} />
-                  <span className={`status-badge ${isShown ? 'status-published' : 'status-pending'}`}>
-                    {isShown ? 'Shown' : 'Hidden'}
-                  </span>
+
+                <p className="review-body-text">{r.reviewText}</p>
+
+                <div className="review-actions-bar">
+                  {isDeleting ? (
+                    /* Inline delete confirm — monolith lines 22013–22018 */
+                    <span className="inline-delete-confirm">
+                      Delete?
+                      <button className="xp-pill xp-yes" type="button"
+                        data-confirm-delete={r.id}
+                        onClick={() => handleConfirmDelete(r.id)}>Yes</button>
+                      <button className="xp-pill xp-no" type="button"
+                        data-cancel-delete={r.id}
+                        onClick={handleCancelDelete}>No</button>
+                    </span>
+                  ) : (
+                    /* Normal actions — monolith lines 22019–22026 */
+                    <>
+                      <button className="xp-pill toggle-visibility-btn" type="button"
+                        data-id={r.id}
+                        onClick={() => handleToggleVisibility(r.id)}>
+                        {isShown ? (
+                          <>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
+                              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                              <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                            Hide
+                          </>
+                        ) : (
+                          <>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
+                              <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            Show
+                          </>
+                        )}
+                      </button>
+                      <button className="xp-pill req-delete-review-btn" type="button"
+                        data-id={r.id}
+                        onClick={() => handleRequestDelete(r.id)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
+                          <polyline points="3 6 5 6 21 6"/>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                        Delete
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-
-              <p className="review-body-text">{r.reviewText}</p>
-
-              <div className="review-actions-bar">
-                {isDeleting ? (
-                  /* Inline delete confirm — monolith lines 22013–22018 */
-                  <span className="inline-delete-confirm">
-                    Delete?
-                    <button className="xp-pill xp-yes" type="button"
-                      data-confirm-delete={r.id}
-                      onClick={() => handleConfirmDelete(r.id)}>Yes</button>
-                    <button className="xp-pill xp-no" type="button"
-                      data-cancel-delete={r.id}
-                      onClick={handleCancelDelete}>No</button>
-                  </span>
-                ) : (
-                  /* Normal actions — monolith lines 22019–22026 */
-                  <>
-                    <button className="xp-pill toggle-visibility-btn" type="button"
-                      data-id={r.id}
-                      onClick={() => handleToggleVisibility(r.id)}>
-                      {isShown ? (
-                        <>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
-                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                            <line x1="1" y1="1" x2="23" y2="23"/>
-                          </svg>
-                          Hide
-                        </>
-                      ) : (
-                        <>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
-                            <polyline points="20 6 9 17 4 12"/>
-                          </svg>
-                          Show
-                        </>
-                      )}
-                    </button>
-                    <button className="xp-pill req-delete-review-btn" type="button"
-                      data-id={r.id}
-                      onClick={() => handleRequestDelete(r.id)}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                      </svg>
-                      Delete
-                    </button>
-                  </>
-                )}
-              </div>
+            );
+          }) : (
+            /* Empty state — monolith lines 22030–22034 */
+            <div style={{
+              gridColumn: '1 / -1', padding: '48px', textAlign: 'center',
+              background: 'var(--card-bg,#f2f1ef)', borderRadius: '12px', color: 'var(--text-muted)'
+            }}>
+              {total === 0
+                ? 'No testimonials yet. Add your first one with the button above.'
+                : 'No reviews match the selected filters.'}
             </div>
-          );
-        }) : (
-          /* Empty state — monolith lines 22030–22034 */
-          <div style={{
-            gridColumn: '1 / -1', padding: '48px', textAlign: 'center',
-            background: 'var(--card-bg,#f2f1ef)', borderRadius: '12px', color: 'var(--text-muted)'
-          }}>
-            {total === 0
-              ? 'No testimonials yet. Add your first one with the button above.'
-              : 'No reviews match the selected filters.'}
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Add Testimonial Drawer — monolith lines 22039–22069 */}
       {drawerOpen && (

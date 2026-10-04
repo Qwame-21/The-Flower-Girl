@@ -68,6 +68,8 @@ export async function listOrders() {
       qty: item.quantity,
       unitPrice: item.unit_price,
       category: item.metadata?.category || null, // Category stored in metadata by finalize_paid_checkout
+      image: item.metadata?.image || item.metadata?.imageUrl || null,
+      imageUrl: item.metadata?.image || item.metadata?.imageUrl || null,
       metadata: item.metadata
     })),
     auditLog: (order.order_events || []).map(event => ({
@@ -245,25 +247,25 @@ export async function createStaffOrder(orderData) {
       .insert({
         tracking_number: trackingNumber,
         order_code: orderCode,
-        customer_name: orderData.customerName,
-        customer_email: orderData.customerEmail || null,
-        customer_phone: orderData.customerPhone,
-        recipient_name: orderData.recipientName || orderData.customerName,
-        delivery_address: orderData.deliveryAddress,
+        customer_name: orderData.customerName || orderData.customer_name,
+        customer_email: orderData.customerEmail || orderData.customer_email || null,
+        customer_phone: orderData.customerPhone || orderData.customer_phone,
+        recipient_name: orderData.recipientName || orderData.recipient_name || orderData.customerName || orderData.customer_name,
+        delivery_address: orderData.deliveryAddress || orderData.delivery_address,
         landmark: orderData.landmark || null,
-        location_link: orderData.locationLink || null,
-        customer_note: orderData.customerNote || null,
-        card_message: orderData.cardMessage || null,
-        card_style: orderData.cardStyle || null,
-        requested_delivery_date: orderData.requestedDeliveryDate || null,
+        location_link: orderData.locationLink || orderData.location_link || null,
+        customer_note: orderData.customerNote || orderData.customer_note || null,
+        card_message: orderData.cardMessage || orderData.card_message || null,
+        card_style: orderData.cardStyle || orderData.card_style || null,
+        requested_delivery_date: orderData.requestedDeliveryDate || orderData.requested_delivery_date || null,
         subtotal: orderData.subtotal,
         total: orderData.total,
-        payment_provider: 'staff',
-        payment_reference: null,
-        payment_status: 'paid', // Staff orders are considered paid
-        fulfillment_status: 'packaging', // Start in packaging stage
-        estimated_delivery: orderData.estimatedDelivery || null,
-        admin_note: orderData.adminNote || null,
+        payment_provider: orderData.paymentProvider || orderData.payment_provider || 'staff',
+        payment_reference: orderData.paymentReference || orderData.payment_reference || null,
+        payment_status: orderData.paymentStatus || orderData.payment_status || 'paid',
+        fulfillment_status: orderData.fulfillmentStatus || orderData.fulfillment_status || 'packaging',
+        estimated_delivery: orderData.estimatedDelivery || orderData.estimated_delivery || null,
+        admin_note: orderData.adminNote || orderData.admin_note || null,
         staff_order: true
       })
       .select()
@@ -276,7 +278,7 @@ export async function createStaffOrder(orderData) {
 
     lastError = error;
     // Check if it's a unique violation - if so, retry with new values
-    if (error.code === '23505' || error.message.includes('unique')) {
+    if (error.code === '23505' || error.message?.includes('unique')) {
       console.warn(`Unique violation on attempt ${attempt + 1}, retrying...`);
       // Small delay to avoid timestamp collision
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -306,7 +308,8 @@ export async function createStaffOrder(orderData) {
 
       const itemMetadata = {
         ...(item.metadata || {}),
-        category: itemCategory
+        category: itemCategory || item.category || null,
+        image: item.image || item.imageUrl || item.metadata?.image || null
       };
 
       const { error: itemError } = await supabase
@@ -324,12 +327,20 @@ export async function createStaffOrder(orderData) {
         console.error('Error inserting order item:', itemError);
       }
 
-      // Decrement stock for staff orders too
+      // Decrement stock for staff orders cleanly
       if (item.productId) {
-        await supabase
+        const { data: currentProd } = await supabase
           .from('products')
-          .update({ stock: supabase.raw('stock - ' + item.qty) })
-          .eq('id', item.productId);
+          .select('stock')
+          .eq('id', item.productId)
+          .single();
+        if (currentProd && typeof currentProd.stock === 'number') {
+          const newStock = Math.max(0, currentProd.stock - item.qty);
+          await supabase
+            .from('products')
+            .update({ stock: newStock })
+            .eq('id', item.productId);
+        }
       }
     }
   }

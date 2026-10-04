@@ -6,6 +6,7 @@ import CustomDropdown from '../components/shared/CustomDropdown';
 import CopyIcon from '../components/shared/CopyIcon';
 import { formatGHS } from '../lib/ordersModel';
 import { listOrders, updateOrderStatus } from '../data/orders';
+import { supabase } from '../../config/supabase';
 
 // SVG Icons matching monolith
 const SVG_ICONS = {
@@ -87,6 +88,21 @@ function formatDeliveredTimeString(order) {
   return 'Completed';
 }
 
+// ── Helper formatWindow ──
+function formatWindow(val) {
+  if (!val) return 'N/A';
+  const d = new Date(val);
+  if (!isNaN(d.getTime()) && (String(val).includes('T') || String(val).includes('-'))) {
+    const day = d.getDate();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    return `${day} ${month} ${year}, ${timeStr}`;
+  }
+  return val;
+}
+
 // ── Toast Helper ──
 function showToast(msg) {
   window.dispatchEvent(new CustomEvent('xa12:toast', { detail: { message: msg } }));
@@ -110,30 +126,63 @@ export default function LogPage() {
 
   // Load orders from Supabase on mount
   useEffect(() => {
-    async function loadOrders() {
+    async function loadData() {
       setLoading(true);
+
+      // Fire-and-forget retention purge — enforces 30-day window server-side.
+      // Errors are swallowed; the user never sees this.
+      if (supabase) {
+        supabase.rpc('purge_expired_logs').then(() => {}).catch(() => {});
+      }
+
       const loadedOrders = await listOrders();
       setOrders(loadedOrders);
 
-      // Derive activity logs from order_events
-      const derivedLogs = [];
-      loadedOrders.forEach(order => {
-        if (order.auditLog && order.auditLog.length > 0) {
-          order.auditLog.forEach(event => {
-            derivedLogs.push({
-              id: `${order.id}-${event.time}`,
-              type: 'order',
-              text: `Order #${order.orderCode || order.id}: ${event.stage}`,
-              timestamp: event.time,
-              timeRelative: event.time
-            });
-          });
+      // Try loading activity_log from the DB (available after migration-round6.sql).
+      // Falls back to deriving from order_events if the table is empty or inaccessible.
+      let dbLogs = [];
+      if (supabase) {
+        const { data: logRows, error: logError } = await supabase
+          .from('activity_log')
+          .select('id, event_type, description, metadata, created_at')
+          .order('created_at', { ascending: false })
+          .limit(200);
+
+        if (!logError && logRows && logRows.length > 0) {
+          dbLogs = logRows.map(row => ({
+            id: row.id,
+            type: row.event_type,
+            text: row.description,
+            timestamp: row.created_at,
+            timeRelative: row.created_at
+          }));
         }
-      });
-      setActivityLogs(derivedLogs);
+      }
+
+      if (dbLogs.length > 0) {
+        setActivityLogs(dbLogs);
+      } else {
+        // Fallback: derive from order_events attached to loaded orders
+        const derivedLogs = [];
+        loadedOrders.forEach(order => {
+          if (order.auditLog && order.auditLog.length > 0) {
+            order.auditLog.forEach(event => {
+              derivedLogs.push({
+                id: `${order.id}-${event.time}`,
+                type: 'order',
+                text: `Order #${order.orderCode || order.id}: ${event.stage}`,
+                timestamp: event.time,
+                timeRelative: event.time
+              });
+            });
+          }
+        });
+        setActivityLogs(derivedLogs);
+      }
+
       setLoading(false);
     }
-    loadOrders();
+    loadData();
   }, []);
 
   // Listen for order updates from elsewhere in app
@@ -251,7 +300,7 @@ export default function LogPage() {
       const delivs = orders.filter(o => o.fulfillmentStatus === 'delivered');
       let csv = 'DELIVERED ORDERS\n"Order Code","Customer","Phone","Amount (GHS)","Items","Delivered At"\n';
       delivs.forEach(o => {
-        csv += `"${o.orderCode || o.id}","${(o.customerName || '').replace(/"/g, '""')}","${o.customerPhone || o.phone || ''}","${(o.amount || 0).toFixed(2)}","${(o.items || []).map(i => (i.name || i.title || '') + ' x' + (i.qty || 1)).join(' | ')}","${o.deliveredAt ? new Date(o.deliveredAt).toLocaleString() : ''}"\n`;
+        csv += `"${o.orderCode || o.id}","${(o.customerName || '').replace(/"/g, '""')}","${o.customerPhone || o.phone || ''}","${(o.total ?? 0).toFixed(2)}","${(o.items || []).map(i => (i.name || i.title || '') + ' x' + (i.qty || 1)).join(' | ')}","${o.deliveredAt ? new Date(o.deliveredAt).toLocaleString() : ''}"\n`;
       });
       csv += '\nACTIVITY LOG\n"ID","Type","Description","Timestamp"\n';
       activityLogs.forEach(l => {
@@ -336,8 +385,8 @@ export default function LogPage() {
                   onChange={e => setLogsSearchQuery(e.target.value)}
                 />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <label htmlFor="logDateRangeSelect" style={{ fontSize: '12px', fontWeight: 600, color: '#555' }}>Date range:</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <label htmlFor="logDateRangeSelect" style={{ fontSize: '12px', fontWeight: 600, color: '#555', whiteSpace: 'nowrap' }}>Date range:</label>
                 <CustomDropdown
                   options={[
                     { value: 'all', label: 'All time' },
@@ -370,7 +419,7 @@ export default function LogPage() {
                       const isExpanded = expandedOrderIds.has(order.id);
                       const itemsSummary = (order.items || []).map(i => `${i.name || i.title || ''} × ${i.qty || 1}`).join(', ');
                       const deliveredTime = formatDeliveredTimeString(order);
-                      const formattedAmount = formatGHS(order.amount);
+                      const formattedAmount = formatGHS(order.total ?? order.amount ?? 0);
                       const initials = order.customerName
                         ? order.customerName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
                         : 'CU';
@@ -463,7 +512,7 @@ export default function LogPage() {
                                   <div className="log-detail-text" style={{ fontSize: '13px', color: '#333' }}>
                                     <div><strong>Phone:</strong> {order.customerPhone || order.phone || 'N/A'}</div>
                                     <div><strong>Address:</strong> {order.deliveryAddress || 'Standard Delivery'}</div>
-                                    <div><strong>Window:</strong> {order.deliveryWindow || order.estimatedDelivery || 'N/A'}</div>
+                                    <div><strong>Window:</strong> {formatWindow(order.deliveryWindow || order.estimatedDelivery)}</div>
                                     {order.riderAssigned && <div><strong>Rider:</strong> {order.riderAssigned}</div>}
                                   </div>
                                 </div>
@@ -489,10 +538,17 @@ export default function LogPage() {
                                   <div className="log-detail-text" style={{ marginBottom: '8px', fontSize: '13px' }}>
                                     {order.adminNote ? <em>&ldquo;{order.adminNote}&rdquo;</em> : <span style={{ color: '#888' }}>No notes attached.</span>}
                                   </div>
-                                  <div style={{ fontSize: '11px', color: '#7a7a7a' }}>
-                                    {(order.auditLog || []).slice(-3).map((l, idx) => (
-                                      <div key={idx}>• {l.time}: {l.note}</div>
-                                    ))}
+                                  <div style={{ fontSize: '11px', color: '#444' }}>
+                                    {(order.auditLog || []).slice(-3).map((l, idx) => {
+                                      const stageName = l.stage
+                                        ? l.stage.charAt(0).toUpperCase() + l.stage.slice(1)
+                                        : 'Activity';
+                                      return (
+                                        <div key={idx} style={{ marginBottom: '3px' }}>
+                                          • {l.time} — <strong>{stageName}</strong>{l.note ? `: ${l.note}` : ''}
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               </div>
@@ -505,15 +561,16 @@ export default function LogPage() {
                                   className="reopen-delivered-btn"
                                   onClick={(e) => { e.stopPropagation(); handleReopenOrder(order.id); }}
                                   style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '8px',
-                                    border: '1px solid rgba(26,26,26,0.15)', background: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600
+                                    display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px',
+                                    border: '1px solid #1a1a1a', background: '#1a1a1a', color: '#ffffff', cursor: 'pointer', fontSize: '13px', fontWeight: 600,
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                                   }}
                                 >
                                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <polyline points="1 4 1 10 7 10" />
                                     <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
                                   </svg>
-                                  Reopen
+                                  Reopen order
                                 </button>
                               </div>
                             </div>

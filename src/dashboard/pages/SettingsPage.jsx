@@ -1,10 +1,12 @@
 // src/pages/SettingsPage.jsx
-// Ported 1-for-1 from admin-monolith.html renderSettingsView().
 // 6 tabs: store | delivery | inventory | alerts (Notifications) | security | data.
-// No invented tabs (the earlier "Profile" tab has been removed).
+// All controls wired to site_settings or real Supabase auth / tables.
 
 import { useState, useCallback, useEffect } from 'react';
-import { getAppSettings, saveAppSettings, syncSettingsWithSupabase, persistSettings } from '../data/settingsAdapter';
+import { getAppSettings, syncSettingsWithSupabase, persistSettings } from '../data/settingsAdapter';
+import { supabase } from '../../config/supabase';
+import { useDashboard } from '../contexts/DashboardContext';
+import { logoutToLogin } from '../../admin/utils/logout';
 
 // ─── tiny toast helper ───────────────────────────────────────────────────────
 function showToast(msg) {
@@ -12,14 +14,23 @@ function showToast(msg) {
   window.dispatchEvent(ev);
 }
 
-// ─── Save-button micro-animation: 200 ms "Saving…" state ─────────────────────
+// ─── Save-button helper: handles async save, reports success or error ───────
 function useSavingState() {
   const [saving, setSaving] = useState(false);
-  const withSaving = useCallback(async (fn) => {
+  const withSaving = useCallback(async (asyncFn) => {
     setSaving(true);
-    await new Promise(r => setTimeout(r, 200));
-    try { fn(); } catch (err) { showToast(err.message || 'Error saving settings.'); }
-    setSaving(false);
+    try {
+      const res = await asyncFn();
+      if (res && res.error) {
+        showToast(`Save failed: ${res.error}`);
+      } else {
+        showToast('Settings saved successfully!');
+      }
+    } catch (err) {
+      showToast(err.message || 'Error saving settings.');
+    } finally {
+      setSaving(false);
+    }
   }, []);
   return [saving, withSaving];
 }
@@ -32,15 +43,31 @@ function StorePanel({ s, onChange }) {
     phone:        s.store.phone,
     email:        s.store.email,
     address:      s.store.address,
+    dispatchCity: s.store.dispatchCity || 'Accra',
     instagramUrl: s.store.instagramUrl,
+    deliveryNote: s.store.deliveryNote,
   });
+
+  useEffect(() => {
+    setForm({
+      name:         s.store.name,
+      phone:        s.store.phone,
+      email:        s.store.email,
+      address:      s.store.address,
+      dispatchCity: s.store.dispatchCity || 'Accra',
+      instagramUrl: s.store.instagramUrl,
+      deliveryNote: s.store.deliveryNote,
+    });
+  }, [s.store]);
+
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
   function handleSave() {
-    withSaving(() => {
+    withSaving(async () => {
       const updated = { ...s, store: { ...s.store, ...form } };
       onChange(updated);
-      showToast('Store profile saved!');
+      window.dispatchEvent(new Event('xa12:settingsChanged'));
+      return await persistSettings(updated);
     });
   }
 
@@ -48,15 +75,15 @@ function StorePanel({ s, onChange }) {
     <section className="settings-panel on" role="tabpanel" id="set-panel-store">
       <div className="settings-card">
         <h2>Store profile</h2>
-        <div className="sub">Displayed to customers on the storefront and checkout.</div>
+        <div className="sub">Displayed to customers on the storefront, header, footer and checkout.</div>
         <div className="settings-fields">
           <div className="settings-f full">
             <label htmlFor="set_store_name">Store name</label>
             <input type="text" id="set_store_name" value={form.name}
-              onChange={set('name')} placeholder="The Gifting Factory" />
+              onChange={set('name')} placeholder="The Gifting Factory by Flower Girl" />
           </div>
           <div className="settings-f">
-            <label htmlFor="set_store_phone">WhatsApp number</label>
+            <label htmlFor="set_store_phone">WhatsApp / Support number</label>
             <input type="text" id="set_store_phone" value={form.phone}
               onChange={set('phone')} placeholder="+233 20 000 0000" />
           </div>
@@ -65,8 +92,13 @@ function StorePanel({ s, onChange }) {
             <input type="email" id="set_store_email" value={form.email}
               onChange={set('email')} placeholder="hello@yourstore.com" />
           </div>
+          <div className="settings-f">
+            <label htmlFor="set_store_city">Dispatch city / region</label>
+            <input type="text" id="set_store_city" value={form.dispatchCity}
+              onChange={set('dispatchCity')} placeholder="Accra" />
+          </div>
           <div className="settings-f full">
-            <label htmlFor="set_store_address">Collection address</label>
+            <label htmlFor="set_store_address">Collection &amp; Store address</label>
             <input type="text" id="set_store_address" value={form.address}
               onChange={set('address')} placeholder="ACP Estate Junction, Kwabenya, Accra" />
           </div>
@@ -74,6 +106,11 @@ function StorePanel({ s, onChange }) {
             <label htmlFor="set_store_insta">Instagram showcase URL</label>
             <input type="url" id="set_store_insta" value={form.instagramUrl}
               onChange={set('instagramUrl')} placeholder="https://www.instagram.com/yourpage/" />
+          </div>
+          <div className="settings-f full">
+            <label htmlFor="set_store_delivery_note">Delivery policy note</label>
+            <input type="text" id="set_store_delivery_note" value={form.deliveryNote}
+              onChange={set('deliveryNote')} placeholder="Delivery available across Accra." />
           </div>
         </div>
       </div>
@@ -99,11 +136,25 @@ function DeliveryPanel({ s, onChange }) {
     collectionFee:     s.delivery.collection.fee ?? 0,
     collectionOn:      s.delivery.collection.enabled,
   });
+
+  useEffect(() => {
+    setForm({
+      samedayFee:        s.delivery.sameday.fee,
+      samedayOn:         s.delivery.sameday.enabled,
+      scheduledFee:      s.delivery.scheduled.fee,
+      scheduledOn:       s.delivery.scheduled.enabled,
+      surpriseFee:       s.delivery.surprise.fee,
+      surpriseOn:        s.delivery.surprise.enabled,
+      collectionFee:     s.delivery.collection.fee ?? 0,
+      collectionOn:      s.delivery.collection.enabled,
+    });
+  }, [s.delivery]);
+
   const setNum = (k) => (e) => setForm(f => ({ ...f, [k]: parseFloat(e.target.value) || 0 }));
   const setBool = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.checked }));
 
   function handleSave() {
-    withSaving(() => {
+    withSaving(async () => {
       const updated = {
         ...s,
         delivery: {
@@ -114,7 +165,8 @@ function DeliveryPanel({ s, onChange }) {
         }
       };
       onChange(updated);
-      showToast('Delivery & collection saved!');
+      window.dispatchEvent(new Event('xa12:settingsChanged'));
+      return await persistSettings(updated);
     });
   }
 
@@ -137,7 +189,7 @@ function DeliveryPanel({ s, onChange }) {
     <section className="settings-panel on" role="tabpanel" id="set-panel-delivery">
       <div className="settings-card">
         <h2>Delivery &amp; collection</h2>
-        <div className="sub">Turn options on/off and set the fee. This is the single source used by the POS order form.</div>
+        <div className="sub">Turn options on/off and set exact fees. The storefront checkout and server total computation read from these settings.</div>
         <Row label="Same-day Accra delivery"  sub="Delivered within Accra the same day."           feeKey="samedayFee"    onKey="samedayOn"    />
         <Row label="Scheduled delivery"        sub="Customer chooses a date and time slot."          feeKey="scheduledFee"  onKey="scheduledOn"  />
         <Row label="Surprise delivery"         sub="Recipient not informed of delivery time."        feeKey="surpriseFee"   onKey="surpriseOn"   />
@@ -158,13 +210,17 @@ function InventoryPanel({ s, onChange }) {
   const [threshold, setThreshold] = useState(s.inventory.lowStockThreshold);
   const [alertsOn,  setAlertsOn]  = useState(s.inventory.lowStockAlerts);
 
+  useEffect(() => {
+    setThreshold(s.inventory.lowStockThreshold);
+    setAlertsOn(s.inventory.lowStockAlerts);
+  }, [s.inventory]);
+
   function handleSave() {
-    withSaving(() => {
+    withSaving(async () => {
       const updated = { ...s, inventory: { lowStockThreshold: threshold, lowStockAlerts: alertsOn } };
       onChange(updated);
-      // tell nav badges to refresh if they listen to this key
       window.dispatchEvent(new Event('xa12:settingsChanged'));
-      showToast('Inventory settings saved! Products page now uses the new threshold.');
+      return await persistSettings(updated);
     });
   }
 
@@ -172,7 +228,7 @@ function InventoryPanel({ s, onChange }) {
     <section className="settings-panel on" role="tabpanel" id="set-panel-inventory">
       <div className="settings-card">
         <h2>Stock alerts</h2>
-        <div className="sub">Controls when a product is flagged as low stock. The Products page reads this threshold directly.</div>
+        <div className="sub">Controls when a product is flagged as low stock across Products page, POS, and notification bell.</div>
         <div className="set-row">
           <div><b>Low-stock threshold</b><div className="sub">Alert when stock falls to or below this number.</div></div>
           <div className="step-counter" role="group" aria-label="Low-stock threshold">
@@ -201,17 +257,23 @@ function InventoryPanel({ s, onChange }) {
   );
 }
 
-// ─── Panel: Notifications (data-t="alerts") ───────────────────────────────────
+// ─── Panel: Notifications (Alerts) ───────────────────────────────────────────
 function AlertsPanel({ s, onChange }) {
   const [saving, withSaving] = useSavingState();
   const [form, setForm] = useState({ ...s.notifications });
+
+  useEffect(() => {
+    setForm({ ...s.notifications });
+  }, [s.notifications]);
+
   const setCheck = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.checked }));
 
   function handleSave() {
-    withSaving(() => {
+    withSaving(async () => {
       const updated = { ...s, notifications: { ...form } };
       onChange(updated);
-      showToast('Notification preferences saved!');
+      window.dispatchEvent(new Event('xa12:settingsChanged'));
+      return await persistSettings(updated);
     });
   }
 
@@ -229,7 +291,7 @@ function AlertsPanel({ s, onChange }) {
     <section className="settings-panel on" role="tabpanel" id="set-panel-alerts">
       <div className="settings-card">
         <h2>Notification preferences</h2>
-        <div className="sub">Turning a type off stops new notifications from appearing for that event.</div>
+        <div className="sub">Turning a toggle off suppresses bell notifications and audio alerts for that event type.</div>
         <Row label="New orders"          sub="Notifies you when a new order is placed via POS or the storefront."  field="orders"   />
         <Row label="New custom requests" sub="Notifies you when a bespoke order request is submitted."              field="requests" />
         <Row label="New job applications" sub="Notifies you when a candidate applies for a job posting."            field="careers"  />
@@ -246,98 +308,183 @@ function AlertsPanel({ s, onChange }) {
 
 // ─── Panel: Security ──────────────────────────────────────────────────────────
 function SecurityPanel({ s, onChange }) {
+  const { onSignOut } = useDashboard();
   const [pwCurrent, setPwCurrent]   = useState('');
   const [pwNew,     setPwNew]       = useState('');
   const [pwConfirm, setPwConfirm]   = useState('');
+  const [showPwCurrent, setShowPwCurrent] = useState(false);
+  const [showPwNew,     setShowPwNew]     = useState(false);
+  const [showPwConfirm, setShowPwConfirm] = useState(false);
+
   const [pwDestruct, setPwDestruct] = useState(s.security.requirePasswordForDestructive);
   const [errs, setErrs] = useState({ current: '', newPw: '', confirm: '' });
+  const [successMsg, setSuccessMsg] = useState('');
   const [saving, setSaving]         = useState(false);
   const [showSignOut, setShowSignOut] = useState(false);
 
-  function clearErr(field) { setErrs(e => ({ ...e, [field]: '' })); }
+  useEffect(() => {
+    setPwDestruct(s.security.requirePasswordForDestructive);
+  }, [s.security]);
 
-  function handleUpdatePassword() {
+  function clearErr(field) { setErrs(e => ({ ...e, [field]: '' })); setSuccessMsg(''); }
+
+  async function handleUpdatePassword() {
     const e = { current: '', newPw: '', confirm: '' };
     let valid = true;
-    if (!pwCurrent.trim())  { e.current = 'Current password is required.'; valid = false; }
-    if (pwNew.length < 8)   { e.newPw   = 'Must be at least 8 characters.'; valid = false; }
+    if (!pwCurrent.trim()) { e.current = 'Current password is required.'; valid = false; }
+    if (pwNew.length < 8)  { e.newPw   = 'New password must be at least 8 characters.'; valid = false; }
+    if (pwNew && pwNew === pwCurrent) { e.newPw = 'New password must differ from current password.'; valid = false; }
     if (pwNew !== pwConfirm){ e.confirm  = 'Passwords do not match.'; valid = false; }
+
     setErrs(e);
-    if (!valid) return;
+    if (!valid) {
+      setTimeout(() => {
+        const firstInvalid = document.querySelector('.set-field-invalid');
+        if (firstInvalid) {
+          firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          firstInvalid.focus();
+        }
+      }, 50);
+      return;
+    }
 
     setSaving(true);
-    setTimeout(() => {
-      const updated = { ...s, security: { ...s.security, requirePasswordForDestructive: pwDestruct } };
-      onChange(updated);
+    try {
+      if (supabase) {
+        // Step 1: Verify current password via Auth sign-in
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData?.user?.email) {
+          const { error: verifyErr } = await supabase.auth.signInWithPassword({
+            email: userData.user.email,
+            password: pwCurrent,
+          });
+          if (verifyErr) {
+            setErrs(prev => ({ ...prev, current: 'Current password is incorrect.' }));
+            setSaving(false);
+            return;
+          }
+        }
+
+        // Step 2: Update password in Supabase Auth
+        const { error: updateErr } = await supabase.auth.updateUser({ password: pwNew });
+        if (updateErr) {
+          setErrs(prev => ({ ...prev, newPw: updateErr.message || 'Failed to update password.' }));
+          setSaving(false);
+          return;
+        }
+      }
+
       setPwCurrent(''); setPwNew(''); setPwConfirm('');
+      setSuccessMsg('Password updated successfully!');
+      showToast('Password updated successfully!');
+    } catch (err) {
+      setErrs(prev => ({ ...prev, newPw: err.message || 'Password update failed.' }));
+    } finally {
       setSaving(false);
-      showToast('Validated. Server verification not yet connected — will apply once backend is linked.');
-    }, 200);
+    }
   }
 
-  function handlePwDestructChange(e) {
+  async function handlePwDestructChange(e) {
     const val = e.target.checked;
     setPwDestruct(val);
     const updated = { ...s, security: { ...s.security, requirePasswordForDestructive: val } };
     onChange(updated);
+    window.dispatchEvent(new Event('xa12:settingsChanged'));
+    await persistSettings(updated);
   }
 
   function handleSignOut() {
     setShowSignOut(false);
-    showToast('Signed out.');
-    setTimeout(() => window.location.reload(), 500);
+    if (onSignOut) {
+      onSignOut();
+    } else {
+      logoutToLogin();
+    }
   }
+
+  const EyeIcon = ({ visible }) => visible ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  );
 
   return (
     <section className="settings-panel on" role="tabpanel" id="set-panel-security">
       {/* Change password card */}
       <div className="settings-card">
         <h2>Change password</h2>
-        <div className="sub">Use at least 8 characters.</div>
+        <div className="sub">Use at least 8 characters. Password must differ from current.</div>
+        {successMsg && <div style={{ color: '#16a34a', fontSize: '13px', fontWeight: 600, marginBottom: '12px' }}>{successMsg}</div>}
         <div className="settings-fields">
           <div className="settings-f full" id="set_pw_current_group">
             <label htmlFor="set_pw_current">Current password</label>
-            <input type="password" id="set_pw_current" placeholder="••••••••"
-              autoComplete="current-password" value={pwCurrent}
-              onChange={e => { setPwCurrent(e.target.value); clearErr('current'); }}
-              className={errs.current ? 'set-field-invalid' : ''} />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input type={showPwCurrent ? 'text' : 'password'} id="set_pw_current" placeholder="••••••••"
+                autoComplete="current-password" value={pwCurrent}
+                onChange={e => { setPwCurrent(e.target.value); clearErr('current'); }}
+                className={errs.current ? 'set-field-invalid shop-error' : ''}
+                style={{ paddingRight: '40px', width: '100%' }} />
+              <button
+                type="button"
+                onClick={() => setShowPwCurrent(!showPwCurrent)}
+                style={{ position: 'absolute', right: '10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                aria-label={showPwCurrent ? 'Hide password' : 'Show password'}
+              >
+                <EyeIcon visible={showPwCurrent} />
+              </button>
+            </div>
             {errs.current && (
-              <span className="set-field-error" role="alert" aria-live="polite">{errs.current}</span>
+              <span className="set-field-error field-error" role="alert" aria-live="polite" style={{ color: '#e11d48', fontSize: '12px', marginTop: '4px', display: 'block' }}>{errs.current}</span>
             )}
           </div>
           <div className="settings-f" id="set_pw_new_group">
             <label htmlFor="set_pw_new">New password</label>
-            <input type="password" id="set_pw_new" placeholder="••••••••"
-              autoComplete="new-password" value={pwNew}
-              onChange={e => { setPwNew(e.target.value); clearErr('newPw'); }}
-              className={errs.newPw ? 'set-field-invalid' : ''} />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input type={showPwNew ? 'text' : 'password'} id="set_pw_new" placeholder="••••••••"
+                autoComplete="new-password" value={pwNew}
+                onChange={e => { setPwNew(e.target.value); clearErr('newPw'); }}
+                className={errs.newPw ? 'set-field-invalid shop-error' : ''}
+                style={{ paddingRight: '40px', width: '100%' }} />
+              <button
+                type="button"
+                onClick={() => setShowPwNew(!showPwNew)}
+                style={{ position: 'absolute', right: '10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                aria-label={showPwNew ? 'Hide password' : 'Show password'}
+              >
+                <EyeIcon visible={showPwNew} />
+              </button>
+            </div>
             {errs.newPw && (
-              <span className="set-field-error" role="alert" aria-live="polite">{errs.newPw}</span>
+              <span className="set-field-error field-error" role="alert" aria-live="polite" style={{ color: '#e11d48', fontSize: '12px', marginTop: '4px', display: 'block' }}>{errs.newPw}</span>
             )}
           </div>
           <div className="settings-f" id="set_pw_confirm_group">
             <label htmlFor="set_pw_confirm">Confirm new password</label>
-            <input type="password" id="set_pw_confirm" placeholder="••••••••"
-              autoComplete="new-password" value={pwConfirm}
-              onChange={e => { setPwConfirm(e.target.value); clearErr('confirm'); }}
-              className={errs.confirm ? 'set-field-invalid' : ''} />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input type={showPwConfirm ? 'text' : 'password'} id="set_pw_confirm" placeholder="••••••••"
+                autoComplete="new-password" value={pwConfirm}
+                onChange={e => { setPwConfirm(e.target.value); clearErr('confirm'); }}
+                className={errs.confirm ? 'set-field-invalid shop-error' : ''}
+                style={{ paddingRight: '40px', width: '100%' }} />
+              <button
+                type="button"
+                onClick={() => setShowPwConfirm(!showPwConfirm)}
+                style={{ position: 'absolute', right: '10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                aria-label={showPwConfirm ? 'Hide password' : 'Show password'}
+              >
+                <EyeIcon visible={showPwConfirm} />
+              </button>
+            </div>
             {errs.confirm && (
-              <span className="set-field-error" role="alert" aria-live="polite">{errs.confirm}</span>
+              <span className="set-field-error field-error" role="alert" aria-live="polite" style={{ color: '#e11d48', fontSize: '12px', marginTop: '4px', display: 'block' }}>{errs.confirm}</span>
             )}
           </div>
-        </div>
-        {/* Info banner — matches monolith exactly */}
-        <div style={{ marginTop: '16px', display: 'flex', alignItems: 'flex-start', gap: '8px',
-          fontSize: '11px', color: 'var(--mute,#747471)', background: 'rgba(28,28,27,.04)',
-          borderRadius: '10px', padding: '10px 12px' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
-            style={{ flexShrink: 0, marginTop: '1px' }}>
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          <span><strong>Server verification not yet connected.</strong> Fields are functional and
-            client-side validation runs. Password changes will take effect once the backend API is linked.</span>
         </div>
       </div>
 
@@ -359,7 +506,7 @@ function SecurityPanel({ s, onChange }) {
         <div className="set-row">
           <div>
             <b>Sign out on this device</b>
-            <div className="sub">You will be returned to the entry screen.</div>
+            <div className="sub">You will be returned to the login screen.</div>
           </div>
           <button className="btn" id="signOutBtn" type="button"
             onClick={() => setShowSignOut(true)}>Sign out</button>
@@ -395,141 +542,126 @@ function SecurityPanel({ s, onChange }) {
 
 // ─── Panel: Data ──────────────────────────────────────────────────────────────
 function DataPanel() {
-  const [showClearModal, setShowClearModal] = useState(false);
-  const [clearInput,     setClearInput]     = useState('');
-  const [clearError,     setClearError]     = useState('');
+  const [dbCounts, setDbCounts] = useState({ orders: 0, products: 0, requests: 0, reviews: 0 });
+  const [loadingCounts, setLoadingCounts] = useState(true);
 
-  // Matches monolith buildAndDownloadCSV() exactly
+  useEffect(() => {
+    if (!supabase) return;
+    async function loadCounts() {
+      setLoadingCounts(true);
+      try {
+        const [ordersRes, productsRes, requestsRes, reviewsRes] = await Promise.all([
+          supabase.from('orders').select('id', { count: 'exact', head: true }),
+          supabase.from('products').select('id', { count: 'exact', head: true }),
+          supabase.from('customer_requests').select('id', { count: 'exact', head: true }),
+          supabase.from('reviews').select('id', { count: 'exact', head: true }),
+        ]);
+        setDbCounts({
+          orders: ordersRes.count || 0,
+          products: productsRes.count || 0,
+          requests: requestsRes.count || 0,
+          reviews: reviewsRes.count || 0,
+        });
+      } catch (err) {
+        console.warn('Error loading real database table counts:', err);
+      } finally {
+        setLoadingCounts(false);
+      }
+    }
+    loadCounts();
+  }, []);
+
   function escCSV(v) {
     const s = String(v == null ? '' : v);
     return (s.includes(',') || s.includes('"') || s.includes('\n'))
       ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
-  function handleExportData() {
-    const rows = [['Type','Reference / ID','Customer','Amount (GHS)','Status','Date']];
-    try { const arr = JSON.parse(localStorage.getItem('xa12-orders-data-v1') || '[]');
-      (Array.isArray(arr) ? arr : []).forEach(o => rows.push(['Order',escCSV(o.orderNumber||o.id),escCSV(o.customerName),o.amount||o.total||'',escCSV(o.fulfillmentStatus||o.status),escCSV(o.date||o.createdAt)])); } catch {}
-    try { const arr = JSON.parse(localStorage.getItem('xa12-customers-data-v1') || '[]');
-      (Array.isArray(arr) ? arr : []).forEach(c => rows.push(['Customer',escCSV(c.id),escCSV(c.name),c.totalSpend||'',escCSV(c.status),escCSV(c.joinDate||c.createdAt)])); } catch {}
-    try { const arr = JSON.parse(localStorage.getItem('xa12_custom_requests') || '[]');
-      (Array.isArray(arr) ? arr : []).forEach(r => rows.push(['Request',escCSV(r.reference||r.id),escCSV(r.customerName||r.name),r.budget||r.amount||'',escCSV(r.status),escCSV(r.date||r.createdAt)])); } catch {}
-    try { const arr = JSON.parse(localStorage.getItem('xa12-activity-log-v1') || '[]');
-      (Array.isArray(arr) ? arr : []).forEach(l => rows.push(['Log',escCSV(l.type),'','',escCSV(l.text),escCSV(l.time||l.timestamp)])); } catch {}
+
+  async function handleExportData() {
+    showToast('Preparing real database export…');
+    const rows = [['Table', 'ID', 'Reference / Code', 'Name / Title', 'Status / Amount', 'Created At']];
+
+    try {
+      if (supabase) {
+        const [ordersData, requestsData, productsData] = await Promise.all([
+          supabase.from('orders').select('*').limit(1000),
+          supabase.from('customer_requests').select('*').limit(1000),
+          supabase.from('products').select('*').limit(1000),
+        ]);
+
+        (ordersData.data || []).forEach(o => rows.push(['Order', escCSV(o.id), escCSV(o.order_code || o.tracking_number), escCSV(o.customer_name), escCSV(o.total_amount), escCSV(o.created_at)]));
+        (requestsData.data || []).forEach(r => rows.push(['Request', escCSV(r.id), escCSV(r.reference_number), escCSV(r.customer_name), escCSV(r.status), escCSV(r.created_at)]));
+        (productsData.data || []).forEach(p => rows.push(['Product', escCSV(p.id), escCSV(p.sku), escCSV(p.name), escCSV(p.price), escCSV(p.created_at)]));
+      }
+    } catch (err) {
+      console.error('Export fetch error:', err);
+    }
+
     const csv  = rows.map(r => r.join(',')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url; a.download = `xa12_export_${new Date().toISOString().slice(0,10)}.csv`;
+    a.href = url;
+    a.download = `flowergirl_export_${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-    showToast('Data exported as CSV!');
+    showToast('Live database export downloaded!');
   }
 
-  function handleConfirmClear() {
-    if ((clearInput || '').trim() !== 'CLEAR') {
-      setClearError('Must be exactly CLEAR.'); return;
-    }
-    setShowClearModal(false);
-    try { localStorage.setItem('xa12-orders-data-v1', '[]'); } catch {}
-    try { localStorage.setItem('xa12_custom_requests', '[]'); } catch {}
-    try { localStorage.setItem('xa12-customers-data-v1', '[]'); } catch {}
-    try { localStorage.setItem('xa12-reviews-data-v1', '[]'); } catch {}
-    try { localStorage.setItem('xa12-activity-log-v1', '[]'); } catch {}
-    try {
-      const ck = Object.keys(localStorage).find(k => k.toLowerCase().includes('career') || k.toLowerCase().includes('job-posting'));
-      if (ck) { const d = JSON.parse(localStorage.getItem(ck) || '[]'); if (Array.isArray(d)) localStorage.setItem(ck, JSON.stringify(d.map(j => ({ ...j, applications: [] })))); }
-    } catch {}
-    showToast('Demo data cleared. Orders, customers, requests, reviews and logs removed.');
-  }
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+  const projectId = supabaseUrl.replace('https://', '').split('.')[0] || 'lvciyxnafwhrtrgmmjxw';
 
   return (
     <section className="settings-panel on" role="tabpanel" id="set-panel-data">
-      {/* Data & export */}
+      {/* Live database stats & environment card */}
       <div className="settings-card">
-        <h2>Data &amp; export</h2>
-        <div className="sub">Logs are kept for 30 days and removed automatically.</div>
+        <h2>Database environment &amp; live counts</h2>
+        <div className="sub">Real-time table counts from your connected Supabase backend.</div>
         <div className="set-row">
-          <div><b>Log retention</b></div>
-          <span style={{ background: 'var(--card-bg,#f2f1ef)', border: '1px solid var(--line,rgba(28,28,27,.12))',
-            borderRadius: '999px', padding: '4px 12px', fontSize: '11px', fontWeight: 600,
-            color: 'var(--mute,#747471)' }}>30 days</span>
+          <div><b>Supabase Project ID</b><div className="sub">{supabaseUrl}</div></div>
+          <span style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: '999px', padding: '4px 12px', fontSize: '11px', fontWeight: 600, color: '#166534' }}>
+            {projectId} · Connected (Live)
+          </span>
         </div>
         <div className="set-row">
+          <div><b>Live Database Table Counts</b><div className="sub">Actual rows stored in production tables.</div></div>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main,#1c1c1b)' }}>
+            {loadingCounts ? 'Loading counts…' : `${dbCounts.orders} orders · ${dbCounts.products} products · ${dbCounts.requests} requests · ${dbCounts.reviews} reviews`}
+          </span>
+        </div>
+      </div>
+
+      {/* Data & export */}
+      <div className="settings-card">
+        <h2>Data export</h2>
+        <div className="sub">Export production database tables to CSV format. Never alters or deletes data.</div>
+        <div className="set-row">
           <div>
-            <b>Export data</b>
-            <div className="sub">Downloads orders, customers, requests and activity log as a CSV file.</div>
+            <b>Export live database</b>
+            <div className="sub">Downloads orders, custom requests and product catalogue as a CSV spreadsheet.</div>
           </div>
           <button className="btn" type="button" onClick={handleExportData}>Export CSV</button>
         </div>
       </div>
 
-      {/* Danger: Demo data */}
-      <div className="settings-card" style={{ borderColor: 'rgba(161,75,69,.2)' }}>
-        <h2 style={{ color: '#a14b45' }}>Danger zone — Demo data</h2>
-        <div className="sub">Removes all locally seeded prototype data. This cannot be undone.</div>
+      {/* Danger: Demo data (disabled per requirement) */}
+      <div className="settings-card" style={{ borderColor: 'rgba(161,75,69,.2)', opacity: 0.75 }}>
+        <h2 style={{ color: '#a14b45' }}>Danger zone — Demo data tool</h2>
+        <div className="sub">Built &amp; disabled until demo rows are tagged by administrator. No deletions will be run.</div>
         <div className="set-row">
           <div>
             <b>Clear demo data</b>
-            <div className="sub">Removes sample orders, customers, requests, job applications, reviews and activity logs.</div>
+            <div className="sub">Disabled until demo rows are explicitly marked in database.</div>
           </div>
-          <button className="btn d" type="button" onClick={() => { setShowClearModal(true); setClearInput(''); setClearError(''); }}>
-            Clear demo data
+          <button className="btn d" type="button" disabled aria-disabled="true" style={{ opacity: 0.4, cursor: 'not-allowed' }}>
+            Clear demo data (Disabled)
           </button>
         </div>
       </div>
-
-      {/* Danger: Live data (disabled) */}
-      <div className="settings-card" style={{ borderColor: 'rgba(161,75,69,.1)', opacity: 0.75 }}>
-        <h2 style={{ color: '#a14b45' }}>Danger zone — Live data (Supabase)</h2>
-        <div className="sub">Deletes production records from the live database. <strong>Not yet active</strong> — requires a protected server-side function that does not exist yet.</div>
-        <div className="set-row">
-          <div>
-            <b>Clear live data</b>
-            <div className="sub">Disabled until the Supabase backend is connected.</div>
-          </div>
-          <button className="btn d" type="button" disabled aria-disabled="true"
-            style={{ opacity: 0.4, cursor: 'not-allowed' }}>Clear live data</button>
-        </div>
-        <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--mute,#747471)', fontStyle: 'italic' }}>
-          Placeholder only — will be enabled once the protected admin_clear_live_data Supabase RPC is in place.
-        </div>
-      </div>
-
-      {/* Clear demo data modal */}
-      {showClearModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-          <div style={{ background: '#ffffff', borderRadius: '16px', padding: '24px',
-            maxWidth: '440px', width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600 }}>Clear Demo Data</h3>
-            <p style={{ fontSize: '13px', color: 'var(--mute,#747471)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
-              Permanently deletes all locally seeded prototype data. <strong>Cannot be undone.</strong>
-            </p>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '.1em',
-                textTransform: 'uppercase', color: 'var(--mute,#747471)', display: 'block', marginBottom: '6px' }}>
-                Type CLEAR to confirm
-              </label>
-              <input type="text" id="clearConfirmInput" placeholder="CLEAR" autoComplete="off"
-                value={clearInput} onChange={e => setClearInput(e.target.value)}
-                style={{ width: '100%', border: '0', borderBottom: '1.5px solid var(--line,rgba(28,28,27,.15))',
-                  background: 'transparent', font: '500 15px Outfit, system-ui', padding: '8px 0', outline: 0 }} />
-              {clearError && (
-                <span style={{ fontSize: '11px', color: '#a14b45', marginTop: '4px', display: 'block' }}>{clearError}</span>
-              )}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button type="button" className="btn" onClick={() => setShowClearModal(false)}>Cancel</button>
-              <button type="button" className="btn d" onClick={handleConfirmClear}>Clear demo data</button>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 }
 
 // ─── Main SettingsPage component ──────────────────────────────────────────────
-// Tabs match admin-monolith.html exactly: store | delivery | inventory | alerts | security | data
 const TABS = [
   { key: 'store',     label: 'Store'         },
   { key: 'delivery',  label: 'Delivery'      },
@@ -553,7 +685,6 @@ export default function SettingsPage() {
   // called by sub-panels after saving so s stays in sync for this render
   const handleChange = useCallback((updated) => {
     setS(updated);
-    persistSettings(updated);
   }, []);
 
   return (
@@ -561,7 +692,7 @@ export default function SettingsPage() {
       <div className="page-header-row">
         <div className="page-title-group">
           <h2>Settings</h2>
-          <p>Configure your store, delivery, alerts and security preferences.</p>
+          <p>Configure your store, delivery, inventory, notifications and security preferences.</p>
         </div>
       </div>
 

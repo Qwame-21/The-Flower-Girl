@@ -163,10 +163,7 @@ export default function CustomersPage() {
                           : normalizedPhone.startsWith('233')
                             ? `+${normalizedPhone}`
                             : normalizedPhone;
-                        const message = encodeURIComponent(`Hello! This is ${c.isVip ? 'our valued VIP customer' : 'a customer'} from The Gifting Factory.`);
-                        const handleCopyPhone = () => {
-                          navigator.clipboard.writeText(internationalPhone);
-                        };
+                        const message = encodeURIComponent(`Hello ${c.name || 'Customer'}, reaching out from The Flower Girl.`);
                         return (
                           <>
                             <a
@@ -179,19 +176,7 @@ export default function CustomersPage() {
                             >
                               {SVG_ICONS.whatsapp}
                             </a>
-                            <button
-                              type="button"
-                              onClick={handleCopyPhone}
-                              className="btn-icon-action"
-                              title="Copy phone number"
-                              aria-label="Copy phone"
-                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                              </svg>
-                            </button>
+                            <CopyIcon text={c.phone} />
                             <a
                               href={`tel:${c.phone}`}
                               className="btn-icon-action"
