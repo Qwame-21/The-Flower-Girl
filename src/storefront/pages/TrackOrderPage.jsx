@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BadgeCheck, CircleDollarSign, LoaderCircle, PackageCheck, Truck } from 'lucide-react';
 import { readAdminData, subscribeAdminData } from '../../data/adminStore';
 import { hasTrackingApi, trackRecord } from '../api/trackingApi';
+import { getSiteSettings } from '../api/siteFeatures';
 import SiteFooter from '../components/SiteFooter';
 
 function TrackingIcon({ stage }) {
@@ -20,13 +21,120 @@ export default function TrackOrderPage({ onNavigate }) {
   const [searched, setSearched] = useState(false);
   const [searching, setSearching] = useState(false);
   const [trackingData, setTrackingData] = useState(readAdminData);
+  const [siteSettings, setSiteSettings] = useState(null);
+  const [isRateLimited, setIsRateLimited] = useState(false);
   const resultRef = useRef(null);
+  const refreshTimerRef = useRef(null);
+  const isRefreshingRef = useRef(false);
+
   useEffect(() => subscribeAdminData(data => { setTrackingData(data); setResult(current => current ? { ...current, record: (current.kind === 'order' ? data.orders : data.requests).find(record => record.id === current.record.id) || current.record } : current); }), []);
   useEffect(() => { if (result) window.requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }, [result]);
+
+  // Load site settings for auto-refresh config
+  useEffect(() => {
+    getSiteSettings().then(settings => {
+      setSiteSettings(settings);
+    });
+  }, []);
+
+  // Auto-refresh logic
+  useEffect(() => {
+    if (!result || !siteSettings?.tracking_auto_refresh_enabled) {
+      return;
+    }
+
+    // Stop auto-refresh for terminal statuses
+    if (result.kind === 'order' && (result.record.status === 'completed' || result.record.status === 'cancelled')) {
+      return;
+    }
+    if (result.kind === 'request' && result.record.status === 'closed') {
+      return;
+    }
+
+    // Stop if rate-limited
+    if (isRateLimited) {
+      return;
+    }
+
+    const intervalSeconds = Math.max(3, Math.min(60, siteSettings.tracking_refresh_interval_seconds || 10));
+
+    const refresh = async () => {
+      if (isRefreshingRef.current || document.hidden) {
+        return;
+      }
+
+      isRefreshingRef.current = true;
+
+      try {
+        const { data } = await trackRecord(reference, credential);
+
+        if (data?.kind === 'rate_limited') {
+          setIsRateLimited(true);
+          isRefreshingRef.current = false;
+          return;
+        }
+
+        setIsRateLimited(false);
+
+        if (data?.kind === 'order') {
+          const eventFields = Object.fromEntries((data.events || []).flatMap(item => [[`${item.stage}At`, item.createdAt], [`${item.stage}Note`, item.note]]));
+          setResult({
+            kind: 'order',
+            record: {
+              tracking: data.trackingNumber,
+              customer: data.customerName,
+              status: data.status,
+              paymentStatus: data.paymentStatus,
+              estimatedDelivery: data.estimatedDelivery,
+              requestedDeliveryDate: data.requestedDeliveryDate,
+              adminNote: data.adminNote,
+              ...eventFields
+            }
+          });
+        } else if (data?.kind === 'request') {
+          setResult({
+            kind: 'request',
+            record: {
+              reference: data.reference,
+              name: data.customerName,
+              status: data.status,
+              service: data.service,
+              preferredDate: data.preferredDate,
+              quoteTotal: data.confirmedQuote,
+              adminNote: data.adminNote
+            }
+          });
+        }
+      } catch (err) {
+        // Silently fail refresh - keep last result
+      } finally {
+        isRefreshingRef.current = false;
+      }
+    };
+
+    // Refresh immediately when tab becomes visible
+    const handleVisibilityChange = () => {
+      if (!document.hidden && !isRefreshingRef.current) {
+        refresh();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Set up interval
+    refreshTimerRef.current = setInterval(refresh, intervalSeconds * 1000);
+
+    return () => {
+      clearInterval(refreshTimerRef.current);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      isRefreshingRef.current = false;
+    };
+  }, [result, siteSettings, reference, credential, isRateLimited]);
 
   const search = async event => {
     event.preventDefault();
     setSearching(true);
+    setIsRateLimited(false);
     const value = reference.trim().toLowerCase();
     const contact = credential.trim().toLowerCase();
     const digits = contact.replace(/\D/g, '');
@@ -39,7 +147,10 @@ export default function TrackOrderPage({ onNavigate }) {
     let matched = order ? { kind: 'order', record: order } : request ? { kind: 'request', record: request } : null;
     if (hasTrackingApi()) {
       const { data } = await trackRecord(reference, credential);
-      if (data?.kind === 'order') {
+      if (data?.kind === 'rate_limited') {
+        setIsRateLimited(true);
+        matched = null;
+      } else if (data?.kind === 'order') {
         const eventFields = Object.fromEntries((data.events || []).flatMap(item => [[`${item.stage}At`, item.createdAt], [`${item.stage}Note`, item.note]]));
         matched = { kind: 'order', record: { tracking: data.trackingNumber, customer: data.customerName, status: data.status, paymentStatus: data.paymentStatus, estimatedDelivery: data.estimatedDelivery, requestedDeliveryDate: data.requestedDeliveryDate, adminNote: data.adminNote, ...eventFields } };
       } else if (data?.kind === 'request') matched = { kind: 'request', record: { reference: data.reference, name: data.customerName, status: data.status, service: data.service, preferredDate: data.preferredDate, quoteTotal: data.confirmedQuote, adminNote: data.adminNote } };
@@ -62,9 +173,9 @@ export default function TrackOrderPage({ onNavigate }) {
         <label>Phone number or email<input value={credential} onChange={event => setCredential(event.target.value)} required placeholder="024 000 0000 or you@example.com" /></label>
         <button className="primary-action" disabled={searching}>{searching ? 'CHECKING…' : 'TRACK'}</button>
       </form>
-      {order && <article ref={resultRef} className="tracking-result"><span>{order.tracking}</span><h2>{order.customer}</h2><p>Your order is currently <strong>{labels[order.status] || order.status}</strong>.</p><div className="tracking-timeline">{stages.map(stage => { const done = stages.indexOf(stage) <= stages.indexOf(order.status) || (stage === 'paid' && order.paymentStatus === 'paid'); const current = stage === order.status || (stage === 'paid' && order.status === 'pending_payment'); const note = order[`${stage}Note`] || (current ? order.adminNote : ''); return <i key={stage} className={`${done ? 'done' : ''} ${current ? 'is-current' : ''}`}><b><TrackingIcon stage={stage} /></b><span className="tracking-stage-label">{stage === 'paid' && order.paymentStatus !== 'paid' ? 'Awaiting payment' : labels[stage]}</span><time>{order[`${stage}At`] ? new Date(order[`${stage}At`]).toLocaleString('en-GH') : 'Update pending'}</time>{note && <small>{note}</small>}</i>; })}</div><section className="track-order-details"><p><strong>Recipient:</strong> {order.recipient || order.customer}</p><p><strong>Delivery:</strong> {order.delivery || 'Awaiting confirmation'}</p><p><strong>Payment:</strong> {order.paymentStatus === 'paid' ? 'Confirmed' : 'Awaiting confirmation'}</p>{order.estimatedDelivery && <p><strong>Estimated delivery:</strong> {new Date(order.estimatedDelivery).toLocaleString('en-GH')}</p>}{order.adminNote && <p><strong>Latest update:</strong> {order.adminNote}</p>}</section></article>}
-      {request && <article ref={resultRef} className="tracked-request tracking-result"><span>{request.reference || request.id}</span><h2>{request.name || 'Custom request'}</h2><p>Your request is <strong>{request.status === 'converted' ? 'now an order' : request.status === 'approved' ? 'approved' : request.status === 'quote_needed' ? 'being quoted' : 'received'}</strong>.</p><section className="track-order-details"><p><strong>Service:</strong> {request.service || request.selections?.join(', ') || 'Bespoke gift'}</p><p><strong>Preferred date:</strong> {request.preferredDate || 'To confirm'}</p>{request.quoteTotal && <p><strong>Confirmed quote:</strong> GHS {Number(request.quoteTotal).toLocaleString()}</p>}<p><strong>Latest update:</strong> {request.adminNote || 'The team will contact you as the request progresses.'}</p></section></article>}
-      {searched && !result && <div className="track-empty"><p>No record matched those details. Check the reference and contact information, then try again.</p><a href={`tel:${String(trackingData.settings.supportPhone || '').replace(/[^+\d]/g, '')}`}>Call {trackingData.settings.supportPhone}</a></div>}
+      {order && <article ref={resultRef} className="tracking-result"><span>{order.tracking}</span><h2>{order.customer}</h2><p>Your order is currently <strong>{labels[order.status] || order.status}</strong>.</p>{siteSettings?.tracking_auto_refresh_enabled && <small className="tracking-auto-refresh-note">Updates automatically</small>}<div className="tracking-timeline">{stages.map(stage => { const done = stages.indexOf(stage) <= stages.indexOf(order.status) || (stage === 'paid' && order.paymentStatus === 'paid'); const current = stage === order.status || (stage === 'paid' && order.status === 'pending_payment'); const note = order[`${stage}Note`] || (current ? order.adminNote : ''); return <i key={stage} className={`${done ? 'done' : ''} ${current ? 'is-current' : ''}`}><b><TrackingIcon stage={stage} /></b><span className="tracking-stage-label">{stage === 'paid' && order.paymentStatus !== 'paid' ? 'Awaiting payment' : labels[stage]}</span><time>{order[`${stage}At`] ? new Date(order[`${stage}At`]).toLocaleString('en-GH') : 'Update pending'}</time>{note && <small>{note}</small>}</i>; })}</div><section className="track-order-details"><p><strong>Recipient:</strong> {order.recipient || order.customer}</p><p><strong>Delivery:</strong> {order.delivery || 'Awaiting confirmation'}</p><p><strong>Payment:</strong> {order.paymentStatus === 'paid' ? 'Confirmed' : 'Awaiting confirmation'}</p>{order.estimatedDelivery && <p><strong>Estimated delivery:</strong> {new Date(order.estimatedDelivery).toLocaleString('en-GH')}</p>}{order.adminNote && <p><strong>Latest update:</strong> {order.adminNote}</p>}</section></article>}
+      {request && <article ref={resultRef} className="tracked-request tracking-result"><span>{request.reference || request.id}</span><h2>{request.name || 'Custom request'}</h2><p>Your request is <strong>{request.status === 'converted' ? 'now an order' : request.status === 'approved' ? 'approved' : request.status === 'quote_needed' ? 'being quoted' : 'received'}</strong>.</p>{siteSettings?.tracking_auto_refresh_enabled && <small className="tracking-auto-refresh-note">Updates automatically</small>}<section className="track-order-details"><p><strong>Service:</strong> {request.service || request.selections?.join(', ') || 'Bespoke gift'}</p><p><strong>Preferred date:</strong> {request.preferredDate || 'To confirm'}</p>{request.quoteTotal && <p><strong>Confirmed quote:</strong> GHS {Number(request.quoteTotal).toLocaleString()}</p>}<p><strong>Latest update:</strong> {request.adminNote || 'The team will contact you as the request progresses.'}</p></section></article>}
+      {searched && !result && <div className="track-empty"><p>{isRateLimited ? 'Too many attempts. Please wait a few minutes and try again.' : 'No record matched those details. Check the reference and contact information, then try again.'}</p><a href={`tel:${String(trackingData.settings.supportPhone || '').replace(/[^+\d]/g, '')}`}>Call {trackingData.settings.supportPhone}</a></div>}
     </section>
     <SiteFooter onNavigate={onNavigate} />
   </main>;

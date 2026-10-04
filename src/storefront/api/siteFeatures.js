@@ -1,0 +1,79 @@
+import { supabase } from '../../config/supabase';
+
+const SETTINGS_CACHE_KEY = 'flowergirl-site-settings-v1';
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Load site settings with fallback defaults
+ * Reads safely - returns defaults if Supabase is unavailable or columns are missing
+ */
+export async function getSiteSettings() {
+  // Check cache first
+  try {
+    const cached = localStorage.getItem(SETTINGS_CACHE_KEY);
+    if (cached) {
+      const { data, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < CACHE_DURATION) {
+        return data;
+      }
+    }
+  } catch {}
+
+  // Default settings (matches current behavior when settings are missing)
+  const defaults = {
+    delivery_selector_enabled: false,
+    tracking_auto_refresh_enabled: false,
+    tracking_refresh_interval_seconds: 10,
+    track_max_failed_attempts: 10,
+    track_lockout_minutes: 15,
+    delivery_sameday_enabled: true,
+    delivery_sameday_fee: 120,
+    delivery_scheduled_enabled: true,
+    delivery_scheduled_fee: 90,
+    delivery_surprise_enabled: true,
+    delivery_surprise_fee: 140,
+    delivery_collection_enabled: true,
+    delivery_collection_fee: 0,
+    about_page: '',
+    delivery_page: '',
+    policy_page: '',
+    support_phone: '+233 202 417 072',
+  };
+
+  if (!supabase) {
+    return defaults;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('site_settings')
+      .select('*')
+      .eq('id', 'global')
+      .single();
+
+    if (error || !data) {
+      return defaults;
+    }
+
+    // Merge with defaults, preserving any new columns that exist
+    const settings = { ...defaults };
+
+    for (const key in data) {
+      if (key in settings) {
+        settings[key] = data[key];
+      }
+    }
+
+    // Cache the result
+    try {
+      localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify({
+        data: settings,
+        timestamp: Date.now(),
+      }));
+    } catch {}
+
+    return settings;
+  } catch (err) {
+    return defaults;
+  }
+}

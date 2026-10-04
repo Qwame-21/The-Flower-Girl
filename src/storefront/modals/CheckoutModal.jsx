@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check, LoaderCircle, LocateFixed, MapPin, Trash2 } from 'lucide-react';
 import { initializeCheckout, verifyCheckoutPayment } from '../api/checkoutApi';
 import { hasTrackingApi, trackRecord } from '../api/trackingApi';
+import { getSiteSettings } from '../api/siteFeatures';
 import { formIsoDateOptional } from '../utils/date';
 import CardStylePicker from '../components/CardStylePicker';
 import DateField from '../components/DateField';
@@ -9,6 +10,7 @@ import QuantityControl from '../components/QuantityControl';
 import PhoneInput, { combinePhone } from '../components/PhoneInput';
 import ModalHeader from '../components/ModalHeader';
 import DeliveryAddressFields from '../components/DeliveryAddressFields';
+import CustomSelect from '../components/CustomSelect';
 import { formatDeliveryAddress } from '../utils/address';
 
 export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate }) {
@@ -22,7 +24,45 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
   const [locationLink, setLocationLink] = useState('');
   const [locationStatus, setLocationStatus] = useState('');
   const [scrollState, setScrollState] = useState({ progress: 0, visible: false });
-  const total = cart.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+  const [siteSettings, setSiteSettings] = useState(null);
+  const [selectedDeliveryType, setSelectedDeliveryType] = useState('');
+  const [retrying, setRetrying] = useState(false);
+  const [retryAttempts, setRetryAttempts] = useState(0);
+  const subtotal = cart.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+
+  // Load site settings on mount
+  useEffect(() => {
+    getSiteSettings().then(settings => {
+      setSiteSettings(settings);
+      // Default to first enabled delivery type
+      if (settings?.delivery_selector_enabled) {
+        const enabledTypes = [];
+        if (settings.delivery_sameday_enabled) enabledTypes.push('sameday');
+        if (settings.delivery_scheduled_enabled) enabledTypes.push('scheduled');
+        if (settings.delivery_surprise_enabled) enabledTypes.push('surprise');
+        if (settings.delivery_collection_enabled) enabledTypes.push('collection');
+        if (enabledTypes.length > 0 && !selectedDeliveryType) {
+          setSelectedDeliveryType(enabledTypes[0]);
+        }
+      }
+    });
+  }, []);
+
+  // Calculate delivery fee based on selected type
+  const deliveryFee = (() => {
+    if (!siteSettings?.delivery_selector_enabled || !selectedDeliveryType) {
+      return 0;
+    }
+    switch (selectedDeliveryType) {
+      case 'sameday': return siteSettings.delivery_sameday_fee || 0;
+      case 'scheduled': return siteSettings.delivery_scheduled_fee || 0;
+      case 'surprise': return siteSettings.delivery_surprise_fee || 0;
+      case 'collection': return siteSettings.delivery_collection_fee || 0;
+      default: return 0;
+    }
+  })();
+
+  const total = subtotal + deliveryFee;
 
   useEffect(() => {
     if (!copied) return undefined;
@@ -86,6 +126,7 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
       if (!stopped && attempts < 10) {
         window.setTimeout(verifyAndCheck, 3000);
       } else if (!stopped) {
+        // First 10 attempts exhausted - show retry state
         setComplete(current => ({ ...current, status: 'pending' }));
         window.sessionStorage.setItem('gifting-factory-payment-return', JSON.stringify({ ...complete, status: 'pending' }));
       }
@@ -94,6 +135,63 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
     verifyAndCheck();
     return () => { stopped = true; };
   }, [complete?.reference, complete?.status]);
+
+  // Manual retry after initial 10 attempts fail
+  const handleRetryVerification = async () => {
+    if (!complete?.reference || retrying) return;
+
+    setRetrying(true);
+    let attempts = 0;
+    const maxRetries = 3;
+    const ref = complete.reference;
+    const trackNum = complete.trackingNumber;
+    const email = complete.customerEmail;
+
+    const verifyAndCheck = async () => {
+      attempts += 1;
+      try {
+        const res = await verifyCheckoutPayment(ref);
+        const resJson = await res.json().catch(() => null);
+        if (res.ok && resJson?.success) {
+          setComplete(current => ({ ...current, status: 'paid' }));
+          window.sessionStorage.setItem('gifting-factory-payment-return', JSON.stringify({ ...complete, status: 'paid' }));
+          setRetrying(false);
+          setRetryAttempts(0);
+          return;
+        }
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.warn('[checkout-retry] Server verification attempt error:', err);
+        }
+      }
+
+      if (trackNum && hasTrackingApi()) {
+        try {
+          const { data } = await trackRecord(trackNum, email);
+          if (data?.kind === 'order' && data.paymentStatus === 'paid') {
+            setComplete(current => ({ ...current, status: 'paid' }));
+            window.sessionStorage.setItem('gifting-factory-payment-return', JSON.stringify({ ...complete, status: 'paid' }));
+            setRetrying(false);
+            setRetryAttempts(0);
+            return;
+          }
+        } catch (trackErr) {
+          if (import.meta.env.DEV) {
+            console.warn('[checkout-retry] Tracking API error:', trackErr);
+          }
+        }
+      }
+
+      if (attempts < maxRetries) {
+        window.setTimeout(verifyAndCheck, 3000);
+      } else {
+        setRetrying(false);
+        setRetryAttempts(prev => prev + 1);
+      }
+    };
+
+    verifyAndCheck();
+  };
 
   const submit = async (event) => {
     event.preventDefault();
@@ -112,7 +210,7 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
       const customerPhone = String(data.get('phone') || '').trim() || combinePhone(data.get('phone-code') || '+233', data.get('phone-number'));
       const deliveryAddress = formatDeliveryAddress(data);
 
-      const res = await initializeCheckout({
+      const payload = {
         customerName: String(data.get('customer') || '').trim(),
         customerEmail: String(data.get('email') || '').trim(),
         customerPhone,
@@ -126,7 +224,14 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
         requestedDeliveryDate: formIsoDateOptional(data, 'checkout'),
         callbackUrl: `${window.location.origin}/?payment=return`,
         cart: cart.map(item => ({ id: item.id, name: item.name, quantity: item.quantity, price: item.price })),
-      });
+      };
+
+      // Only add deliveryType if selector is enabled and a type is selected
+      if (siteSettings?.delivery_selector_enabled && selectedDeliveryType) {
+        payload.deliveryType = selectedDeliveryType;
+      }
+
+      const res = await initializeCheckout(payload);
 
       const json = await res.json();
 
@@ -164,10 +269,20 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
         {complete ? (
           <div className="flow-success payment-receipt">
             <Check size={28} />
-            <p>{complete.status === 'paid' ? 'Payment has been verified and your order is now with The Gifting Factory.' : complete.status === 'pending' ? 'Keep your tracking ID. If Paystack completed the payment, its signed confirmation will finish the order automatically.' : 'Paystack has returned you safely. This page will update as soon as the signed payment confirmation arrives.'}</p>
+            <p>{complete.status === 'paid' ? 'Payment has been verified and your order is now with The Gifting Factory.' : complete.status === 'pending' && retryAttempts === 0 ? 'Payment verification is taking longer than expected. This can happen if network is slow.' : complete.status === 'pending' ? 'Keep your tracking ID. If Paystack completed the payment, its signed confirmation will finish the order automatically.' : 'Paystack has returned you safely. This page will update as soon as the signed payment confirmation arrives.'}</p>
             <div className="receipt-code"><small>ORDER TRACKING ID</small><strong>{complete.trackingNumber}</strong><button className={copied ? 'is-copied' : copying ? 'is-copying' : ''} type="button" aria-label={copied ? 'Tracking ID copied' : copying ? 'Copying tracking ID' : 'Copy tracking ID'} disabled={copying} onClick={copyTrackingId}>{copied ? <Check size={16} /> : copying ? <i aria-hidden="true" /> : <span>COPY ID</span>}</button></div>
             {complete.orderCode && <small className="receipt-order-code">ORDER CODE · {complete.orderCode}</small>}
-            <div className="receipt-actions"><button className="primary-action" onClick={() => { window.sessionStorage.setItem('gifting-factory-track-prefill', JSON.stringify({ reference: complete.trackingNumber, credential: complete.customerEmail })); window.sessionStorage.removeItem('gifting-factory-payment-return'); onClose(); onNavigate?.('track'); }}>TRACK THIS ORDER</button><button className="soft-action" onClick={() => { window.sessionStorage.removeItem('gifting-factory-payment-return'); onClose(); }}>RETURN TO THE SHOP</button></div>
+            {complete.status === 'pending' && retryAttempts === 0 && (
+              <div className="receipt-actions">
+                <button className="primary-action" onClick={handleRetryVerification} disabled={retrying}>
+                  {retrying ? <><LoaderCircle size={16} className="spin-icon" /> RETRYING…</> : 'Retry verification'}
+                </button>
+                <button className="soft-action" onClick={() => { window.sessionStorage.setItem('gifting-factory-track-prefill', JSON.stringify({ reference: complete.trackingNumber, credential: complete.customerEmail })); window.sessionStorage.removeItem('gifting-factory-payment-return'); onClose(); onNavigate?.('track'); }}>View tracking status</button>
+              </div>
+            )}
+            {complete.status !== 'pending' && (
+              <div className="receipt-actions"><button className="primary-action" onClick={() => { window.sessionStorage.setItem('gifting-factory-track-prefill', JSON.stringify({ reference: complete.trackingNumber, credential: complete.customerEmail })); window.sessionStorage.removeItem('gifting-factory-payment-return'); onClose(); onNavigate?.('track'); }}>TRACK THIS ORDER</button><button className="soft-action" onClick={() => { window.sessionStorage.removeItem('gifting-factory-payment-return'); onClose(); }}>RETURN TO THE SHOP</button></div>
+            )}
           </div>
         ) : !cart.length ? (
           <div className="flow-success empty-order"><p>Add a ready-made gift or begin with the custom gift builder.</p><button className="primary-action" onClick={onClose}>BROWSE THE SHOP</button></div>
@@ -180,7 +295,44 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
               <strong>GHS {(item.price * item.quantity).toLocaleString()}</strong>
               <button className="checkout-remove" type="button" onClick={() => onQuantity(item.id, 0)} aria-label={`Remove ${item.name} from order`}><Trash2 size={17} strokeWidth={1.6} /></button>
             </div>)}</div>
-            <div className="checkout-total"><span>SUBTOTAL</span><strong>GHS {total.toLocaleString()}</strong></div>
+            <div className="checkout-total"><span>SUBTOTAL</span><strong>GHS {subtotal.toLocaleString()}</strong></div>
+            {siteSettings?.delivery_selector_enabled && (
+              <>
+                {(() => {
+                  const deliveryOptions = [];
+                  if (siteSettings.delivery_sameday_enabled) {
+                    deliveryOptions.push({ value: 'sameday', label: 'Same-day delivery', fee: siteSettings.delivery_sameday_fee });
+                  }
+                  if (siteSettings.delivery_scheduled_enabled) {
+                    deliveryOptions.push({ value: 'scheduled', label: 'Scheduled delivery', fee: siteSettings.delivery_scheduled_fee });
+                  }
+                  if (siteSettings.delivery_surprise_enabled) {
+                    deliveryOptions.push({ value: 'surprise', label: 'Surprise delivery', fee: siteSettings.delivery_surprise_fee });
+                  }
+                  if (siteSettings.delivery_collection_enabled) {
+                    deliveryOptions.push({ value: 'collection', label: 'Shop collection', fee: siteSettings.delivery_collection_fee });
+                  }
+
+                  if (deliveryOptions.length === 0) return null;
+
+                  return (
+                    <CustomSelect
+                      name="deliveryType"
+                      label="Delivery type"
+                      options={deliveryOptions}
+                      value={selectedDeliveryType}
+                      onChange={setSelectedDeliveryType}
+                      getLabel={opt => opt.label}
+                      getValue={opt => opt.value}
+                      disabled={submitting}
+                      required
+                    />
+                  );
+                })()}
+                <div className="checkout-total"><span>Delivery fee</span><strong>{deliveryFee > 0 ? `GHS ${deliveryFee.toLocaleString()}` : 'Free'}</strong></div>
+              </>
+            )}
+            <div className="checkout-total"><span>TOTAL</span><strong>GHS {total.toLocaleString()}</strong></div>
             <div className="checkout-contact-grid"><label>Customer name<input name="customer" required disabled={submitting} /></label><label>Email for receipt<input name="email" required type="email" disabled={submitting} /></label><PhoneInput required disabled={submitting} /><label><span className="field-label">Recipient name <small>optional</small></span><input name="recipient-name" placeholder="Leave blank if you are receiving it" disabled={submitting} /></label></div>
             <DeliveryAddressFields disabled={submitting} /><label>Nearest landmark<input name="landmark" disabled={submitting} /></label>
             <div className="location-field"><label>Google Maps or location link<input type="url" value={locationLink} onChange={event => setLocationLink(event.target.value)} placeholder="https://maps.google.com/..." disabled={submitting} /></label><button type="button" onClick={useCurrentLocation} disabled={submitting}><LocateFixed size={15} /> USE MY LOCATION</button>{locationStatus && <small><MapPin size={13} />{locationStatus}</small>}</div>
