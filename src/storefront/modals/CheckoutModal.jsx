@@ -46,6 +46,7 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
         }
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Calculate delivery fee based on selected type
@@ -134,6 +135,7 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
 
     verifyAndCheck();
     return () => { stopped = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [complete?.reference, complete?.status]);
 
   // Manual retry after initial 10 attempts fail

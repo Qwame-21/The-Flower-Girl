@@ -17,7 +17,9 @@ export async function getSiteSettings() {
         return data;
       }
     }
-  } catch {}
+  } catch {
+    // Cache read failed, continue to fetch from Supabase
+  }
 
   // Default settings (matches current behavior when settings are missing)
   const defaults = {
@@ -70,10 +72,12 @@ export async function getSiteSettings() {
         data: settings,
         timestamp: Date.now(),
       }));
-    } catch {}
+    } catch {
+      // Cache write failed, return settings anyway
+    }
 
     return settings;
-  } catch (err) {
+  } catch {
     return defaults;
   }
 }

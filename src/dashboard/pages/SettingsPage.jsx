@@ -316,25 +316,15 @@ function AlertsPanel({ s, onChange }) {
     });
   }
 
-  const Row = ({ label, sub, field }) => (
-    <div className="set-row">
-      <div><b>{label}</b><div className="sub">{sub}</div></div>
-      <label className="sw">
-        <input type="checkbox" checked={form[field]} onChange={setCheck(field)} />
-        <i />
-      </label>
-    </div>
-  );
-
   return (
     <section className="settings-panel on" role="tabpanel" id="set-panel-alerts">
       <div className="settings-card">
         <h2>Notification preferences</h2>
         <div className="sub">Turning a toggle off suppresses bell notifications and audio alerts for that event type.</div>
-        <Row label="New orders"          sub="Notifies you when a new order is placed via POS or the storefront."  field="orders"   />
-        <Row label="New custom requests" sub="Notifies you when a bespoke order request is submitted."              field="requests" />
-        <Row label="New job applications" sub="Notifies you when a candidate applies for a job posting."            field="careers"  />
-        <Row label="Low stock"           sub="Shows a persistent alert when inventory falls below the threshold."   field="lowStock"    />
+        <NotificationRow label="New orders"          sub="Notifies you when a new order is placed via POS or the storefront."  field="orders"   form={form} setCheck={setCheck} />
+        <NotificationRow label="New custom requests" sub="Notifies you when a bespoke order request is submitted."              field="requests" form={form} setCheck={setCheck} />
+        <NotificationRow label="New job applications" sub="Notifies you when a candidate applies for a job posting."            field="careers"  form={form} setCheck={setCheck} />
+        <NotificationRow label="Low stock"           sub="Shows a persistent alert when inventory falls below the threshold."   field="lowStock"    form={form} setCheck={setCheck} />
       </div>
       <div className="bar" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
         <button className="btn p" type="button" disabled={saving} onClick={handleSave}>
@@ -398,14 +388,26 @@ function AlertsPanel({ s, onChange }) {
   );
 }
 
+function NotificationRow({ label, sub, field, form, setCheck }) {
+  return (
+    <div className="set-row">
+      <div><b>{label}</b><div className="sub">{sub}</div></div>
+      <label className="sw">
+        <input type="checkbox" checked={form[field]} onChange={setCheck(field)} />
+        <i />
+      </label>
+    </div>
+  );
+}
+
 // ─── Panel: Page Content ──────────────────────────────────────────────────────
 function ContentPanel({ s, onChange }) {
   const [saving, withSaving] = useSavingState();
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(() => ({
     aboutPage: s.content?.aboutPage || '',
     deliveryPage: s.content?.deliveryPage || '',
     policyPage: s.content?.policyPage || '',
-  });
+  }));
 
   useEffect(() => {
     setForm({
@@ -413,7 +415,8 @@ function ContentPanel({ s, onChange }) {
       deliveryPage: s.content?.deliveryPage || '',
       policyPage: s.content?.policyPage || '',
     });
-  }, [s.content]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.content?.aboutPage, s.content?.deliveryPage, s.content?.policyPage]);
 
   const setText = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -433,7 +436,46 @@ function ContentPanel({ s, onChange }) {
     });
   }
 
-  const TextArea = ({ label, field, placeholder }) => (
+  return (
+    <section className="settings-panel on" role="tabpanel" id="set-panel-content">
+      <div className="settings-card">
+        <h2>Page content</h2>
+        <div className="sub">Edit the text shown on About, Delivery, and Policy pages. These are customer-facing pages in the storefront.</div>
+        <div className="settings-fields">
+          <ContentTextArea
+            label="About page"
+            field="aboutPage"
+            placeholder="Tell your story..."
+            form={form}
+            setText={setText}
+          />
+          <ContentTextArea
+            label="Delivery information"
+            field="deliveryPage"
+            placeholder="Explain delivery options..."
+            form={form}
+            setText={setText}
+          />
+          <ContentTextArea
+            label="Policy"
+            field="policyPage"
+            placeholder="Your policies..."
+            form={form}
+            setText={setText}
+          />
+        </div>
+      </div>
+      <div className="bar" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+        <button className="btn p" type="button" disabled={saving} onClick={handleSave}>
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ContentTextArea({ label, field, placeholder, form, setText }) {
+  return (
     <div className="settings-f full">
       <label htmlFor={`set_content_${field}`}>{label}</label>
       <textarea
@@ -449,37 +491,6 @@ function ContentPanel({ s, onChange }) {
         {form[field].length} / 10000 characters • Leave empty to use fallback text
       </div>
     </div>
-  );
-
-  return (
-    <section className="settings-panel on" role="tabpanel" id="set-panel-content">
-      <div className="settings-card">
-        <h2>Page content</h2>
-        <div className="sub">Edit the text shown on About, Delivery, and Policy pages. These are customer-facing pages in the storefront.</div>
-        <div className="settings-fields">
-          <TextArea
-            label="About page"
-            field="aboutPage"
-            placeholder="Tell your story..."
-          />
-          <TextArea
-            label="Delivery information"
-            field="deliveryPage"
-            placeholder="Explain delivery options..."
-          />
-          <TextArea
-            label="Policy"
-            field="policyPage"
-            placeholder="Your policies..."
-          />
-        </div>
-      </div>
-      <div className="bar" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
-        <button className="btn p" type="button" disabled={saving} onClick={handleSave}>
-          {saving ? 'Saving…' : 'Save changes'}
-        </button>
-      </div>
-    </section>
   );
 }
 

@@ -105,7 +105,7 @@ export default function TrackOrderPage({ onNavigate }) {
             }
           });
         }
-      } catch (err) {
+      } catch {
         // Silently fail refresh - keep last result
       } finally {
         isRefreshingRef.current = false;
