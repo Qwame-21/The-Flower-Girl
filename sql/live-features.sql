@@ -230,6 +230,7 @@ ALTER TABLE public.customer_requests
 
 -- 8. Create convert_request_to_order RPC
 -- Staff-only function to convert approved requests to orders
+-- Mirrors createStaffOrder pattern from src/dashboard/data/orders.js
 CREATE OR REPLACE FUNCTION public.convert_request_to_order(
   p_request_id uuid,
   p_delivery_address text,
@@ -248,6 +249,7 @@ DECLARE
   v_order_id uuid;
   v_tracking_number text;
   v_order_code text;
+  v_timestamp bigint;
   v_final_tracking text;
   v_final_code text;
   v_exists integer;
@@ -283,23 +285,27 @@ BEGIN
   END IF;
   
   -- Generate unique tracking number and order code
-  -- Format: GF-{6 digits} and WEB-{6 digits}, loop until unique
-  -- This mirrors the pattern from createStaffOrder in src/dashboard/data/orders.js
+  -- Format: GF-{last 6 digits of timestamp} and WEB-{last 6 digits of timestamp}
+  -- Loop until both are unique (mirrors createStaffOrder pattern)
   LOOP
-    v_tracking_number := 'GF-' || lpad((random() * 1000000)::integer::text, 6, '0');
-    v_order_code := 'WEB-' || lpad((random() * 1000000)::integer::text, 6, '0');
+    v_timestamp := extract(epoch from now()) * 1000::bigint;
+    v_tracking_number := 'GF-' || right(v_timestamp::text, 6);
+    v_order_code := 'WEB-' || right(v_timestamp::text, 6);
     
     SELECT count(*) INTO v_exists FROM public.orders WHERE tracking_number = v_tracking_number;
     EXIT WHEN v_exists = 0;
     
     SELECT count(*) INTO v_exists FROM public.orders WHERE order_code = v_order_code;
     EXIT WHEN v_exists = 0;
+    
+    -- Small delay to avoid timestamp collision
+    PERFORM pg_sleep(0.01);
   END LOOP;
   
   v_final_tracking := v_tracking_number;
   v_final_code := v_order_code;
   
-  -- Insert order
+  -- Insert order (mirrors createStaffOrder structure)
   INSERT INTO public.orders (
     tracking_number,
     order_code,
@@ -310,6 +316,7 @@ BEGIN
     recipient_name,
     delivery_address,
     landmark,
+    location_link,
     customer_note,
     card_message,
     card_style,
@@ -317,6 +324,7 @@ BEGIN
     subtotal,
     total,
     payment_provider,
+    payment_reference,
     payment_status,
     fulfillment_status,
     staff_order,
@@ -332,6 +340,7 @@ BEGIN
     p_recipient_name,
     p_delivery_address,
     p_landmark,
+    NULL,
     v_request.notes,
     v_request.card_message,
     v_request.card_style,
@@ -339,8 +348,9 @@ BEGIN
     v_request.confirmed_quote,
     v_request.confirmed_quote,
     'staff',
+    NULL,
     'pending',
-    'pending_payment',
+    'packaging',
     true,
     v_request.selections,
     p_admin_note
@@ -348,7 +358,7 @@ BEGIN
   
   -- Insert order event
   INSERT INTO public.order_events (order_id, stage, customer_note)
-  VALUES (v_order_id, 'pending_payment', 'Created from request ' || v_request.reference);
+  VALUES (v_order_id, 'paid', 'Created from request ' || v_request.reference);
   
   -- Update request
   UPDATE public.customer_requests
