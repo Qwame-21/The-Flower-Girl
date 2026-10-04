@@ -1,22 +1,40 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  const allowedOrigins = Deno.env.get('ALLOWED_ORIGINS');
+  const allowlist = allowedOrigins ? allowedOrigins.split(',').map(o => o.trim()) : [];
+  
+  let corsOrigin = '*';
+  if (allowlist.length > 0 && origin) {
+    if (allowlist.includes(origin)) {
+      corsOrigin = origin;
+    } else {
+      corsOrigin = 'null';
+    }
+  }
+  
+  return {
+    'Access-Control-Allow-Origin': corsOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    ...(allowlist.length > 0 && origin && allowlist.includes(origin) ? { 'Vary': 'Origin' } : {}),
+  };
+}
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+const json = (body: unknown, status = 200, corsHeaders: Record<string, string>) => new Response(JSON.stringify(body), {
   status,
-  headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  headers: { ...corsHeaders, 'Content-Type': 'application/json' },
 });
 
 Deno.serve(async (req: Request): Promise<Response> => {
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+  
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: CORS_HEADERS });
+    return new Response('ok', { headers: corsHeaders });
   }
   if (req.method !== 'POST') {
-    return json({ error: 'Method not allowed' }, 405);
+    return json({ error: 'Method not allowed' }, 405, corsHeaders);
   }
 
   const paystackSecret = Deno.env.get('PAYSTACK_SECRET_KEY');
@@ -24,22 +42,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
   if (!paystackSecret || !supabaseUrl || !serviceRole) {
-    return json({ error: 'Server mis-configuration' }, 500);
+    return json({ error: 'Server mis-configuration' }, 500, corsHeaders);
   }
 
   let body: { reference?: string };
   try {
     body = await req.json();
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400);
+    return json({ error: 'Invalid JSON body' }, 400, corsHeaders);
   }
 
   const reference = String(body.reference || '').trim();
   if (!reference) {
-    return json({ error: 'Missing payment reference' }, 400);
+    return json({ error: 'Missing payment reference' }, 400, corsHeaders);
   }
-
-  console.log('[paystack-verify] Verifying transaction reference server-side:', reference);
 
   // Call Paystack Verify API with secret key server-side only
   const verifyResponse = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
@@ -50,8 +66,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const verified = verification?.data;
 
   if (!verifyResponse.ok || !verification?.status || verified?.status !== 'success' || verified?.reference !== reference) {
-    console.error('[paystack-verify] Paystack verification failed:', verification);
-    return json({ error: verification?.message || 'Payment verification failed' }, 409);
+    return json({ error: verification?.message || 'Payment verification failed' }, 409, corsHeaders);
   }
 
   const amount = Number(verified.amount) / 100;
@@ -69,16 +84,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   });
 
   if (error) {
-    console.error('[paystack-verify] Checkout finalization RPC failed:', error.message);
-    return json({ error: 'Order finalization failed' }, 409);
+    return json({ error: 'Order finalization failed' }, 409, corsHeaders);
   }
-
-  console.log('[paystack-verify] Verified order finalized:', result?.orderId);
 
   return json({
     success: true,
     orderId: result?.orderId,
     trackingNumber: result?.trackingNumber,
     orderCode: result?.orderCode,
-  });
+  }, 200, corsHeaders);
 });

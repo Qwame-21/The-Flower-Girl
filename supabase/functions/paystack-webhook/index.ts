@@ -33,7 +33,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const verification = await verifyResponse.json();
   const verified = verification?.data;
   if (!verifyResponse.ok || !verification?.status || verified?.status !== 'success' || verified?.reference !== reference) {
-    console.error('Paystack verification failed for a signed event');
     return new Response('Verification failed', { status: 409 });
   }
 
@@ -48,11 +47,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     verified_currency: currency,
   });
   if (error) {
-    console.error('Checkout finalization failed:', error.message);
     return new Response('Order finalization failed', { status: 409 });
   }
-
-  console.log('Verified order finalized:', result?.orderId);
 
   return json({ received: true });
 });

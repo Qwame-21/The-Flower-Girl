@@ -7,11 +7,26 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  const allowedOrigins = Deno.env.get('ALLOWED_ORIGINS');
+  const allowlist = allowedOrigins ? allowedOrigins.split(',').map(o => o.trim()) : [];
+  
+  let corsOrigin = '*';
+  if (allowlist.length > 0 && origin) {
+    if (allowlist.includes(origin)) {
+      corsOrigin = origin;
+    } else {
+      corsOrigin = 'null';
+    }
+  }
+  
+  return {
+    'Access-Control-Allow-Origin': corsOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    ...(allowlist.length > 0 && origin && allowlist.includes(origin) ? { 'Vary': 'Origin' } : {}),
+  };
+}
 
 interface CartItem {
   id: string;
@@ -38,13 +53,16 @@ interface InitPayload {
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+  
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: CORS_HEADERS });
+    return new Response('ok', { headers: corsHeaders });
   }
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -55,7 +73,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!PAYSTACK_SECRET || !SUPABASE_URL || !SERVICE_ROLE_KEY) {
     return new Response(JSON.stringify({ error: 'Server mis-configuration' }), {
       status: 500,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -65,7 +83,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } catch {
     return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
       status: 400,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -78,13 +96,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!customerName || !customerEmail || !customerPhone || !deliveryAddress) {
     return new Response(JSON.stringify({ error: 'Missing required fields' }), {
       status: 400,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
   if (!Array.isArray(cart) || cart.length === 0) {
     return new Response(JSON.stringify({ error: 'Cart is empty' }), {
       status: 400,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -104,13 +122,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (settingsError || !siteSettings) {
     return new Response(JSON.stringify({ error: 'Delivery settings could not be loaded. Try again.' }), {
       status: 503,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
   if (productError || promotionError || !dbProducts || dbProducts.length !== productIds.length) {
     return new Response(JSON.stringify({ error: 'The live catalogue could not validate every item. Refresh the shop and try again.' }), {
       status: 409,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -125,14 +143,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (!dbProduct || dbProduct.visible === false) {
       return new Response(JSON.stringify({ error: `Product unavailable: ${dbProduct?.name || cartItem.name}` }), {
         status: 400,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     const qty = Math.max(1, Math.round(cartItem.quantity || 1));
     if (qty > Number(dbProduct.stock)) {
       return new Response(JSON.stringify({ error: `Only ${dbProduct.stock} of ${dbProduct.name} available.` }), {
         status: 409,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     const discountPercent = Math.min(90, Math.max(0, promotionMap.get(cartItem.id) || 0));
@@ -149,7 +167,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (siteSettings.delivery_sameday_enabled === false) {
       return new Response(JSON.stringify({ error: 'Same-day delivery is currently disabled.' }), {
         status: 400,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     deliveryFee = Number(siteSettings.delivery_sameday_fee);
@@ -157,7 +175,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (siteSettings.delivery_scheduled_enabled === false) {
       return new Response(JSON.stringify({ error: 'Scheduled delivery is currently disabled.' }), {
         status: 400,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     deliveryFee = Number(siteSettings.delivery_scheduled_fee);
@@ -165,7 +183,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (siteSettings.delivery_surprise_enabled === false) {
       return new Response(JSON.stringify({ error: 'Surprise delivery is currently disabled.' }), {
         status: 400,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     deliveryFee = Number(siteSettings.delivery_surprise_fee);
@@ -173,14 +191,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (siteSettings.delivery_collection_enabled === false) {
       return new Response(JSON.stringify({ error: 'Store collection is currently disabled.' }), {
         status: 400,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     deliveryFee = Number(siteSettings.delivery_collection_fee);
   } else {
     return new Response(JSON.stringify({ error: `Invalid delivery type: ${deliveryType}` }), {
       status: 400,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -218,10 +236,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     currency: 'GHS',
   });
   if (attemptError) {
-    console.error('Checkout attempt insert failed:', attemptError.message);
     return new Response(JSON.stringify({ error: 'Checkout could not be prepared.' }), {
       status: 500,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -264,11 +281,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const paystackData = await paystackRes.json();
 
   if (!paystackRes.ok || !paystackData.status) {
-    console.error('Paystack error:', paystackData);
     await supabase.from('checkout_attempts').update({ status: 'failed' }).eq('payment_reference', paystackRef);
     return new Response(JSON.stringify({ error: paystackData.message || 'Payment gateway error' }), {
       status: 502,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
