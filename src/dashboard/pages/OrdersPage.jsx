@@ -6,6 +6,7 @@ import { listOrders, updateOrderStatus, deleteOrder, updateOrderNote } from '../
 import { supabase } from '../../config/supabase';
 import { DASHBOARD_TO_DB_FULFILLMENT, DB_TO_DASHBOARD_FULFILLMENT, STEPPER_TO_EVENT_STAGE } from '../data/statusMap';
 import { getImageUrl } from '../lib/imageUrlHelper';
+import { useDashboard } from '../contexts/DashboardContext';
 
 // SVG Icons
 const SVG = {
@@ -38,6 +39,7 @@ function formatDisplayDate(dateStr) {
 
 export default function OrdersPage() {
   const [, startTransition] = useTransition();
+  const { notifyNewOrder } = useDashboard();
 
   // Load orders state
   const [ordersList, setOrdersList] = useState([]);
@@ -66,9 +68,14 @@ export default function OrdersPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
-        async () => {
+        async (payload) => {
           const fresh = await listOrders();
           setOrdersList(fresh);
+
+          // Play notification sound on new order INSERT
+          if (payload.eventType === 'INSERT' && payload.new) {
+            notifyNewOrder(payload.new);
+          }
         }
       )
       .on(
@@ -78,15 +85,25 @@ export default function OrdersPage() {
           if (payload.new?.type === 'new_order') {
             const fresh = await listOrders();
             setOrdersList(fresh);
+            notifyNewOrder(payload.new);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          // Fallback to polling if Realtime fails
+          const pollInterval = setInterval(async () => {
+            const fresh = await listOrders();
+            setOrdersList(fresh);
+          }, 10000);
+          return () => clearInterval(pollInterval);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [notifyNewOrder]);
 
   // Filters state
   const [filters, setFilters] = useState({

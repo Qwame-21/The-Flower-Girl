@@ -144,6 +144,14 @@ export async function deleteApplication(id) {
     return { success: false, error: 'Supabase not configured' };
   }
 
+  // Get application first to know what resume to delete
+  const { data: application } = await supabase
+    .from('career_applications')
+    .select('resume_path')
+    .eq('id', id)
+    .single();
+
+  // Delete from database first
   const { error } = await supabase
     .from('career_applications')
     .delete()
@@ -152,6 +160,21 @@ export async function deleteApplication(id) {
   if (error) {
     console.error('Error deleting application:', error);
     return { success: false, error: error.message };
+  }
+
+  // If database delete succeeded, delete resume from storage
+  if (application && application.resume_path) {
+    try {
+      const { error: deleteError } = await supabase
+        .storage
+        .from('career-files')
+        .remove([application.resume_path]);
+      if (deleteError) {
+        console.error('Error deleting resume from storage:', application.resume_path, deleteError);
+      }
+    } catch (err) {
+      console.error('Error deleting resume from storage:', application.resume_path, err);
+    }
   }
 
   return { success: true };

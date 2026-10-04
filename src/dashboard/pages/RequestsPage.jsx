@@ -338,8 +338,8 @@ export default function RequestsPage() {
             : [{ name: `Bespoke Request: ${req.occasion || 'Custom Gift'}`, qty: req.quantity || 1, unitPrice: quoteVal }]
         };
 
-        const existingOrders = getOrders();
-        saveOrders([...existingOrders, newOrder]);
+        // TODO: Implement proper RPC call to convert_request_to_order in Phase 5
+        // For now, this is a placeholder - the function will be properly implemented
         window.dispatchEvent(new CustomEvent('xa12:orders-updated'));
 
         const updated = requests.map(r => {
@@ -355,7 +355,7 @@ export default function RequestsPage() {
         });
 
         saveAndSetRequests(updated);
-        showToast(`Order created (${orderNum}).`);
+        showToast(`Order conversion will be implemented in Phase 5 with SQL RPC.`);
         setConfirmModal(null);
         if (drawerTarget && drawerTarget.id === req.id) {
           setDrawerTarget(null);

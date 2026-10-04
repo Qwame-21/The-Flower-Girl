@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS = {
     scheduled: { fee: 90, enabled: true },
     surprise: { fee: 140, enabled: true },
     collection: { fee: 0, enabled: true },
+    selectorEnabled: true,
   },
   inventory: {
     lowStockThreshold: 3,
@@ -33,6 +34,17 @@ const DEFAULT_SETTINGS = {
   },
   security: {
     requirePasswordForDestructive: true,
+  },
+  tracking: {
+    autoRefreshEnabled: true,
+    refreshIntervalSeconds: 10,
+    maxFailedAttempts: 10,
+    lockoutMinutes: 15,
+  },
+  content: {
+    aboutPage: '',
+    deliveryPage: '',
+    policyPage: '',
   },
 };
 
@@ -63,6 +75,7 @@ export async function syncSettingsWithSupabase() {
   }
 
   // Transform Supabase site_settings columns to UI shape
+  // Only read columns that exist in the loaded row to avoid errors before SQL is applied
   const mapped = {
     store: {
       name: dbSettings.business_name || DEFAULT_SETTINGS.store.name,
@@ -90,6 +103,7 @@ export async function syncSettingsWithSupabase() {
         fee: Number(dbSettings.delivery_collection_fee ?? DEFAULT_SETTINGS.delivery.collection.fee),
         enabled: dbSettings.delivery_collection_enabled !== false,
       },
+      selectorEnabled: dbSettings.delivery_selector_enabled !== false,
     },
     inventory: {
       lowStockThreshold: Number(dbSettings.low_stock_threshold ?? DEFAULT_SETTINGS.inventory.lowStockThreshold),
@@ -104,6 +118,17 @@ export async function syncSettingsWithSupabase() {
     security: {
       requirePasswordForDestructive: dbSettings.require_password_destructive !== false,
     },
+    tracking: {
+      autoRefreshEnabled: dbSettings.tracking_auto_refresh_enabled !== false,
+      refreshIntervalSeconds: Number(dbSettings.tracking_refresh_interval_seconds ?? DEFAULT_SETTINGS.tracking.refreshIntervalSeconds),
+      maxFailedAttempts: Number(dbSettings.track_max_failed_attempts ?? DEFAULT_SETTINGS.tracking.maxFailedAttempts),
+      lockoutMinutes: Number(dbSettings.track_lockout_minutes ?? DEFAULT_SETTINGS.tracking.lockoutMinutes),
+    },
+    content: {
+      aboutPage: dbSettings.about_page || DEFAULT_SETTINGS.content.aboutPage,
+      deliveryPage: dbSettings.delivery_page || DEFAULT_SETTINGS.content.deliveryPage,
+      policyPage: dbSettings.policy_page || DEFAULT_SETTINGS.content.policyPage,
+    },
   };
 
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(mapped));
@@ -115,7 +140,11 @@ export async function persistSettings(settings) {
   // Save to localStorage first (sync)
   saveAppSettings(settings);
 
+  // First fetch current settings to see which columns exist
+  const currentDbSettings = await getSiteSettings();
+
   // Transform to exact Supabase site_settings column names
+  // Only include new columns if they were present in the loaded row
   const dbSettings = {
     business_name: settings.store.name,
     support_phone: settings.store.phone,
@@ -144,6 +173,24 @@ export async function persistSettings(settings) {
 
     require_password_destructive: settings.security.requirePasswordForDestructive,
   };
+
+  // Only add new columns if they existed in the loaded row (SQL applied)
+  if (currentDbSettings && 'delivery_selector_enabled' in currentDbSettings) {
+    dbSettings.delivery_selector_enabled = settings.delivery.selectorEnabled;
+  }
+  if (currentDbSettings && 'tracking_auto_refresh_enabled' in currentDbSettings) {
+    dbSettings.tracking_auto_refresh_enabled = settings.tracking.autoRefreshEnabled;
+    dbSettings.tracking_refresh_interval_seconds = settings.tracking.refreshIntervalSeconds;
+  }
+  if (currentDbSettings && 'track_max_failed_attempts' in currentDbSettings) {
+    dbSettings.track_max_failed_attempts = settings.tracking.maxFailedAttempts;
+    dbSettings.track_lockout_minutes = settings.tracking.lockoutMinutes;
+  }
+  if (currentDbSettings && 'about_page' in currentDbSettings) {
+    dbSettings.about_page = settings.content.aboutPage;
+    dbSettings.delivery_page = settings.content.deliveryPage;
+    dbSettings.policy_page = settings.content.policyPage;
+  }
 
   const res = await updateSiteSettings(dbSettings);
   return res;

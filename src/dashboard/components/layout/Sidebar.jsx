@@ -1,6 +1,4 @@
-import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { getAttentionOrders, getActiveStockAlerts } from '../../lib/ordersModel';
 
 export default function Sidebar({
   isLocked,
@@ -15,21 +13,8 @@ export default function Sidebar({
     isLocked || isHovered ? 'expanded' : 'collapsed'
   } ${isMobileOpen ? 'mobile-open' : ''}`;
 
-  const [activeOrdersCount, setActiveOrdersCount] = useState(() => getAttentionOrders().length);
-  const [stockAlertsCount, setStockAlertsCount] = useState(() => getActiveStockAlerts().length);
-
-  useEffect(() => {
-    const handleUpdate = () => {
-      setActiveOrdersCount(getAttentionOrders().length);
-      setStockAlertsCount(getActiveStockAlerts().length);
-    };
-    window.addEventListener('xa12:orders-updated', handleUpdate);
-    window.addEventListener('storage', handleUpdate);
-    return () => {
-      window.removeEventListener('xa12:orders-updated', handleUpdate);
-      window.removeEventListener('storage', handleUpdate);
-    };
-  }, []);
+  // Note: Notification badges are in UI but counts require real data integration
+  // TODO: Connect to admin_notifications table for live order counts
 
   return (
     <aside className={sideNavClass} id="sideNav" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
@@ -109,17 +94,6 @@ export default function Sidebar({
                   <line x1="3" y1="6" x2="21" y2="6" />
                   <path d="M16 10a4 4 0 0 1-8 0" />
                 </svg>
-                {activeOrdersCount > 0 && (
-                  <span
-                    className="nav-status-badge"
-                    id="ordersStatusBadge"
-                    title={`${activeOrdersCount} active ${activeOrdersCount === 1 ? 'order' : 'orders'}`}
-                    aria-label={`${activeOrdersCount} active ${activeOrdersCount === 1 ? 'order' : 'orders'}`}
-                    style={{ display: 'flex' }}
-                  >
-                    {activeOrdersCount}
-                  </span>
-                )}
               </div>
               <span className="menu-item-label">Orders</span>
             </NavLink>
@@ -157,16 +131,6 @@ export default function Sidebar({
                   <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
                   <line x1="12" y1="22.08" x2="12" y2="12" />
                 </svg>
-                {stockAlertsCount > 0 && (
-                  <span
-                    className="nav-status-badge"
-                    id="productsStatusBadge"
-                    title={`${stockAlertsCount} low stock products`}
-                    style={{ display: 'flex' }}
-                  >
-                    {stockAlertsCount}
-                  </span>
-                )}
               </div>
               <span className="menu-item-label">Products</span>
             </NavLink>

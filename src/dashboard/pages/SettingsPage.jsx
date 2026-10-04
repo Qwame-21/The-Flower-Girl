@@ -135,6 +135,7 @@ function DeliveryPanel({ s, onChange }) {
     surpriseOn:        s.delivery.surprise.enabled,
     collectionFee:     s.delivery.collection.fee ?? 0,
     collectionOn:      s.delivery.collection.enabled,
+    selectorEnabled:   s.delivery.selectorEnabled ?? true,
   });
 
   useEffect(() => {
@@ -147,6 +148,7 @@ function DeliveryPanel({ s, onChange }) {
       surpriseOn:        s.delivery.surprise.enabled,
       collectionFee:     s.delivery.collection.fee ?? 0,
       collectionOn:      s.delivery.collection.enabled,
+      selectorEnabled:   s.delivery.selectorEnabled ?? true,
     });
   }, [s.delivery]);
 
@@ -162,6 +164,7 @@ function DeliveryPanel({ s, onChange }) {
           scheduled:  { fee: form.scheduledFee,  enabled: form.scheduledOn  },
           surprise:   { fee: form.surpriseFee,   enabled: form.surpriseOn   },
           collection: { fee: form.collectionFee, enabled: form.collectionOn },
+          selectorEnabled: form.selectorEnabled,
         }
       };
       onChange(updated);
@@ -190,6 +193,15 @@ function DeliveryPanel({ s, onChange }) {
       <div className="settings-card">
         <h2>Delivery &amp; collection</h2>
         <div className="sub">Turn options on/off and set exact fees. The storefront checkout and server total computation read from these settings.</div>
+        <div className="set-row" style={{ alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '12px' }}>
+          <div><b>Let customers choose delivery type at checkout</b><div className="sub">When off, checkout behaves as it does today (no delivery selector)</div></div>
+          <div className="set-end">
+            <label className="sw">
+              <input type="checkbox" checked={form.selectorEnabled} onChange={setBool('selectorEnabled')} />
+              <i />
+            </label>
+          </div>
+        </div>
         <Row label="Same-day Accra delivery"  sub="Delivered within Accra the same day."           feeKey="samedayFee"    onKey="samedayOn"    />
         <Row label="Scheduled delivery"        sub="Customer chooses a date and time slot."          feeKey="scheduledFee"  onKey="scheduledOn"  />
         <Row label="Surprise delivery"         sub="Recipient not informed of delivery time."        feeKey="surpriseFee"   onKey="surpriseOn"   />
@@ -260,17 +272,44 @@ function InventoryPanel({ s, onChange }) {
 // ─── Panel: Notifications (Alerts) ───────────────────────────────────────────
 function AlertsPanel({ s, onChange }) {
   const [saving, withSaving] = useSavingState();
-  const [form, setForm] = useState({ ...s.notifications });
+  const [form, setForm] = useState({
+    ...s.notifications,
+    autoRefreshEnabled: s.tracking?.autoRefreshEnabled ?? true,
+    refreshIntervalSeconds: s.tracking?.refreshIntervalSeconds ?? 10,
+    maxFailedAttempts: s.tracking?.maxFailedAttempts ?? 10,
+    lockoutMinutes: s.tracking?.lockoutMinutes ?? 15,
+  });
 
   useEffect(() => {
-    setForm({ ...s.notifications });
-  }, [s.notifications]);
+    setForm({
+      ...s.notifications,
+      autoRefreshEnabled: s.tracking?.autoRefreshEnabled ?? true,
+      refreshIntervalSeconds: s.tracking?.refreshIntervalSeconds ?? 10,
+      maxFailedAttempts: s.tracking?.maxFailedAttempts ?? 10,
+      lockoutMinutes: s.tracking?.lockoutMinutes ?? 15,
+    });
+  }, [s.notifications, s.tracking]);
 
   const setCheck = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.checked }));
+  const setNum = (k) => (e) => setForm(f => ({ ...f, [k]: parseInt(e.target.value) || 0 }));
 
   function handleSave() {
     withSaving(async () => {
-      const updated = { ...s, notifications: { ...form } };
+      const updated = {
+        ...s,
+        notifications: {
+          orders: form.orders,
+          requests: form.requests,
+          careers: form.careers,
+          lowStock: form.lowStock,
+        },
+        tracking: {
+          autoRefreshEnabled: form.autoRefreshEnabled,
+          refreshIntervalSeconds: form.refreshIntervalSeconds,
+          maxFailedAttempts: form.maxFailedAttempts,
+          lockoutMinutes: form.lockoutMinutes,
+        },
+      };
       onChange(updated);
       window.dispatchEvent(new Event('xa12:settingsChanged'));
       return await persistSettings(updated);
@@ -296,6 +335,144 @@ function AlertsPanel({ s, onChange }) {
         <Row label="New custom requests" sub="Notifies you when a bespoke order request is submitted."              field="requests" />
         <Row label="New job applications" sub="Notifies you when a candidate applies for a job posting."            field="careers"  />
         <Row label="Low stock"           sub="Shows a persistent alert when inventory falls below the threshold."   field="lowStock"    />
+      </div>
+      <div className="bar" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+        <button className="btn p" type="button" disabled={saving} onClick={handleSave}>
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+
+      <div className="settings-card" style={{ marginTop: '16px' }}>
+        <h2>Order tracking auto-refresh</h2>
+        <div className="sub">Customer-facing tracking page automatically refreshes to show status updates.</div>
+        <div className="set-row">
+          <div><b>Auto-refresh order tracking</b><div className="sub">When off, customers must manually click Track to see updates</div></div>
+          <label className="sw">
+            <input type="checkbox" checked={form.autoRefreshEnabled} onChange={setCheck('autoRefreshEnabled')} />
+            <i />
+          </label>
+        </div>
+        <div className="set-row">
+          <div><b>Refresh every (seconds)</b><div className="sub">Between 3 and 60 seconds</div></div>
+          <input
+            type="number"
+            className="set-fee-input"
+            value={form.refreshIntervalSeconds}
+            onChange={setNum('refreshIntervalSeconds')}
+            min="3"
+            max="60"
+            style={{ width: '80px' }}
+          />
+        </div>
+        <div className="set-row">
+          <div><b>Failed lookups before lockout</b><div className="sub">Between 1 and 100 attempts</div></div>
+          <input
+            type="number"
+            className="set-fee-input"
+            value={form.maxFailedAttempts}
+            onChange={setNum('maxFailedAttempts')}
+            min="1"
+            max="100"
+            style={{ width: '80px' }}
+          />
+        </div>
+        <div className="set-row">
+          <div><b>Lockout duration (minutes)</b><div className="sub">Between 1 and 60 minutes</div></div>
+          <input
+            type="number"
+            className="set-fee-input"
+            value={form.lockoutMinutes}
+            onChange={setNum('lockoutMinutes')}
+            min="1"
+            max="60"
+            style={{ width: '80px' }}
+          />
+        </div>
+      </div>
+      <div className="bar" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+        <button className="btn p" type="button" disabled={saving} onClick={handleSave}>
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+// ─── Panel: Page Content ──────────────────────────────────────────────────────
+function ContentPanel({ s, onChange }) {
+  const [saving, withSaving] = useSavingState();
+  const [form, setForm] = useState({
+    aboutPage: s.content?.aboutPage || '',
+    deliveryPage: s.content?.deliveryPage || '',
+    policyPage: s.content?.policyPage || '',
+  });
+
+  useEffect(() => {
+    setForm({
+      aboutPage: s.content?.aboutPage || '',
+      deliveryPage: s.content?.deliveryPage || '',
+      policyPage: s.content?.policyPage || '',
+    });
+  }, [s.content]);
+
+  const setText = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  function handleSave() {
+    withSaving(async () => {
+      const updated = {
+        ...s,
+        content: {
+          aboutPage: form.aboutPage,
+          deliveryPage: form.deliveryPage,
+          policyPage: form.policyPage,
+        },
+      };
+      onChange(updated);
+      window.dispatchEvent(new Event('xa12:settingsChanged'));
+      return await persistSettings(updated);
+    });
+  }
+
+  const TextArea = ({ label, field, placeholder }) => (
+    <div className="settings-f full">
+      <label htmlFor={`set_content_${field}`}>{label}</label>
+      <textarea
+        id={`set_content_${field}`}
+        value={form[field]}
+        onChange={setText(field)}
+        placeholder={placeholder}
+        maxLength={10000}
+        rows={6}
+        style={{ resize: 'vertical', fontFamily: 'inherit' }}
+      />
+      <div className="sub" style={{ marginTop: '4px' }}>
+        {form[field].length} / 10000 characters • Leave empty to use fallback text
+      </div>
+    </div>
+  );
+
+  return (
+    <section className="settings-panel on" role="tabpanel" id="set-panel-content">
+      <div className="settings-card">
+        <h2>Page content</h2>
+        <div className="sub">Edit the text shown on About, Delivery, and Policy pages. These are customer-facing pages in the storefront.</div>
+        <div className="settings-fields">
+          <TextArea
+            label="About page"
+            field="aboutPage"
+            placeholder="Tell your story..."
+          />
+          <TextArea
+            label="Delivery information"
+            field="deliveryPage"
+            placeholder="Explain delivery options..."
+          />
+          <TextArea
+            label="Policy"
+            field="policyPage"
+            placeholder="Your policies..."
+          />
+        </div>
       </div>
       <div className="bar" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
         <button className="btn p" type="button" disabled={saving} onClick={handleSave}>
@@ -667,6 +844,7 @@ const TABS = [
   { key: 'delivery',  label: 'Delivery'      },
   { key: 'inventory', label: 'Inventory'     },
   { key: 'alerts',    label: 'Notifications' },
+  { key: 'content',   label: 'Page Content'  },
   { key: 'security',  label: 'Security'      },
   { key: 'data',      label: 'Data'          },
 ];
@@ -713,6 +891,7 @@ export default function SettingsPage() {
       {activeTab === 'delivery'  && <DeliveryPanel  s={s} onChange={handleChange} />}
       {activeTab === 'inventory' && <InventoryPanel s={s} onChange={handleChange} />}
       {activeTab === 'alerts'    && <AlertsPanel    s={s} onChange={handleChange} />}
+      {activeTab === 'content'   && <ContentPanel   s={s} onChange={handleChange} />}
       {activeTab === 'security'  && <SecurityPanel  s={s} onChange={handleChange} />}
       {activeTab === 'data'      && <DataPanel />}
     </div>

@@ -120,6 +120,14 @@ export async function deleteProduct(id) {
     return { success: false, error: 'Supabase not configured' };
   }
 
+  // Get product first to know what images to delete
+  const { data: product } = await supabase
+    .from('products')
+    .select('image_path, secondary_image_path')
+    .eq('id', id)
+    .single();
+
+  // Delete from database first
   const { error } = await supabase
     .from('products')
     .delete()
@@ -128,6 +136,27 @@ export async function deleteProduct(id) {
   if (error) {
     console.error('Error deleting product:', error);
     return { success: false, error: error.message };
+  }
+
+  // If database delete succeeded, delete images from storage
+  if (product) {
+    const imagesToDelete = [];
+    if (product.image_path) imagesToDelete.push(product.image_path);
+    if (product.secondary_image_path) imagesToDelete.push(product.secondary_image_path);
+
+    for (const imagePath of imagesToDelete) {
+      try {
+        const { error: deleteError } = await supabase
+          .storage
+          .from('storefront-media')
+          .remove([imagePath]);
+        if (deleteError) {
+          console.error('Error deleting image from storage:', imagePath, deleteError);
+        }
+      } catch (err) {
+        console.error('Error deleting image from storage:', imagePath, err);
+      }
+    }
   }
 
   return { success: true };

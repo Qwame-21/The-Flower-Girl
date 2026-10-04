@@ -18,7 +18,7 @@ export function loadCustomersData() {
   return [];
 }
 
-// Save customers overrides to localStorage & Supabase
+// Save customers overrides to localStorage & Supabase customer_profiles
 export async function saveCustomersData(list) {
   try {
     localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(list));
@@ -26,13 +26,10 @@ export async function saveCustomersData(list) {
       for (const c of list) {
         try {
           if (c.email && c.email !== 'N/A') {
-            await supabase.from('customers').upsert({
-              name: c.name,
+            await supabase.from('customer_profiles').upsert({
               email: c.email,
-              phone: c.phone !== 'N/A' ? c.phone : null,
-              is_vip: Boolean(c.isVip),
-              total_orders: c.orderCount || 0,
-              total_spent: c.totalSpend || 0
+              vip: Boolean(c.isVip),
+              notes: c.notes || ''
             }, { onConflict: 'email' });
           }
         } catch {}
