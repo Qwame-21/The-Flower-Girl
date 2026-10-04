@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CopyIcon from '../components/shared/CopyIcon';
-import { loadRequestsData, saveRequestsData, syncRequestsWithSupabase } from '../data/requestsAdapter';
+import { loadRequestsData, saveRequestsData, syncRequestsWithSupabase, convertRequestToOrder } from '../data/requestsAdapter';
 
 const REQUESTS_KEY = 'xa12_custom_requests';
 
@@ -302,65 +302,56 @@ export default function RequestsPage() {
     });
   }
 
-  // Convert to Order Flow — Monolith lines 23969–24036
+  // Convert to Order Flow — Phase 5: RPC-based conversion
   function handleConvertOrder(req) {
     if (!req.confirmed_quote || req.confirmed_quote <= 0) {
       showToast('Cannot convert request without a confirmed quote amount.');
       return;
     }
 
+    if (req.converted_order_id) {
+      showToast('This request has already been converted to an order.');
+      return;
+    }
+
     const selItems = (req.selections && req.selections.length) ? req.selections.join(', ') : (req.occasion || 'Custom Gift');
     const totalStr = `GHS ${req.confirmed_quote.toLocaleString()}`;
 
+    // Open conversion modal with form fields
     setConfirmModal({
       title: 'Convert Request to Order',
       message: `Customer: ${req.customer_name || 'Client'} | Items: ${selItems} | Total: ${totalStr}`,
-      confirmText: 'Convert Now',
-      onConfirm: () => {
-        const orderId = `ORD-${Date.now().toString().slice(-5)}`;
-        const orderNum = `GF-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-        const quoteVal = req.confirmed_quote;
-
-        const newOrder = {
-          id: orderId,
-          orderCode: orderNum,
-          customerName: req.customer_name || req.client || 'Client',
-          customerPhone: req.phone || '',
-          customerEmail: req.email || '',
-          amount: quoteVal,
-          paymentStatus: 'pending',
-          fulfillmentStatus: 'preparing',
-          orderDate: new Date().toISOString(),
-          source: 'online',
-          adminNote: `Custom request ref: ${req.reference || req.id}`,
-          items: (req.selections && req.selections.length)
-            ? req.selections.map(s => ({ name: s, qty: 1, unitPrice: Math.round(quoteVal / req.selections.length) }))
-            : [{ name: `Bespoke Request: ${req.occasion || 'Custom Gift'}`, qty: req.quantity || 1, unitPrice: quoteVal }]
+      confirmText: 'Convert',
+      onConfirm: async () => {
+        const conversionData = {
+          deliveryAddress: document.getElementById('convert-delivery-address')?.value || '',
+          recipientName: document.getElementById('convert-recipient')?.value || '',
+          landmark: document.getElementById('convert-landmark')?.value || '',
+          requestedDeliveryDate: document.getElementById('convert-date')?.value || '',
+          adminNote: document.getElementById('convert-note')?.value || '',
         };
 
-        // TODO: Implement proper RPC call to convert_request_to_order in Phase 5
-        // For now, this is a placeholder - the function will be properly implemented
-        window.dispatchEvent(new CustomEvent('xa12:orders-updated'));
+        const result = await convertRequestToOrder(req.id, conversionData);
 
-        const updated = requests.map(r => {
-          if (r.id === req.id) {
-            return {
-              ...r,
-              status: 'converted',
-              converted_at: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-              order_id: orderId
-            };
+        if (result.success) {
+          const { tracking_number, order_code } = result.data || {};
+          showToast(`Order created! Tracking: ${tracking_number || 'N/A'} · Code: ${order_code || 'N/A'}`);
+
+          // Refresh requests list to show converted status
+          const fresh = await syncRequestsWithSupabase();
+          setRequests(fresh);
+
+          setConfirmModal(null);
+          if (drawerTarget && drawerTarget.id === req.id) {
+            setDrawerTarget(null);
           }
-          return r;
-        });
-
-        saveAndSetRequests(updated);
-        showToast(`Order conversion will be implemented in Phase 5 with SQL RPC.`);
-        setConfirmModal(null);
-        if (drawerTarget && drawerTarget.id === req.id) {
-          setDrawerTarget(null);
+        } else {
+          showToast(`Conversion failed: ${result.error}`);
         }
-      }
+      },
+      isConversionModal: true,
+      defaultRecipient: req.recipient || req.customer_name || '',
+      defaultCity: req.city || '',
     });
   }
 
@@ -723,9 +714,56 @@ export default function RequestsPage() {
       {/* Confirmation Modal */}
       {confirmModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10004, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '400px', width: '90%' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: confirmModal.isConversionModal ? '500px' : '400px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 700 }}>{confirmModal.title}</h3>
             <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>{confirmModal.message}</p>
+
+            {confirmModal.isConversionModal && (
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Delivery address *</label>
+                <input
+                  id="convert-delivery-address"
+                  type="text"
+                  required
+                  placeholder="Full delivery address"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(26,26,26,0.15)', fontSize: '13px', marginBottom: '12px' }}
+                />
+
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Recipient (optional)</label>
+                <input
+                  id="convert-recipient"
+                  type="text"
+                  defaultValue={confirmModal.defaultRecipient}
+                  placeholder="Recipient name"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(26,26,26,0.15)', fontSize: '13px', marginBottom: '12px' }}
+                />
+
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Landmark (optional)</label>
+                <input
+                  id="convert-landmark"
+                  type="text"
+                  defaultValue={confirmModal.defaultCity}
+                  placeholder="Nearest landmark"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(26,26,26,0.15)', fontSize: '13px', marginBottom: '12px' }}
+                />
+
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Requested delivery date (optional)</label>
+                <input
+                  id="convert-date"
+                  type="date"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(26,26,26,0.15)', fontSize: '13px', marginBottom: '12px' }}
+                />
+
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Note (optional)</label>
+                <textarea
+                  id="convert-note"
+                  rows="2"
+                  placeholder="Any additional notes"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(26,26,26,0.15)', fontSize: '13px', resize: 'vertical' }}
+                />
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
               <button type="button" className="btn" onClick={() => setConfirmModal(null)} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(26,26,26,0.15)', background: '#fff', fontSize: '13px' }}>Cancel</button>
               <button type="button" className="btn p" onClick={confirmModal.onConfirm} style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: '#1a1a1a', color: '#fff', fontSize: '13px', fontWeight: 600 }}>{confirmModal.confirmText}</button>
