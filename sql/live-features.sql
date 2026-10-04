@@ -1,8 +1,11 @@
 -- ============================================================================
 -- LIVE FEATURES SQL - Flower Girl Slay Empire Integration
 -- ============================================================================
--- This SQL is re-runnable (IF NOT EXISTS, CREATE OR REPLACE)
+-- This SQL is re-runnable (IF NOT EXISTS, CREATE OR REPLACE, DROP POLICY IF EXISTS)
 -- Do NOT apply without review - this is a draft, not applied yet
+--
+-- IMPORTANT: This file must be run in the Supabase SQL editor
+-- (it is not in supabase/migrations/, so `supabase db push` will not apply it)
 --
 -- RUN ORDER:
 -- 1. signin_log table creation
@@ -37,19 +40,22 @@ CREATE TABLE IF NOT EXISTS public.signin_log (
 ALTER TABLE public.signin_log ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Staff can select all rows
-CREATE POLICY IF NOT EXISTS "staff reads signin_log"
+DROP POLICY IF EXISTS "staff reads signin_log" ON public.signin_log;
+CREATE POLICY "staff reads signin_log"
   ON public.signin_log FOR SELECT
   TO authenticated
   USING (public.is_staff());
 
 -- Policy: Authenticated staff can insert their own rows
-CREATE POLICY IF NOT EXISTS "staff inserts own signin_log"
+DROP POLICY IF EXISTS "staff inserts own signin_log" ON public.signin_log;
+CREATE POLICY "staff inserts own signin_log"
   ON public.signin_log FOR INSERT
   TO authenticated
   WITH CHECK (public.is_staff() AND user_id = auth.uid());
 
 -- Policy: Authenticated staff can update their own rows
-CREATE POLICY IF NOT EXISTS "staff updates own signin_log"
+DROP POLICY IF EXISTS "staff updates own signin_log" ON public.signin_log;
+CREATE POLICY "staff updates own signin_log"
   ON public.signin_log FOR UPDATE
   TO authenticated
   USING (public.is_staff() AND user_id = auth.uid())
@@ -83,28 +89,35 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  result jsonb;
-  normalized_lookup_phone text;
+  v_result jsonb;
+  v_normalized_lookup_phone text;
   -- Rate limiting variables
-  client_key text;
-  rate_limit_rec public.track_attempts%rowtype;
-  max_attempts integer;
-  lockout_minutes integer;
-  lookup_failed boolean := false;
+  v_headers jsonb;
+  v_client_key text;
+  v_rate_limit_rec public.track_attempts%rowtype;
+  v_max_attempts integer;
+  v_lockout_minutes integer;
+  v_lookup_failed boolean := false;
+  v_new_count integer;
+  v_window_expired boolean;
+  v_lock_expired boolean;
 BEGIN
-  normalized_lookup_phone := public.normalize_phone(lookup_contact);
+  v_normalized_lookup_phone := public.normalize_phone(lookup_contact);
   
-  -- Extract client key from headers safely
+  -- Extract client key from headers safely - skip rate limiting if no key can be determined
   BEGIN
-    client_key := coalesce(
-      current_setting('request.headers', true)::jsonb->>'cf-connecting-ip',
-      (current_setting('request.headers', true)::jsonb->>'x-forwarded-for')::text[])[1],
-      'unknown'
+    v_headers := current_setting('request.headers', true)::jsonb;
+    v_client_key := coalesce(
+      nullif(trim(v_headers->>'cf-connecting-ip'), ''),
+      nullif(trim(split_part(v_headers->>'x-forwarded-for', ',', 1)), '')
     );
-    -- Clean up: take first IP if comma-separated, truncate to 255 chars
-    client_key := left(split_part(client_key, ',', 1), 255);
+    
+    -- If no key can be determined, skip rate limiting entirely
+    IF v_client_key IS NULL OR v_client_key = '' THEN
+      v_client_key := NULL;
+    END IF;
   EXCEPTION WHEN OTHERS THEN
-    client_key := 'unknown';
+    v_client_key := NULL;
   END;
   
   -- Read rate limit settings from site_settings with safe defaults
@@ -112,23 +125,31 @@ BEGIN
     SELECT 
       coalesce(track_max_failed_attempts, 10),
       coalesce(track_lockout_minutes, 15)
-    INTO max_attempts, lockout_minutes
+    INTO v_max_attempts, v_lockout_minutes
     FROM public.site_settings
     WHERE id = 'global';
   EXCEPTION WHEN OTHERS THEN
-    max_attempts := 10;
-    lockout_minutes := 15;
+    v_max_attempts := 10;
+    v_lockout_minutes := 15;
   END;
   
-  -- Check if client is locked out
-  SELECT * INTO rate_limit_rec FROM public.track_attempts WHERE client_key = client_key;
-  
-  IF FOUND AND rate_limit_rec.locked_until IS NOT NULL AND rate_limit_rec.locked_until > now() THEN
-    -- Client is locked out
-    RETURN jsonb_build_object(
-      'kind', 'rate_limited',
-      'retryAfterSeconds', extract(epoch from (rate_limit_rec.locked_until - now()))::integer
-    );
+  -- Only apply rate limiting if we have a client key
+  IF v_client_key IS NOT NULL THEN
+    -- Check if client is locked out
+    BEGIN
+      SELECT * INTO v_rate_limit_rec FROM public.track_attempts WHERE client_key = v_client_key;
+      
+      IF FOUND AND v_rate_limit_rec.locked_until IS NOT NULL AND v_rate_limit_rec.locked_until > now() THEN
+        -- Client is locked out
+        RETURN jsonb_build_object(
+          'kind', 'rate_limited',
+          'retryAfterSeconds', extract(epoch from (v_rate_limit_rec.locked_until - now()))::integer
+        );
+      END IF;
+    EXCEPTION WHEN OTHERS THEN
+      -- If rate limit read fails, continue with normal lookup (fail open)
+      NULL;
+    END;
   END IF;
   
   -- Try to find order first
@@ -138,14 +159,14 @@ BEGIN
     'estimatedDelivery',o.estimated_delivery,'adminNote',o.admin_note,
     'requestedDeliveryDate',o.requested_delivery_date,
     'events',coalesce((select jsonb_agg(jsonb_build_object('stage',e.stage,'note',e.customer_note,'createdAt',e.created_at) order by e.created_at) from public.order_events e where e.order_id=o.id),'[]'::jsonb)
-  ) INTO result FROM public.orders o
+  ) INTO v_result FROM public.orders o
   WHERE (lower(o.tracking_number)=lower(trim(lookup_reference)) or lower(o.order_code)=lower(trim(lookup_reference)))
-    and (lower(coalesce(o.customer_email,''))=lower(trim(lookup_contact)) or public.normalize_phone(o.customer_phone)=normalized_lookup_phone)
+    and (lower(coalesce(o.customer_email,''))=lower(trim(lookup_contact)) or public.normalize_phone(o.customer_phone)=v_normalized_lookup_phone)
   LIMIT 1;
   
-  IF result IS NOT NULL THEN
+  IF v_result IS NOT NULL THEN
     -- Successful lookup - do NOT count against rate limit
-    RETURN result;
+    RETURN v_result;
   END IF;
   
   -- Try to find request
@@ -154,47 +175,65 @@ BEGIN
     'requestType',r.request_type,'service',r.service,'status',r.status,
     'preferredDate',r.preferred_date,'confirmedQuote',r.confirmed_quote,
     'adminNote',r.admin_note,'updatedAt',r.updated_at
-  ) INTO result FROM public.customer_requests r
+  ) INTO v_result FROM public.customer_requests r
   WHERE lower(r.reference)=lower(trim(lookup_reference))
-    and (lower(coalesce(r.email,''))=lower(trim(lookup_contact)) or public.normalize_phone(r.phone)=normalized_lookup_phone)
+    and (lower(coalesce(r.email,''))=lower(trim(lookup_contact)) or public.normalize_phone(r.phone)=v_normalized_lookup_phone)
   LIMIT 1;
   
-  IF result IS NOT NULL THEN
+  IF v_result IS NOT NULL THEN
     -- Successful lookup - do NOT count against rate limit
-    RETURN result;
+    RETURN v_result;
   END IF;
   
-  -- Lookup failed - increment rate limit counter
-  lookup_failed := true;
+  -- Lookup failed - increment rate limit counter (only if we have a client key)
+  IF v_client_key IS NOT NULL THEN
+    v_lookup_failed := true;
+    
+    -- Compute new count and lock status
+    v_window_expired := NOT EXISTS (
+      SELECT 1 FROM public.track_attempts 
+      WHERE client_key = v_client_key 
+      AND window_started_at > now() - (v_lockout_minutes || ' minutes')::interval
+    );
+    
+    v_lock_expired := NOT EXISTS (
+      SELECT 1 FROM public.track_attempts 
+      WHERE client_key = v_client_key 
+      AND locked_until IS NOT NULL 
+      AND locked_until > now()
+    );
+    
+    IF v_window_expired OR v_lock_expired THEN
+      v_new_count := 1;
+    ELSE
+      v_new_count := COALESCE((SELECT failed_count FROM public.track_attempts WHERE client_key = v_client_key), 0) + 1;
+    END IF;
+    
+    -- Insert or update rate limit record
+    INSERT INTO public.track_attempts (client_key, failed_count, window_started_at, locked_until)
+    VALUES (v_client_key, v_new_count, COALESCE((SELECT window_started_at FROM public.track_attempts WHERE client_key = v_client_key), now()), 
+      CASE WHEN v_new_count >= v_max_attempts THEN now() + (v_lockout_minutes || ' minutes')::interval ELSE NULL END)
+    ON CONFLICT (client_key) DO UPDATE SET
+      failed_count = v_new_count,
+      window_started_at = CASE WHEN v_window_expired THEN now() ELSE track_attempts.window_started_at END,
+      locked_until = CASE 
+        WHEN v_new_count >= v_max_attempts THEN now() + (v_lockout_minutes || ' minutes')::interval 
+        ELSE track_attempts.locked_until 
+      END;
+    
+    -- Occasionally cleanup old records (2% chance)
+    IF random() < 0.02 THEN
+      DELETE FROM public.track_attempts 
+      WHERE window_started_at < now() - interval '1 day'
+      AND (locked_until IS NULL OR locked_until <= now());
+    END IF;
+  END IF;
   
-  -- Insert or update rate limit record
-  INSERT INTO public.track_attempts (client_key, failed_count, window_started_at, locked_until)
-  VALUES (client_key, 1, now(), NULL)
-  ON CONFLICT (client_key) DO UPDATE SET
-    failed_count = CASE
-      WHEN locked_until IS NOT NULL AND locked_until > now() THEN failed_count
-      WHEN window_started_at < now() - (lockout_minutes || ' minutes')::interval THEN 1
-      ELSE failed_count + 1
-    END,
-    window_started_at = CASE
-      WHEN window_started_at < now() - (lockout_minutes || ' minutes')::interval THEN now()
-      ELSE window_started_at
-    END,
-    locked_until = CASE
-      WHEN locked_until IS NOT NULL AND locked_until > now() THEN locked_until
-      WHEN failed_count + 1 >= max_attempts THEN now() + (lockout_minutes || ' minutes')::interval
-      ELSE NULL
-    END;
-  
-  -- Return not found result
-  RETURN jsonb_build_object('kind', 'not_found');
-  
-EXCEPTION WHEN OTHERS THEN
-  -- On any error, return not found to avoid exposing internals
+  -- Return not found result (original behavior when nothing is found)
   RETURN jsonb_build_object('kind', 'not_found');
 END $$;
 
-REVOKE ALL ON FUNCTION public.track_record(text,text) FROM public;
+REVOKE ALL ON FUNCTION public.track_record(text,text) FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.track_record(text,text) TO anon, authenticated;
 
 -- 5. Add orders and admin_notifications to realtime publication (guarded)
@@ -250,9 +289,10 @@ DECLARE
   v_tracking_number text;
   v_order_code text;
   v_timestamp bigint;
-  v_final_tracking text;
-  v_final_code text;
-  v_exists integer;
+  v_suffix text;
+  v_tracking_exists integer;
+  v_code_exists integer;
+  v_attempts integer := 0;
 BEGIN
   -- Staff check
   IF NOT public.is_staff() THEN
@@ -285,27 +325,42 @@ BEGIN
   END IF;
   
   -- Generate unique tracking number and order code
-  -- Format: GF-{last 6 digits of timestamp} and WEB-{last 6 digits of timestamp}
-  -- Loop until both are unique (mirrors createStaffOrder pattern)
+  -- Format: GF-{last 6 digits} and WEB-{last 6 digits}
+  -- Use clock_timestamp() to avoid collision within transaction
+  -- Check BOTH values for uniqueness before exiting loop
   LOOP
-    v_timestamp := extract(epoch from now()) * 1000::bigint;
+    v_attempts := v_attempts + 1;
+    v_timestamp := extract(epoch from clock_timestamp()) * 1000::bigint;
     v_tracking_number := 'GF-' || right(v_timestamp::text, 6);
     v_order_code := 'WEB-' || right(v_timestamp::text, 6);
     
-    SELECT count(*) INTO v_exists FROM public.orders WHERE tracking_number = v_tracking_number;
-    EXIT WHEN v_exists = 0;
+    -- Check both for uniqueness
+    SELECT count(*) INTO v_tracking_exists FROM public.orders WHERE tracking_number = v_tracking_number;
+    SELECT count(*) INTO v_code_exists FROM public.orders WHERE order_code = v_order_code;
     
-    SELECT count(*) INTO v_exists FROM public.orders WHERE order_code = v_order_code;
-    EXIT WHEN v_exists = 0;
+    IF v_tracking_exists = 0 AND v_code_exists = 0 THEN
+      EXIT;
+    END IF;
     
-    -- Small delay to avoid timestamp collision
+    -- After 5 attempts, fall back to random suffixes
+    IF v_attempts >= 5 THEN
+      v_suffix := lpad((random() * 1000000)::integer::text, 6, '0');
+      v_tracking_number := 'GF-' || v_suffix;
+      v_order_code := 'WEB-' || v_suffix;
+      
+      SELECT count(*) INTO v_tracking_exists FROM public.orders WHERE tracking_number = v_tracking_number;
+      SELECT count(*) INTO v_code_exists FROM public.orders WHERE order_code = v_order_code;
+      
+      IF v_tracking_exists = 0 AND v_code_exists = 0 THEN
+        EXIT;
+      END IF;
+    END IF;
+    
+    -- Small delay to avoid rapid-fire queries
     PERFORM pg_sleep(0.01);
   END LOOP;
   
-  v_final_tracking := v_tracking_number;
-  v_final_code := v_order_code;
-  
-  -- Insert order (mirrors createStaffOrder structure)
+  -- Insert order (mirrors createStaffOrder structure with staff_order=true, unpaid status)
   INSERT INTO public.orders (
     tracking_number,
     order_code,
@@ -331,8 +386,8 @@ BEGIN
     customization_selections,
     admin_note
   ) VALUES (
-    v_final_tracking,
-    v_final_code,
+    v_tracking_number,
+    v_order_code,
     v_request.id,
     v_request.customer_name,
     v_request.email,
@@ -350,15 +405,15 @@ BEGIN
     'staff',
     NULL,
     'pending',
-    'packaging',
+    'pending_payment',
     true,
     v_request.selections,
     p_admin_note
   ) RETURNING id INTO v_order_id;
   
-  -- Insert order event
+  -- Insert order event (stage must be pending_payment for unpaid orders)
   INSERT INTO public.order_events (order_id, stage, customer_note)
-  VALUES (v_order_id, 'paid', 'Created from request ' || v_request.reference);
+  VALUES (v_order_id, 'pending_payment', 'Created from request ' || v_request.reference);
   
   -- Update request
   UPDATE public.customer_requests
@@ -368,12 +423,12 @@ BEGIN
     converted_order_id = v_order_id
   WHERE id = p_request_id;
   
-  -- Insert notification
+  -- Insert notification (use existing convention: route='/admin')
   INSERT INTO public.admin_notifications (type, title, body, route, record_id)
   VALUES (
     'new_order',
     'New converted order',
-    v_final_tracking || ' · GHS ' || v_request.confirmed_quote,
+    v_tracking_number || ' · GHS ' || v_request.confirmed_quote,
     '/admin',
     v_order_id::text
   );
@@ -381,12 +436,12 @@ BEGIN
   RETURN jsonb_build_object(
     'success', true,
     'order_id', v_order_id,
-    'tracking_number', v_final_tracking,
-    'order_code', v_final_code
+    'tracking_number', v_tracking_number,
+    'order_code', v_order_code
   );
 END $$;
 
-REVOKE ALL ON FUNCTION public.convert_request_to_order(uuid,text,text,text,date,text) FROM public;
+REVOKE ALL ON FUNCTION public.convert_request_to_order(uuid,text,text,text,date,text) FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.convert_request_to_order(uuid,text,text,text,date,text) TO authenticated;
 
 COMMIT;
