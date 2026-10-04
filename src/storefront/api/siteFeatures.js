@@ -66,6 +66,63 @@ export async function getSiteSettings() {
       }
     }
 
+    // Load page content from site_content table
+    try {
+      const { data: contentData } = await supabase
+        .from('site_content')
+        .select('key, value')
+        .in('key', ['about_page', 'delivery_page', 'policy_page']);
+
+      if (contentData) {
+        contentData.forEach(row => {
+          if (row.key === 'about_page') settings.about_page = row.value || '';
+          if (row.key === 'delivery_page') settings.delivery_page = row.value || '';
+          if (row.key === 'policy_page') settings.policy_page = row.value || '';
+        });
+      }
+    } catch {
+      // If site_content read fails, keep defaults
+    }
+
+    // Cache the result
+    try {
+      localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify({
+        data: settings,
+        timestamp: Date.now(),
+      }));
+    } catch {
+      // Cache write failed, return settings anyway
+    }
+
+    return settings;
+  } catch {
+    return defaults;
+  }
+
+  if (!supabase) {
+    return defaults;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('site_settings')
+      .select('*')
+      .eq('id', 'global')
+      .single();
+
+    if (error || !data) {
+      return defaults;
+    }
+
+    // Merge with defaults, preserving any new columns that exist
+    const settings = { ...defaults };
+
+    for (const key in data) {
+      if (key in settings) {
+        settings[key] = data[key];
+      }
+    }
+
     // Cache the result
     try {
       localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify({

@@ -74,11 +74,6 @@ export async function updateSiteSettings(settingsData) {
     updateData.track_max_failed_attempts = settingsData.track_max_failed_attempts;
     updateData.track_lockout_minutes = settingsData.track_lockout_minutes;
   }
-  if (currentSettings && 'about_page' in currentSettings) {
-    updateData.about_page = settingsData.about_page;
-    updateData.delivery_page = settingsData.delivery_page;
-    updateData.policy_page = settingsData.policy_page;
-  }
 
   const { data, error } = await supabase
     .from('site_settings')

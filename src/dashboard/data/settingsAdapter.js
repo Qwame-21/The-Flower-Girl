@@ -1,6 +1,7 @@
 // Adapter to make HOPESON SettingsPage work with Supabase
 // Returns data in the exact shape HOPESON expects and maps cleanly to site_settings table columns
 
+import { supabase } from '../../config/supabase';
 import { getSiteSettings, updateSiteSettings } from './settings';
 
 const SETTINGS_KEY = 'xa12-app-settings-v1';
@@ -125,11 +126,29 @@ export async function syncSettingsWithSupabase() {
       lockoutMinutes: Number(dbSettings.track_lockout_minutes ?? DEFAULT_SETTINGS.tracking.lockoutMinutes),
     },
     content: {
-      aboutPage: dbSettings.about_page || DEFAULT_SETTINGS.content.aboutPage,
-      deliveryPage: dbSettings.delivery_page || DEFAULT_SETTINGS.content.deliveryPage,
-      policyPage: dbSettings.policy_page || DEFAULT_SETTINGS.content.policyPage,
+      aboutPage: DEFAULT_SETTINGS.content.aboutPage,
+      deliveryPage: DEFAULT_SETTINGS.content.deliveryPage,
+      policyPage: DEFAULT_SETTINGS.content.policyPage,
     },
   };
+
+  // Load page content from site_content table
+  try {
+    const { data: contentData } = await supabase
+      .from('site_content')
+      .select('key, value')
+      .in('key', ['about_page', 'delivery_page', 'policy_page']);
+
+    if (contentData) {
+      contentData.forEach(row => {
+        if (row.key === 'about_page') mapped.content.aboutPage = row.value || '';
+        if (row.key === 'delivery_page') mapped.content.deliveryPage = row.value || '';
+        if (row.key === 'policy_page') mapped.content.policyPage = row.value || '';
+      });
+    }
+  } catch {
+    // If site_content read fails, keep defaults
+  }
 
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(mapped));
   return mapped;
@@ -186,12 +205,29 @@ export async function persistSettings(settings) {
     dbSettings.track_max_failed_attempts = settings.tracking.maxFailedAttempts;
     dbSettings.track_lockout_minutes = settings.tracking.lockoutMinutes;
   }
-  if (currentDbSettings && 'about_page' in currentDbSettings) {
-    dbSettings.about_page = settings.content.aboutPage;
-    dbSettings.delivery_page = settings.content.deliveryPage;
-    dbSettings.policy_page = settings.content.policyPage;
-  }
 
   const res = await updateSiteSettings(dbSettings);
+
+  // Save page content to site_content table (separate from site_settings)
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id;
+
+    const contentUpserts = [
+      { key: 'about_page', value: settings.content.aboutPage },
+      { key: 'delivery_page', value: settings.content.deliveryPage },
+      { key: 'policy_page', value: settings.content.policyPage },
+    ];
+
+    for (const content of contentUpserts) {
+      await supabase
+        .from('site_content')
+        .upsert({ key: content.key, value: content.value, updated_by: userId }, { onConflict: 'key' });
+    }
+  } catch {
+    // If site_content write fails, log but don't fail the whole save
+    console.warn('Failed to save page content to site_content');
+  }
+
   return res;
 }
