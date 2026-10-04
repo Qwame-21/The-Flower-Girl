@@ -8,7 +8,6 @@ const processedNotificationIds = new Set();
 export function DashboardProvider({ children, onSignOut }) {
   const audioContextRef = useRef(null);
   const notificationPermissionRef = useRef('default');
-  const [muted, setMuted] = useState(false);
 
   // Unlock audio context on first user interaction
   useEffect(() => {
@@ -46,7 +45,9 @@ export function DashboardProvider({ children, onSignOut }) {
 
   // Play notification sound
   const playNotificationSound = () => {
-    if (muted) return;
+    // Use existing mute control from Header.jsx
+    const isMuted = localStorage.getItem('notifications-muted') === 'true';
+    if (isMuted) return;
 
     try {
       if (audioContextRef.current && audioContextRef.current.state === 'running') {
@@ -121,7 +122,7 @@ export function DashboardProvider({ children, onSignOut }) {
   };
 
   return (
-    <DashboardContext.Provider value={{ onSignOut, notifyNewOrder, muted, setMuted }}>
+    <DashboardContext.Provider value={{ onSignOut, notifyNewOrder }}>
       {children}
     </DashboardContext.Provider>
   );

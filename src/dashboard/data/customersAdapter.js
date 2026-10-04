@@ -32,7 +32,9 @@ export async function saveCustomersData(list) {
               notes: c.notes || ''
             }, { onConflict: 'email' });
           }
-        } catch {}
+        } catch {
+          // Continue with next customer if one fails
+        }
       }
     }
   } catch {}
@@ -51,6 +53,29 @@ export async function syncCustomersWithSupabase() {
       }
     }
   } catch {}
+
+  // Load VIP/notes from customer_profiles table
+  let profilesMap = {};
+  if (supabase) {
+    try {
+      const { data: profiles } = await supabase
+        .from('customer_profiles')
+        .select('email, vip, notes');
+      
+      if (profiles) {
+        profiles.forEach(p => {
+          if (p.email) {
+            profilesMap[p.email.toLowerCase()] = {
+              isVip: Boolean(p.vip),
+              notes: p.notes || ''
+            };
+          }
+        });
+      }
+    } catch {
+      // If customer_profiles read fails, use localStorage overrides as fallback
+    }
+  }
 
   const customerGroupMap = new Map();
 
@@ -84,11 +109,15 @@ export async function syncCustomersWithSupabase() {
   });
 
   const result = Array.from(customerGroupMap.values()).map(c => {
+    // Priority: customer_profiles table > localStorage overrides > default
+    const emailKey = c.email !== 'N/A' ? c.email.toLowerCase() : null;
+    const profileData = emailKey ? profilesMap[emailKey] : null;
     const ov = overridesMap[c.id] || overridesMap[c.email] || overridesMap[c.phone] || {};
+    
     return {
       ...c,
-      isVip: Boolean(ov.isVip),
-      notes: ov.notes || ''
+      isVip: profileData?.isVip ?? Boolean(ov.isVip),
+      notes: profileData?.notes ?? ov.notes ?? ''
     };
   });
 
