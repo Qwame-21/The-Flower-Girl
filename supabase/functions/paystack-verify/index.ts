@@ -42,6 +42,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
   if (!paystackSecret || !supabaseUrl || !serviceRole) {
+    console.error('[paystack-verify] Server mis-configuration: missing secrets');
     return json({ error: 'Server mis-configuration' }, 500, corsHeaders);
   }
 
@@ -66,6 +67,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const verified = verification?.data;
 
   if (!verifyResponse.ok || !verification?.status || verified?.status !== 'success' || verified?.reference !== reference) {
+    console.error('[paystack-verify] Payment verification failed:', verifyResponse.status, verification?.message);
     return json({ error: verification?.message || 'Payment verification failed' }, 409, corsHeaders);
   }
 
@@ -84,6 +86,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   });
 
   if (error) {
+    console.error('[paystack-verify] Order finalization failed:', error.message);
     return json({ error: 'Order finalization failed' }, 409, corsHeaders);
   }
 

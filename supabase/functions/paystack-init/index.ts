@@ -71,6 +71,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
   if (!PAYSTACK_SECRET || !SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    console.error('[paystack-init] Server mis-configuration: missing secrets');
     return new Response(JSON.stringify({ error: 'Server mis-configuration' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -93,8 +94,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
     cardMessage, cardStyleNotes, requestedDeliveryDate, cart,
   } = payload;
 
-  if (!customerName || !customerEmail || !customerPhone || !deliveryAddress) {
+  if (!customerName || !customerEmail || !customerPhone) {
     return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // For collection, use a default address if none provided
+  const finalDeliveryAddress = deliveryType === 'collection' && (!deliveryAddress || deliveryAddress.trim() === '')
+    ? 'Shop collection'
+    : deliveryAddress;
+
+  if (!finalDeliveryAddress) {
+    return new Response(JSON.stringify({ error: 'Delivery address is required' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -120,12 +133,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     supabase.from('site_settings').select('*').eq('id', 'global').maybeSingle(),
   ]);
   if (settingsError || !siteSettings) {
+    console.error('[paystack-init] Delivery settings could not be loaded');
     return new Response(JSON.stringify({ error: 'Delivery settings could not be loaded. Try again.' }), {
       status: 503,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
   if (productError || promotionError || !dbProducts || dbProducts.length !== productIds.length) {
+    console.error('[paystack-init] Product validation failed');
     return new Response(JSON.stringify({ error: 'The live catalogue could not validate every item. Refresh the shop and try again.' }), {
       status: 409,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -220,7 +235,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       customer_name: customerName,
       customer_phone: customerPhone,
       recipient_name: recipientName || customerName,
-      delivery_address: deliveryAddress,
+      delivery_address: finalDeliveryAddress,
       delivery_type: deliveryType || null,
       delivery_fee: deliveryFee,
       landmark: landmark || '',
@@ -281,6 +296,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const paystackData = await paystackRes.json();
 
   if (!paystackRes.ok || !paystackData.status) {
+    console.error('[paystack-init] Paystack API error:', paystackRes.status, paystackData.message);
     await supabase.from('checkout_attempts').update({ status: 'failed' }).eq('payment_reference', paystackRef);
     return new Response(JSON.stringify({ error: paystackData.message || 'Payment gateway error' }), {
       status: 502,

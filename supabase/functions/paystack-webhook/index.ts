@@ -12,7 +12,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const paystackSecret = Deno.env.get('PAYSTACK_SECRET_KEY');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!paystackSecret || !supabaseUrl || !serviceRole) return new Response('Server mis-configuration', { status: 500 });
+  if (!paystackSecret || !supabaseUrl || !serviceRole) {
+    console.error('[paystack-webhook] Server mis-configuration: missing secrets');
+    return new Response('Server mis-configuration', { status: 500 });
+  }
 
   const rawBody = await req.text();
   const signature = req.headers.get('x-paystack-signature') || '';
@@ -33,6 +36,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const verification = await verifyResponse.json();
   const verified = verification?.data;
   if (!verifyResponse.ok || !verification?.status || verified?.status !== 'success' || verified?.reference !== reference) {
+    console.error('[paystack-webhook] Verification failed:', verifyResponse.status);
     return new Response('Verification failed', { status: 409 });
   }
 
@@ -47,6 +51,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     verified_currency: currency,
   });
   if (error) {
+    console.error('[paystack-webhook] Order finalization failed:', error.message);
     return new Response('Order finalization failed', { status: 409 });
   }
 
