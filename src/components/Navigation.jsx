@@ -106,7 +106,7 @@ export default function Navigation({ activeTab, setActiveTab, onOpenDrawer, onOp
           <Heart size={18} strokeWidth={1.9} />
           {wishlistCount > 0 && <span aria-hidden="true">{wishlistCount}</span>}
         </button>
-        <button className={`nav-order ${cartCount ? 'has-items' : ''}`} onClick={onOpenCheckout} aria-label={`${cartCount} items in cart`}>
+        <button className={`nav-order ${cartCount ? 'has-items' : ''}`} onClick={onOpenCheckout} aria-label={`${cartCount} items in cart. Open checkout`}>
           <ShoppingBag size={18} strokeWidth={1.9} />
           {cartCount > 0 && <span aria-hidden="true">{cartCount}</span>}
         </button>
