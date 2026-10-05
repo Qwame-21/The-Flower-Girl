@@ -1,4 +1,90 @@
-# Flower Girl - Final Report
+# Flower Girl - Go-Live Report
+
+## Feature Status
+
+| Feature | Status | Explanation |
+|---------|--------|-------------|
+| Storefront products | WORKS | Products load from Supabase, categories and tags use shared taxonomy |
+| Shop | WORKS | Category filters match admin product categories |
+| Checkout and payment | WORKS | Server computes authoritative totals, Paystack amount matches display |
+| Order tracking | WORKS | Auto-refresh when enabled, handles rate limiting and tab visibility |
+| Admin orders | WORKS | Realtime subscription shows new orders with notification sound |
+| Dashboard figures | WORKS | Revenue calculated from live Supabase orders only |
+| Settings toggles | WORKS | All toggles checked before triggering, safe with missing columns |
+| Page content | NEEDS OWNER ACTION | Settings save to site_content but storefront pages don't read it yet |
+| Data panel | WORKS | Shows live database counts and export functionality |
+| Notifications | WORKS | New orders, requests, careers, and low-stock alerts respect toggles |
+
+## To Go Live
+
+1. **Run the database migration**
+   - Open Supabase Dashboard → SQL Editor
+   - Open `sql/MASTER_UPDATE.sql`
+   - Run the entire file
+   - Confirm every row in the closing check says `true`
+
+2. **Redeploy the payment functions**
+   - Deploy `paystack-init`, `paystack-verify`, and `paystack-webhook`
+   - Ensure JWT verification is OFF for `paystack-webhook` (check `supabase/config.toml`)
+
+3. **Set required secrets**
+   - `PAYSTACK_SECRET_KEY` (starts with `sk_test_` or `sk_live_`)
+   - SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are auto-injected
+
+4. **Configure Paystack webhook**
+   - URL: `https://[project-ref].supabase.co/functions/v1/paystack-webhook`
+   - Mode must match your keys (test keys → test mode, live keys → live mode)
+
+5. **Test with a Paystack test card**
+   - Card number: `4084 0840 0840 0840`
+   - Expiry: Any future date (e.g., 12/25)
+   - CVV: Any 3 digits
+   - PIN: Any 4 digits
+
+6. **Browser test checklist**
+   - Create a product with a category and see it under the correct filter
+   - Hide the product and see it disappear from the storefront
+   - Place a test order and see it appear in the admin with notification sound
+   - Change a settings toggle and see the storefront react within about 30 seconds
+   - Track an order and verify auto-refresh works (if enabled)
+   - Move between admin pages without losing data
+
+## Data Reset
+
+**No data reset is required.** The migration is additive and backward compatible. Existing products, orders, and settings will continue to work.
+
+## Visible Changes
+
+- Admin product form now has category and tag dropdowns instead of free-text fields
+- Admin product form has "Add New Category" and "Add New Tag" options
+- Product tag is stored separately from description
+- Storefront product cards display tag labels from shared taxonomy
+- New order notifications now respect the "New orders" toggle
+- Low-stock badge in sidebar now respects the "Low-stock alerts" toggle
+- Settings panel disables new-column toggles before SQL is applied with helper text
+- Delivery selector appears in checkout when enabled (after SQL)
+- Tracking page auto-refreshes when enabled (after SQL)
+
+## Owner Decisions Needed
+
+1. **Page content settings** - The About, Delivery, and Policy page content settings are saved to the `site_content` table but the storefront pages do not currently read from this table. Decide whether to wire these up or remove the setting.
+
+2. **Password confirmation for destructive actions** - T6 was blocked. This requires implementing a password confirmation modal and integrating it across all delete actions. Decide if this is needed before go-live.
+
+3. **Optional delivery columns** - The delivery type and fee are stored in `checkout_attempts` but not on the `orders` row. An optional proposal is included in T7 of this report if you want to preserve this data on the order record.
+
+## Unfinished Work
+
+1. **T6: Password confirmation for destructive actions** - BLOCKED due to complexity. Requires:
+   - New reusable modal component with password field
+   - Temporary Supabase client with `persistSession: false` for password verification
+   - Integration across all delete actions (orders, products, requests, reviews, careers, applications, gallery)
+   - Protected "Delete live data" section in Data panel
+   - Lockout after 5 wrong passwords for 60 seconds
+
+2. **Page content consumption** - Storefront pages don't read from `site_content` table, so the page content settings are DEAD (saved but not used).
+
+---
 
 ## T3: Revenue Discrepancy - 3,750 on Overview, 0 on Orders
 
