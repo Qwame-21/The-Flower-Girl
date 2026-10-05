@@ -40,28 +40,35 @@
 - `src/storefront/pages/CareersPage.jsx`
 - `src/storefront/pages/GalleryPage.jsx`
 - `src/storefront/pages/ShopPage.jsx`
+- `src/storefront/data/customization.js`
+- `src/storefront/pages/CustomizePage.jsx`
 
 **Verdicts:**
 
 | Content Type | Admin Save | Storefront Consumer | Verdict | Notes |
 |-------------|------------|-------------------|---------|-------|
-| **Customization options** | `customization_options` table | CustomizePage | LIVE | Already connected, no change needed |
+| **Customization options** | `customization_options` table | CustomizePage | LIVE | Updated to use live data with cache and fallback |
 | **Careers** | `careers` table | CareersPage | LIVE | New data module created, page updated to use live data |
 | **Gallery** | `gallery_items` table | GalleryPage | LIVE | Added refetch on window focus for freshness |
 | **Promotions** | `promotions` table | ShopPage | LIVE | Already connected, added refetch on window focus |
-| **Reviews** | `reviews` table | None | DEAD | No storefront reviews/testimonials block found |
+| **Reviews** | `reviews` table | None | DEAD | No storefront reviews/testimonials block exists |
 
 **Changes:**
 - Created `careers.js` data module to fetch careers from Supabase
 - Updated CareersPage to display live careers from database with fallback to default
 - Updated GalleryPage to refetch on window focus
 - Updated ShopPage to refetch promotions on window focus
+- Updated `customization.js` to fetch from `customization_options` table with caching
+- Updated CustomizePage to show cached options instantly and refetch on mount and window focus
+- Added hardcoded fallback for customization options when Supabase not configured or fetch fails
 
 **Visible Changes:**
 - Careers page now shows open positions from database
 - Loading state: "Loading open positions..."
 - Empty state: "No open positions at this time. Check back soon!"
 - Gallery and promotions refresh when window regains focus
+- Customize page now shows options from database with loading and error states
+- Customization options refresh when window regains focus
 
 **Decision for Owner:**
 - Reviews: No storefront testimonials/reviews block exists. Consider adding one to display published reviews (`status = 'published'`).

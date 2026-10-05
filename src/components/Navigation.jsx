@@ -1,7 +1,17 @@
+import { useState, useEffect } from 'react';
 import { Menu, Search, ShoppingBag, Heart } from 'lucide-react';
 import { startTransition } from 'react';
+import { getSiteSettings } from '../storefront/api/siteFeatures';
 
 export default function Navigation({ activeTab, setActiveTab, onOpenDrawer, onOpenSearch, onOpenShop, onOpenCheckout, onOpenWishlist, onOpenServices, onOpenGallery, cartCount, wishlistCount }) {
+  const [settings, setSettings] = useState(null);
+
+  useEffect(() => {
+    getSiteSettings().then(setSettings);
+  }, []);
+
+  const storeName = settings?.business_name || 'The Gifting Factory by Flower Girl';
+
   return (
     <header style={styles.header} className="portfolio-header">
 
@@ -19,11 +29,11 @@ export default function Navigation({ activeTab, setActiveTab, onOpenDrawer, onOp
       <button
         className="header-wordmark"
         onClick={() => startTransition(() => setActiveTab('home'))}
-        aria-label="The Gifting Factory by Flower Girl – go home"
+        aria-label={`${storeName} – go home`}
       >
         <img
           src="/assets/gifting-factory-logo-transparent-v2.png"
-          alt="The Gifting Factory logo"
+          alt={`${storeName} logo`}
           className="header-logo-img"
         />
       </button>

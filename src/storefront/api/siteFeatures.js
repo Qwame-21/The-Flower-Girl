@@ -40,6 +40,10 @@ export async function getSiteSettings() {
     delivery_page: '',
     policy_page: '',
     support_phone: '+233 202 417 072',
+    business_name: 'The Gifting Factory by Flower Girl',
+    support_email: 'info@flowergirlpro.com',
+    store_address: 'ACP Estate Junction, Kwabenya, Accra',
+    instagram_url: 'https://www.instagram.com/flowergirl_ghana/',
   };
 
   if (!supabase) {
