@@ -795,9 +795,6 @@ function DataPanel() {
     showToast('Live database export downloaded!');
   }
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-  const projectId = supabaseUrl.replace('https://', '').split('.')[0] || 'lvciyxnafwhrtrgmmjxw';
-
   return (
     <section className="settings-panel on" role="tabpanel" id="set-panel-data">
       {/* Live database stats & environment card */}
@@ -805,9 +802,9 @@ function DataPanel() {
         <h2>Database environment &amp; live counts</h2>
         <div className="sub">Real-time table counts from your connected Supabase backend.</div>
         <div className="set-row">
-          <div><b>Supabase Project ID</b><div className="sub">{supabaseUrl}</div></div>
+          <div><b>Connection status</b><div className="sub">Connected to live database</div></div>
           <span style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: '999px', padding: '4px 12px', fontSize: '11px', fontWeight: 600, color: '#166534' }}>
-            {projectId} · Connected (Live)
+            Connected (Live)
           </span>
         </div>
         <div className="set-row">

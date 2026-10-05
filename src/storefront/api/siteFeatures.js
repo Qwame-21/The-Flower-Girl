@@ -114,3 +114,12 @@ export async function refreshSiteSettings() {
   
   return getSiteSettings();
 }
+
+/**
+ * Refetch settings when window regains focus
+ */
+if (typeof window !== 'undefined') {
+  window.addEventListener('focus', () => {
+    refreshSiteSettings();
+  });
+}
