@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef } from 'react';
 import CustomDropdown from '../components/shared/CustomDropdown';
 import { getImageUrl } from '../lib/imageUrlHelper';
+import { PRODUCT_CATEGORIES, PRODUCT_TAGS } from '../../shared/taxonomy';
 import {
   listProducts,
   createProduct,
@@ -181,7 +182,7 @@ function normalizeProduct(p, idx = 0) {
     stock: typeof p.stock === 'number' ? p.stock : (parseInt(p.stock, 10) || 0),
     threshold: typeof p.low_stock_threshold === 'number' ? p.low_stock_threshold : (parseInt(p.low_stock_threshold, 10) || 3),
     salesCount: 0,
-    occasion: p.tag || (p.tag && p.tag[0]) || 'Signature',
+    occasion: p.tag || 'Signature',
     isBundle: categoryTitle === 'Bundles' || categoryTitle === 'Hampers',
     variants: [],
     imageUrl: getImageUrl(p.image_path) || fallbackImg,
@@ -223,6 +224,8 @@ export default function ProductsPage() {
   const [formThreshold, setFormThreshold] = useState('3');
   const [formDiscount, setFormDiscount] = useState('');
   const [formDescription, setFormDescription] = useState('');
+  const [formTag, setFormTag] = useState('SIGNATURE');
+  const [formNewTagInput, setFormNewTagInput] = useState('');
   const [formSizeType, setFormSizeType] = useState('');
   const [formBestseller, setFormBestseller] = useState(false);
   const [formTrending, setFormTrending] = useState(false);
@@ -320,6 +323,8 @@ export default function ProductsPage() {
     setFormThreshold('3');
     setFormDiscount('');
     setFormDescription('');
+    setFormTag('SIGNATURE');
+    setFormNewTagInput('');
     setFormSizeType('');
     setFormBestseller(false);
     setFormTrending(false);
@@ -341,6 +346,8 @@ export default function ProductsPage() {
     setFormThreshold(p.threshold !== undefined ? String(p.threshold) : '3');
     setFormDiscount(p.discountPercent ? String(p.discountPercent) : '');
     setFormDescription(p.description || '');
+    setFormTag(p.occasion || 'SIGNATURE');
+    setFormNewTagInput('');
     setFormSizeType(p.sizeType || '');
     setFormBestseller(!!p.isBestseller);
     setFormTrending(!!p.isTrending);
@@ -359,6 +366,7 @@ export default function ProductsPage() {
       return;
     }
     const finalCat = formCategory === '__NEW__' ? (formNewCategoryInput.trim() || 'Hampers') : formCategory;
+    const finalTag = formTag === '__NEW__' ? (formNewTagInput.trim().toUpperCase() || 'SIGNATURE') : formTag;
     const priceVal = parseFloat(formPrice);
     if (isNaN(priceVal) || priceVal < 0) {
       setFormError('Valid price is required');
@@ -379,7 +387,7 @@ export default function ProductsPage() {
       price: priceVal,
       stock: isNaN(stockVal) ? 0 : stockVal,
       low_stock_threshold: isNaN(thresholdVal) ? 3 : thresholdVal,
-      tag: formDescription ? 'SIGNATURE' : '',
+      tag: finalTag || '',
       description: formDescription.trim(),
       details: [],
       image_path: formImageUrl.trim(),
@@ -933,7 +941,8 @@ export default function ProductsPage() {
                 <div id="drawerCategoryDropdownContainer">
                   <CustomDropdown
                     options={[
-                      ...activeCategories.map(c => ({ value: c, label: c })),
+                      ...PRODUCT_CATEGORIES,
+                      ...activeCategories.filter(c => !PRODUCT_CATEGORIES.some(pc => pc.value === c)).map(c => ({ value: c, label: c })),
                       { value: '__NEW__', label: '+ Add New Category...' }
                     ]}
                     value={formCategory}
@@ -949,6 +958,33 @@ export default function ProductsPage() {
                       placeholder="Enter new category name..."
                       value={formNewCategoryInput}
                       onChange={(e) => setFormNewCategoryInput(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="field-group">
+                <label className="field-label">Tag</label>
+                <div id="drawerTagDropdownContainer">
+                  <CustomDropdown
+                    options={[
+                      ...PRODUCT_TAGS,
+                      ...activeCategories.filter(c => !PRODUCT_TAGS.some(pt => pt.value === c)).map(c => ({ value: c, label: c })),
+                      { value: '__NEW__', label: '+ Add New Tag...' }
+                    ]}
+                    value={formTag}
+                    onChange={(newVal) => setFormTag(newVal)}
+                  />
+                </div>
+                {formTag === '__NEW__' && (
+                  <div id="newTagInputWrap" style={{ marginTop: '8px' }}>
+                    <input
+                      type="text"
+                      className="field-input"
+                      id="prodFormNewTagInput"
+                      placeholder="Enter new tag name..."
+                      value={formNewTagInput}
+                      onChange={(e) => setFormNewTagInput(e.target.value)}
                     />
                   </div>
                 )}
@@ -1007,7 +1043,23 @@ export default function ProductsPage() {
               </div>
             </div>
 
-            {/* 4. Description */}
+            {/* 4. Tag */}
+            <div className="field-group">
+              <label className="field-label">Tag</label>
+              <div id="drawerTagDropdownContainer">
+                <CustomDropdown
+                  options={[
+                    ...PRODUCT_TAGS,
+                    ...activeCategories.filter(c => !PRODUCT_TAGS.some(pt => pt.value === c)).map(c => ({ value: c, label: c })),
+                    { value: '__NEW__', label: '+ Add New Tag...' }
+                  ]}
+                  value={formTag}
+                  onChange={(newVal) => setFormTag(newVal)}
+                />
+              </div>
+            </div>
+
+            {/* 5. Description */}
             <div className="field-group">
               <label className="field-label">Description</label>
               <textarea
@@ -1020,7 +1072,7 @@ export default function ProductsPage() {
               />
             </div>
 
-            {/* 5. Size / Type */}
+            {/* 7. Size / Type */}
             <div className="field-group">
               <label className="field-label">Size / Type</label>
               <input
@@ -1033,7 +1085,7 @@ export default function ProductsPage() {
               />
             </div>
 
-            {/* 6. Bestseller & Trending Checkboxes */}
+            {/* 8. Bestseller & Trending Checkboxes */}
             <div className="form-checkbox-row" style={{ display: 'flex', gap: '20px', marginBottom: '16px' }}>
               <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                 <input
