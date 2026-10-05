@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { submitInquiry } from '../api/submissions';
-import { fetchStorefrontCustomization } from '../data/customization';
+import { fetchStorefrontCustomization, getCachedCustomization } from '../data/customization';
 import { formDate, formIsoDate } from '../utils/date';
 import CardStylePicker from '../components/CardStylePicker';
 import DateField from '../components/DateField';
@@ -18,10 +18,16 @@ export default function CustomizePage({ onNavigate }) {
   const [submissionId] = useState(() => crypto.randomUUID());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [customOptions, setCustomOptions] = useState({});
-  const [customEstimates, setCustomEstimates] = useState({});
+  const [customOptions, setCustomOptions] = useState(() => {
+    const cached = getCachedCustomization();
+    return cached ? cached.options : {};
+  });
+  const [customEstimates, setCustomEstimates] = useState(() => {
+    const cached = getCachedCustomization();
+    return cached ? cached.estimates : {};
+  });
   const [fetchError, setFetchError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!getCachedCustomization());
 
   const loadCustomization = () => {
     setLoading(true);
@@ -40,7 +46,26 @@ export default function CustomizePage({ onNavigate }) {
   };
 
   useEffect(() => {
+    // If we have cached options, show them immediately
+    const cached = getCachedCustomization();
+    if (cached) {
+      setCustomOptions(cached.options);
+      setCustomEstimates(cached.estimates);
+      setLoading(false);
+    }
+
+    // Then refresh in background
     loadCustomization();
+  }, []);
+
+  // Refetch when window regains focus
+  useEffect(() => {
+    const handleFocus = () => {
+      loadCustomization();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   const toggle = option => setSelected(current => current.includes(option) ? current.filter(item => item !== option) : [...current, option]);

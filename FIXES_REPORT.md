@@ -108,8 +108,11 @@
 - Test PASSED: paid order counted, pending order not counted, cancelled paid order not counted
 
 **Sidebar Badges:**
-- Sidebar badge code exists but not yet modified
-- BADGES NEED INVESTIGATION - they may not be showing real counts
+- Connected Sidebar to dataCache for live badge counts
+- Orders badge: counts pending payment or processing orders (not delivered/cancelled)
+- Products badge: counts products at or below their low_stock_threshold
+- Subscribes to cache updates to refresh badges when data changes
+- Removed TODO placeholders
 
 ---
 
