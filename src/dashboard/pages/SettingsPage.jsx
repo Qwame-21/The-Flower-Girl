@@ -449,6 +449,10 @@ function ContentPanel({ s, onChange }) {
     aboutPage: s.content?.aboutPage || '',
     deliveryPage: s.content?.deliveryPage || '',
     policyPage: s.content?.policyPage || '',
+    deliverySamedayInfo: s.content?.deliverySamedayInfo || '',
+    deliveryScheduledInfo: s.content?.deliveryScheduledInfo || '',
+    deliverySurpriseInfo: s.content?.deliverySurpriseInfo || '',
+    deliveryCollectionInfo: s.content?.deliveryCollectionInfo || '',
   }));
 
   useEffect(() => {
@@ -456,6 +460,10 @@ function ContentPanel({ s, onChange }) {
       aboutPage: s.content?.aboutPage || '',
       deliveryPage: s.content?.deliveryPage || '',
       policyPage: s.content?.policyPage || '',
+      deliverySamedayInfo: s.content?.deliverySamedayInfo || '',
+      deliveryScheduledInfo: s.content?.deliveryScheduledInfo || '',
+      deliverySurpriseInfo: s.content?.deliverySurpriseInfo || '',
+      deliveryCollectionInfo: s.content?.deliveryCollectionInfo || '',
     });
   }, [s.content]);
 
@@ -469,6 +477,10 @@ function ContentPanel({ s, onChange }) {
           aboutPage: form.aboutPage,
           deliveryPage: form.deliveryPage,
           policyPage: form.policyPage,
+          deliverySamedayInfo: form.deliverySamedayInfo,
+          deliveryScheduledInfo: form.deliveryScheduledInfo,
+          deliverySurpriseInfo: form.deliverySurpriseInfo,
+          deliveryCollectionInfo: form.deliveryCollectionInfo,
         },
       };
       onChange(updated);
@@ -504,6 +516,42 @@ function ContentPanel({ s, onChange }) {
             form={form}
             setText={setText}
           />
+          <div className="settings-f full" style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+            <label style={{ fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>Delivery options text</label>
+            <div className="sub" style={{ marginBottom: '1rem' }}>Short descriptions for each delivery type shown on the Delivery page (max 500 characters each).</div>
+          </div>
+          <ContentTextArea
+            label="Same-day delivery info"
+            field="deliverySamedayInfo"
+            placeholder="Delivered on the day you order, when stock and our delivery schedule allow."
+            form={form}
+            setText={setText}
+            maxLength={500}
+          />
+          <ContentTextArea
+            label="Scheduled delivery info"
+            field="deliveryScheduledInfo"
+            placeholder="Choose the date you want your gift delivered. We deliver on the date you pick."
+            form={form}
+            setText={setText}
+            maxLength={500}
+          />
+          <ContentTextArea
+            label="Surprise delivery info"
+            field="deliverySurpriseInfo"
+            placeholder="Delivered as a surprise to your recipient. Add their details and any instructions when you order."
+            form={form}
+            setText={setText}
+            maxLength={500}
+          />
+          <ContentTextArea
+            label="Shop collection info"
+            field="deliveryCollectionInfo"
+            placeholder="Collect your order from our shop."
+            form={form}
+            setText={setText}
+            maxLength={500}
+          />
         </div>
       </div>
       <div className="bar" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
@@ -515,7 +563,7 @@ function ContentPanel({ s, onChange }) {
   );
 }
 
-function ContentTextArea({ label, field, placeholder, form, setText }) {
+function ContentTextArea({ label, field, placeholder, form, setText, maxLength = 10000 }) {
   return (
     <div className="settings-f full">
       <label htmlFor={`set_content_${field}`}>{label}</label>
@@ -524,7 +572,7 @@ function ContentTextArea({ label, field, placeholder, form, setText }) {
         value={form[field]}
         onChange={setText(field)}
         placeholder={placeholder}
-        maxLength={10000}
+        maxLength={maxLength}
         rows={6}
         style={{ resize: 'vertical', fontFamily: 'inherit' }}
       />

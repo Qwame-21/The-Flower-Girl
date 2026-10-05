@@ -1,18 +1,41 @@
 import { useEffect, useState } from 'react';
 import { readAdminData, subscribeAdminData } from '../../data/adminStore';
 import { getSiteSettings } from '../api/siteFeatures';
+import { supabase } from '../../config/supabase';
 import SiteFooter from '../components/SiteFooter';
+
+const getDefaultDescription = (type, storeAddress) => {
+  switch (type) {
+    case 'sameday':
+      return 'Delivered on the day you order, when stock and our delivery schedule allow.';
+    case 'scheduled':
+      return 'Choose the date you want your gift delivered. We deliver on the date you pick.';
+    case 'surprise':
+      return 'Delivered as a surprise to your recipient. Add their details and any instructions when you order.';
+    case 'collection':
+      return storeAddress
+        ? `Collect your order from our shop. Address: ${storeAddress}`
+        : 'Collect your order from our shop.';
+    default:
+      return '';
+  }
+};
 
 export default function InformationPage({ type, onNavigate }) {
   const delivery = type === 'delivery';
   const [content, setContent] = useState(() => readAdminData().content);
   const [siteContent, setSiteContent] = useState('');
   const [supportPhone, setSupportPhone] = useState('+233 202 417 072');
+  const [deliveryOptions, setDeliveryOptions] = useState(null);
+  const [settings, setSettings] = useState(null);
 
   useEffect(() => subscribeAdminData(data => setContent(data.content)), []);
 
   useEffect(() => {
-    getSiteSettings().then(settings => {
+    const loadAll = async () => {
+      const settings = await getSiteSettings();
+      setSettings(settings);
+
       if (delivery && settings?.delivery_page) {
         setSiteContent(settings.delivery_page);
       } else if (!delivery && settings?.policy_page) {
@@ -21,7 +44,72 @@ export default function InformationPage({ type, onNavigate }) {
       if (settings?.support_phone) {
         setSupportPhone(settings.support_phone);
       }
-    });
+
+      // Load delivery descriptions from site_content
+      let descriptions = {};
+      if (delivery) {
+        try {
+          const { data } = await supabase
+            .from('site_content')
+            .select('key, value')
+            .in('key', ['delivery_sameday_info', 'delivery_scheduled_info', 'delivery_surprise_info', 'delivery_collection_info']);
+
+          if (data) {
+            data.forEach(row => {
+              const type = row.key.replace('delivery_', '').replace('_info', '');
+              descriptions[type] = row.value || '';
+            });
+          }
+        } catch {
+          // If load fails, use defaults
+        }
+      }
+
+      // Load delivery options for delivery page
+      if (delivery && settings?.delivery_selector_enabled) {
+        const options = [];
+        if (settings.delivery_sameday_enabled) {
+          options.push({
+            type: 'sameday',
+            label: 'Same-day delivery',
+            fee: settings.delivery_sameday_fee || 0,
+            enabled: true,
+            description: descriptions.sameday || getDefaultDescription('sameday', settings.store_address),
+          });
+        }
+        if (settings.delivery_scheduled_enabled) {
+          options.push({
+            type: 'scheduled',
+            label: 'Scheduled delivery',
+            fee: settings.delivery_scheduled_fee || 0,
+            enabled: true,
+            description: descriptions.scheduled || getDefaultDescription('scheduled', settings.store_address),
+          });
+        }
+        if (settings.delivery_surprise_enabled) {
+          options.push({
+            type: 'surprise',
+            label: 'Surprise delivery',
+            fee: settings.delivery_surprise_fee || 0,
+            enabled: true,
+            description: descriptions.surprise || getDefaultDescription('surprise', settings.store_address),
+          });
+        }
+        if (settings.delivery_collection_enabled) {
+          options.push({
+            type: 'collection',
+            label: 'Shop collection',
+            fee: settings.delivery_collection_fee || 0,
+            enabled: true,
+            description: descriptions.collection || getDefaultDescription('collection', settings.store_address),
+          });
+        }
+        setDeliveryOptions(options);
+      } else {
+        setDeliveryOptions(null);
+      }
+    };
+    loadAll();
   }, [delivery]);
 
   const paragraphs = siteContent.split('\n\n').filter(p => p.trim());
@@ -44,6 +132,24 @@ export default function InformationPage({ type, onNavigate }) {
       )}
       {!siteContent && !(delivery ? content.deliveryPolicy : content.orderPolicy) && (
         <p className="about-lead">This page is being updated. For assistance, call {supportPhone}.</p>
+      )}
+      {delivery && deliveryOptions && deliveryOptions.length > 0 && (
+        <section className="about-intro" style={{ marginTop: '2rem' }}>
+          <h2 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '1rem' }}>Delivery options</h2>
+          {deliveryOptions.map(opt => (
+            <div key={opt.type} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0.75rem 0', borderBottom: '1px solid rgba(17, 17, 17, 0.1)' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: '500', fontSize: '0.95rem' }}>{opt.label}</div>
+                {opt.description && (
+                  <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.25rem', lineHeight: '1.4' }}>{opt.description}</div>
+                )}
+              </div>
+              <div style={{ flex: '0 0 auto', marginLeft: '1rem', fontSize: '0.9rem', color: '#666', fontWeight: '500' }}>
+                {opt.fee > 0 ? `GHS ${opt.fee.toLocaleString()}` : 'Free'}
+              </div>
+            </div>
+          ))}
+        </section>
       )}
       {delivery ? (
         <section className="information-list">

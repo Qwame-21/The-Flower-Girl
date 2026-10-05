@@ -46,6 +46,10 @@ const DEFAULT_SETTINGS = {
     aboutPage: '',
     deliveryPage: '',
     policyPage: '',
+    deliverySamedayInfo: '',
+    deliveryScheduledInfo: '',
+    deliverySurpriseInfo: '',
+    deliveryCollectionInfo: '',
   },
 };
 
@@ -137,13 +141,17 @@ export async function syncSettingsWithSupabase() {
     const { data: contentData } = await supabase
       .from('site_content')
       .select('key, value')
-      .in('key', ['about_page', 'delivery_page', 'policy_page']);
+      .in('key', ['about_page', 'delivery_page', 'policy_page', 'delivery_sameday_info', 'delivery_scheduled_info', 'delivery_surprise_info', 'delivery_collection_info']);
 
     if (contentData) {
       contentData.forEach(row => {
         if (row.key === 'about_page') mapped.content.aboutPage = row.value || '';
         if (row.key === 'delivery_page') mapped.content.deliveryPage = row.value || '';
         if (row.key === 'policy_page') mapped.content.policyPage = row.value || '';
+        if (row.key === 'delivery_sameday_info') mapped.content.deliverySamedayInfo = row.value || '';
+        if (row.key === 'delivery_scheduled_info') mapped.content.deliveryScheduledInfo = row.value || '';
+        if (row.key === 'delivery_surprise_info') mapped.content.deliverySurpriseInfo = row.value || '';
+        if (row.key === 'delivery_collection_info') mapped.content.deliveryCollectionInfo = row.value || '';
       });
     }
   } catch {
@@ -217,6 +225,10 @@ export async function persistSettings(settings) {
       { key: 'about_page', value: settings.content.aboutPage },
       { key: 'delivery_page', value: settings.content.deliveryPage },
       { key: 'policy_page', value: settings.content.policyPage },
+      { key: 'delivery_sameday_info', value: settings.content.deliverySamedayInfo },
+      { key: 'delivery_scheduled_info', value: settings.content.deliveryScheduledInfo },
+      { key: 'delivery_surprise_info', value: settings.content.deliverySurpriseInfo },
+      { key: 'delivery_collection_info', value: settings.content.deliveryCollectionInfo },
     ];
 
     for (const content of contentUpserts) {
