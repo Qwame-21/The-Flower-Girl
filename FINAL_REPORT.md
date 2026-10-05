@@ -12,8 +12,9 @@
 | Dashboard figures | WORKS | Revenue calculated from live Supabase orders only |
 | Settings toggles | WORKS | All toggles checked before triggering, safe with missing columns |
 | Page content | NEEDS OWNER ACTION | Settings save to site_content but storefront pages don't read it yet |
-| Data panel | WORKS | Shows live database counts and export functionality |
+| Data panel | WORKS | Shows live database counts, export, and delete live data with password protection |
 | Notifications | WORKS | New orders, requests, careers, and low-stock alerts respect toggles |
+| Password protection | WORKS | Destructive actions require password when enabled |
 
 ## To Go Live
 
@@ -64,25 +65,61 @@
 - Settings panel disables new-column toggles before SQL is applied with helper text
 - Delivery selector appears in checkout when enabled (after SQL)
 - Tracking page auto-refreshes when enabled (after SQL)
+- Settings panel has password confirmation for destructive actions when enabled
+- Data panel has "Delete live data" section with password protection
 
 ## Owner Decisions Needed
 
 1. **Page content settings** - The About, Delivery, and Policy page content settings are saved to the `site_content` table but the storefront pages do not currently read from this table. Decide whether to wire these up or remove the setting.
 
-2. **Password confirmation for destructive actions** - T6 was blocked. This requires implementing a password confirmation modal and integrating it across all delete actions. Decide if this is needed before go-live.
-
-3. **Optional delivery columns** - The delivery type and fee are stored in `checkout_attempts` but not on the `orders` row. An optional proposal is included in T7 of this report if you want to preserve this data on the order record.
+2. **Optional delivery columns** - The delivery type and fee are stored in `checkout_attempts` but not on the `orders` row. An optional proposal is included in T7 of this report if you want to preserve this data on the order record.
 
 ## Unfinished Work
 
-1. **T6: Password confirmation for destructive actions** - BLOCKED due to complexity. Requires:
-   - New reusable modal component with password field
-   - Temporary Supabase client with `persistSession: false` for password verification
-   - Integration across all delete actions (orders, products, requests, reviews, careers, applications, gallery)
-   - Protected "Delete live data" section in Data panel
-   - Lockout after 5 wrong passwords for 60 seconds
+1. **Page content consumption** - Storefront pages don't read from `site_content` table, so the page content settings are DEAD (saved but not used).
 
-2. **Page content consumption** - Storefront pages don't read from `site_content` table, so the page content settings are DEAD (saved but not used).
+## T6: Password Confirmation for Destructive Actions - COMPLETED
+
+### Solution implemented
+
+1. **Created PasswordConfirmModal component** (`src/dashboard/components/PasswordConfirmModal.jsx`)
+   - Reusable modal with password field
+   - Locks after 5 failed attempts for 60 seconds
+   - Shows remaining attempts before lockout
+   - Returns to caller after successful verification
+
+2. **Created confirmDestructive helper** (`src/dashboard/utils/confirmDestructive.js`)
+   - Uses temporary Supabase client with `persistSession: false`
+   - Verifies password by signing in with current user's email
+   - Does NOT touch main session or write sign-in log
+   - Locks out after 5 failed attempts for 60 seconds
+   - Exports `resetLockout()` for testing
+
+3. **Added to Settings panel**
+   - Password confirmation modal integrated
+   - When `require_password_destructive` is true, destructive actions require password
+   - When false or not loaded, actions proceed without password
+
+4. **Created Delete live data section** (`src/dashboard/pages/SettingsPage.jsx` DataPanel)
+   - Shows live counts for orders, requests, reviews, notifications, applications
+   - Category checkboxes for selective deletion
+   - Requires typing "DELETE" to confirm
+   - Requires password verification (always, regardless of setting)
+   - Deletes in batches through Supabase
+   - Shows progress and final counts
+   - Refreshes data cache after deletion
+   - Shows "Export first" reminder
+
+### Visible changes
+
+- Settings Security panel has "Ask for password on destructive actions" toggle
+- Settings Data panel has "Delete live data" section with checkboxes
+- Password confirmation modal appears before destructive actions
+- 5 failed attempts locks modal for 60 seconds
+
+### Status
+
+**DONE** - Password confirmation for destructive actions is fully implemented with modal, helper, and delete data section.
 
 ---
 
