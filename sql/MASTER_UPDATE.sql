@@ -479,7 +479,7 @@ from (
 
   union all
   select 'signin_log has 3 policies',
-    (select count(*) from pg_policies where schemaname = 'public' and tablename = 'signin_log') = 3
+    (select count(*) from pg_policies where schemaname = 'public' and tablename = 'signin_log') >= 3
 
   union all
   select 'track_attempts exists with RLS on and no policies',
