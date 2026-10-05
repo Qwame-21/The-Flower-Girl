@@ -7,6 +7,7 @@ import { supabase } from '../../config/supabase';
 import { DASHBOARD_TO_DB_FULFILLMENT, DB_TO_DASHBOARD_FULFILLMENT, STEPPER_TO_EVENT_STAGE } from '../data/statusMap';
 import { getImageUrl } from '../lib/imageUrlHelper';
 import { useDashboard } from '../contexts/DashboardContext';
+import { fetchOrders, subscribeToCache, getCachedData, isDataLoading } from '../data/dataCache';
 
 // SVG Icons
 const SVG = {
@@ -42,22 +43,31 @@ export default function OrdersPage() {
   const { notifyNewOrder } = useDashboard();
 
   // Load orders state
-  const [ordersList, setOrdersList] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [ordersList, setOrdersList] = useState(() => getCachedData('orders') || []);
+  const [loading, setLoading] = useState(!getCachedData('orders'));
   const [error, setError] = useState(null);
   // Per-order inline error (e.g. stage button write failure)
   const [orderErrors, setOrderErrors] = useState({});
   // Track in-flight updates per order to prevent race conditions
   const [updatingOrders, setUpdatingOrders] = useState(new Set());
 
-  // Load orders from Supabase on mount and subscribe to realtime
+  // Load orders from cache/Supabase on mount and subscribe to realtime
   useEffect(() => {
     async function loadOrders() {
-      setLoading(true);
+      if (!isDataLoading('orders')) {
+        setLoading(false);
+      }
+      
       setError(null);
-      const orders = await listOrders();
-      setOrdersList(orders);
-      setLoading(false);
+      try {
+        const orders = await fetchOrders();
+        setOrdersList(orders || []);
+      } catch (err) {
+        setError(err.message);
+        // Keep existing data on error
+      } finally {
+        setLoading(false);
+      }
     }
     loadOrders();
 
@@ -69,8 +79,8 @@ export default function OrdersPage() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         async (payload) => {
-          const fresh = await listOrders();
-          setOrdersList(fresh);
+          const fresh = await fetchOrders(true);
+          setOrdersList(fresh || []);
 
           // Play notification sound on new order INSERT
           if (payload.eventType === 'INSERT' && payload.new) {
@@ -83,8 +93,8 @@ export default function OrdersPage() {
         { event: 'INSERT', schema: 'public', table: 'admin_notifications' },
         async (payload) => {
           if (payload.new?.type === 'new_order') {
-            const fresh = await listOrders();
-            setOrdersList(fresh);
+            const fresh = await fetchOrders(true);
+            setOrdersList(fresh || []);
             notifyNewOrder(payload.new);
           }
         }
@@ -93,8 +103,8 @@ export default function OrdersPage() {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           // Fallback to polling if Realtime fails
           const pollInterval = setInterval(async () => {
-            const fresh = await listOrders();
-            setOrdersList(fresh);
+            const fresh = await fetchOrders(true);
+            setOrdersList(fresh || []);
           }, 10000);
           return () => clearInterval(pollInterval);
         }
@@ -104,6 +114,17 @@ export default function OrdersPage() {
       supabase.removeChannel(channel);
     };
   }, [notifyNewOrder]);
+
+  // Subscribe to cache updates
+  useEffect(() => {
+    const unsubscribe = subscribeToCache(() => {
+      const cachedOrders = getCachedData('orders');
+      if (cachedOrders) {
+        setOrdersList(cachedOrders);
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   // Filters state
   const [filters, setFilters] = useState({
@@ -123,6 +144,37 @@ export default function OrdersPage() {
 
   // Filter ONLY live non-delivered orders for Orders page (delivered moves to Log)
   const liveOrders = ordersList.filter(o => o.fulfillmentStatus !== 'delivered');
+
+  // Show error if loading failed
+  if (error && liveOrders.length === 0) {
+    return (
+      <div className="page-container orders-page">
+        <div className="page-header-row">
+          <div className="page-title-group">
+            <h2>Orders</h2>
+            <p>Manage customer orders and fulfillment</p>
+          </div>
+        </div>
+        <div style={{ 
+          padding: '2rem', 
+          textAlign: 'center', 
+          color: '#666',
+          border: '1px solid rgba(0,0,0,0.08)',
+          borderRadius: '8px',
+          marginTop: '1rem'
+        }}>
+          <p style={{ marginBottom: '0.5rem' }}>Could not refresh. Showing the last loaded data.</p>
+          <button 
+            className="btn" 
+            onClick={() => window.location.reload()}
+            style={{ marginTop: '1rem' }}
+          >
+            Reload
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Filtered orders derivation
   const filteredOrders = liveOrders.filter(order => {

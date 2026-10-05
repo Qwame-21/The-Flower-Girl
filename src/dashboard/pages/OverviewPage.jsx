@@ -6,6 +6,7 @@ import { listOrders } from '../data/orders';
 import { getInventorySummary } from '../data/products';
 import { FULFILLMENT_STATUS_LABELS } from '../data/statusMap';
 import { calculateOrderStats, calculateDailyTrend } from '../data/statsHelper';
+import { fetchOrders, subscribeToCache, getCachedData, isDataLoading } from '../data/dataCache';
 
 // SVG Icons matching monolith
 const SVG = {
@@ -429,17 +430,28 @@ export default function OverviewPage() {
   const [inventoryFilter, setInventoryFilter] = useState('all');
   const [deliveryFilter, setDeliveryFilter] = useState('all');
 
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState(() => getCachedData('orders') || []);
   const [inventory, setInventory] = useState({ healthy: 0, low: 0, out: 0, products: [] });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!getCachedData('orders'));
+  const [error, setError] = useState(null);
 
-  // Load orders from Supabase on mount
+  // Load orders from cache/Supabase on mount
   useEffect(() => {
     async function loadOrders() {
-      setLoading(true);
-      const loadedOrders = await listOrders();
-      setOrders(loadedOrders);
-      setLoading(false);
+      if (!isDataLoading('orders')) {
+        setLoading(false);
+      }
+      
+      try {
+        const loadedOrders = await fetchOrders();
+        setOrders(loadedOrders || []);
+        setError(null);
+      } catch (err) {
+        setError(err.message);
+        // Keep existing data on error
+      } finally {
+        setLoading(false);
+      }
     }
     loadOrders();
   }, []);
@@ -447,10 +459,25 @@ export default function OverviewPage() {
   // Load inventory from Supabase on mount
   useEffect(() => {
     async function loadInventory() {
-      const invData = await getInventorySummary();
-      setInventory(invData);
+      try {
+        const invData = await getInventorySummary();
+        setInventory(invData);
+      } catch (err) {
+        console.error('Error loading inventory:', err);
+      }
     }
     loadInventory();
+  }, []);
+
+  // Subscribe to cache updates
+  useEffect(() => {
+    const unsubscribe = subscribeToCache(() => {
+      const cachedOrders = getCachedData('orders');
+      if (cachedOrders) {
+        setOrders(cachedOrders);
+      }
+    });
+    return unsubscribe;
   }, []);
 
   const periodDays = period === '7d' ? 7 : period === '30d' ? 30 : Infinity;
@@ -536,12 +563,12 @@ export default function OverviewPage() {
             <div className="metric-icon-square">{SVG.dollar}</div>
           </div>
           <div className="metric-label">Total Revenue</div>
-          <div className="metric-value">{formatGHS(combinedStats.totalRevenue)}</div>
+          <div className="metric-value">{loading ? '—' : formatGHS(combinedStats.totalRevenue)}</div>
           <div className="metric-divider"></div>
           <div className="metric-comparison">
             <span className="comparison-label">vs prev period</span>
-            <span className={`comparison-pill ${revDelta !== null && revDelta >= 0 ? 'positive' : 'negative'}`}>
-              {revDelta !== null ? `${revDelta >= 0 ? '↑' : '↓'} ${Math.abs(revDelta)}%` : '—'}
+            <span className={`comparison-pill ${!loading && revDelta !== null && revDelta >= 0 ? 'positive' : 'negative'}`}>
+              {!loading && revDelta !== null ? `${revDelta >= 0 ? '↑' : '↓'} ${Math.abs(revDelta)}%` : '—'}
             </span>
           </div>
         </div>
@@ -552,12 +579,12 @@ export default function OverviewPage() {
             <div className="metric-icon-square">{SVG.shoppingBag}</div>
           </div>
           <div className="metric-label">Active Orders</div>
-          <div className="metric-value">{combinedStats.totalOrdersCount}</div>
+          <div className="metric-value">{loading ? '—' : combinedStats.totalOrdersCount}</div>
           <div className="metric-divider"></div>
           <div className="metric-comparison">
             <span className="comparison-label">vs prev period</span>
-            <span className={`comparison-pill ${ordersDelta !== null && ordersDelta >= 0 ? 'positive' : 'negative'}`}>
-              {ordersDelta !== null ? `${ordersDelta >= 0 ? '↑' : '↓'} ${Math.abs(ordersDelta)}%` : '—'}
+            <span className={`comparison-pill ${!loading && ordersDelta !== null && ordersDelta >= 0 ? 'positive' : 'negative'}`}>
+              {!loading && ordersDelta !== null ? `${ordersDelta >= 0 ? '↑' : '↓'} ${Math.abs(ordersDelta)}%` : '—'}
             </span>
           </div>
         </div>
@@ -568,7 +595,7 @@ export default function OverviewPage() {
             <div className="metric-icon-square">{SVG.clock}</div>
           </div>
           <div className="metric-label">Pending Payment</div>
-          <div className="metric-value">{pendingPaymentCount}</div>
+          <div className="metric-value">{loading ? '—' : pendingPaymentCount}</div>
           <div className="metric-divider"></div>
           <div className="metric-comparison">
             <span className="comparison-label">vs prev period</span>
@@ -582,7 +609,7 @@ export default function OverviewPage() {
             <div className="metric-icon-square">{SVG.check}</div>
           </div>
           <div className="metric-label">Avg Order Value</div>
-          <div className="metric-value">{formatGHS(combinedStats.avgOrderValue)}</div>
+          <div className="metric-value">{loading ? '—' : formatGHS(combinedStats.avgOrderValue)}</div>
           <div className="metric-divider"></div>
           <div className="metric-comparison">
             <span className="comparison-label">vs prev period</span>
@@ -590,6 +617,20 @@ export default function OverviewPage() {
           </div>
         </div>
       </div>
+
+      {error && (
+        <div style={{ 
+          padding: '1rem', 
+          backgroundColor: 'rgba(185, 100, 92, 0.1)', 
+          border: '1px solid rgba(185, 100, 92, 0.3)', 
+          borderRadius: '8px', 
+          marginBottom: '1rem',
+          color: '#B9645C',
+          fontSize: '0.9rem'
+        }}>
+          Could not refresh. Showing the last loaded data.
+        </div>
+      )}
 
       {/* Sales Trend & Recent Activity Row */}
       <div className="overview-trend-activity-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px', alignItems: 'stretch' }}>
