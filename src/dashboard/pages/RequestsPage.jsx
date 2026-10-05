@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CopyIcon from '../components/shared/CopyIcon';
 import { loadRequestsData, saveRequestsData, syncRequestsWithSupabase, convertRequestToOrder } from '../data/requestsAdapter';
+import { fetchRequests, getCachedData, isDataLoading } from '../data/dataCache';
 
 const REQUESTS_KEY = 'xa12_custom_requests';
 
@@ -174,11 +175,19 @@ export default function RequestsPage() {
     setRequests(updated);
   };
 
-  // Sync with Supabase on mount
+  // Load requests from cache/Supabase on mount
   useEffect(() => {
-    syncRequestsWithSupabase().then(result => {
-      setRequests(result);
-    });
+    async function loadRequests() {
+      try {
+        await fetchRequests();
+        const result = await syncRequestsWithSupabase();
+        setRequests(result);
+      } catch (err) {
+        console.error('Failed to load requests:', err);
+        // Keep existing data on error
+      }
+    }
+    loadRequests();
   }, []);
 
   useEffect(() => {

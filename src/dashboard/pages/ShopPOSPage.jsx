@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { loadPosProducts, placeStaffOrder } from '../data/shopPos';
+import { fetchProducts, getCachedData, isDataLoading } from '../data/dataCache';
 import CustomDropdown from '../components/shared/CustomDropdown';
 import CopyIcon from '../components/shared/CopyIcon';
 import DatePickerDropdowns from '../components/shared/DatePickerDropdowns';
@@ -179,8 +180,20 @@ const INITIAL_FORM_DATA = {
 };
 
 export default function ShopPOSPage() {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState(() => {
+    const cached = getCachedData('products');
+    return cached ? cached.map(p => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      stock: p.stock,
+      category: p.category,
+      image: p.image_path,
+      code: p.sku || '',
+      description: p.description
+    })) : [];
+  });
+  const [loading, setLoading] = useState(!getCachedData('products'));
   const [shopCart, setShopCart] = useState([]);
   const [shopSearchQuery, setShopSearchQuery] = useState('');
   const [shopSelectedCategory, setShopSelectedCategory] = useState('ALL');
@@ -191,12 +204,34 @@ export default function ShopPOSPage() {
   const [shopSuccessMessage, setShopSuccessMessage] = useState('');
   const [shopLastOrderCode, setShopLastOrderCode] = useState('');
 
-  // Load products from Supabase on mount
+  // Load products from cache/Supabase on mount
   useEffect(() => {
     async function loadProducts() {
-      const data = await loadPosProducts();
-      setProducts(data);
-      setLoading(false);
+      if (!isDataLoading('products')) {
+        setLoading(false);
+      }
+      
+      try {
+        const cached = await fetchProducts();
+        if (cached) {
+          const mapped = cached.map(p => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            stock: p.stock,
+            category: p.category,
+            image: p.image_path,
+            code: p.sku || '',
+            description: p.description
+          }));
+          setProducts(mapped);
+        }
+      } catch (err) {
+        console.error('Failed to load products:', err);
+        // Keep existing data on error
+      } finally {
+        setLoading(false);
+      }
     }
     loadProducts();
   }, []);

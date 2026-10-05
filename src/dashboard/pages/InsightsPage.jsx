@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { formatGHS } from '../lib/ordersModel';
-import { listOrders } from '../data/orders';
+import { fetchOrders, getCachedData, isDataLoading } from '../data/dataCache';
 
 // Category color map for Insights category breakdown
 const CATEGORY_COLORS = {
@@ -323,16 +323,25 @@ function InsightsTrendChart({ orders, mode }) {
 export default function InsightsPage() {
   const [dateRange, setDateRange] = useState('all');
   const [chartMode, setChartMode] = useState('revenue');
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState(() => getCachedData('orders') || []);
+  const [loading, setLoading] = useState(!getCachedData('orders'));
 
-  // Load orders from Supabase on mount
+  // Load orders from cache/Supabase on mount
   useEffect(() => {
     async function loadOrders() {
-      setLoading(true);
-      const loadedOrders = await listOrders();
-      setOrders(loadedOrders);
-      setLoading(false);
+      if (!isDataLoading('orders')) {
+        setLoading(false);
+      }
+      
+      try {
+        const loadedOrders = await fetchOrders();
+        setOrders(loadedOrders || []);
+      } catch (err) {
+        console.error('Failed to load orders:', err);
+        // Keep existing data on error
+      } finally {
+        setLoading(false);
+      }
     }
     loadOrders();
   }, []);

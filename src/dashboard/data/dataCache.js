@@ -3,6 +3,7 @@ import { listOrders } from './orders';
 import { listProducts } from './products';
 import { listGalleryItems } from './gallery';
 import { listPromotions } from './products';
+import { listRequests } from './requests';
 
 /**
  * Shared cache for admin dashboard data
@@ -14,6 +15,7 @@ const CACHE = {
   products: { data: null, timestamp: 0, loading: false },
   gallery: { data: null, timestamp: 0, loading: false },
   promotions: { data: null, timestamp: 0, loading: false },
+  requests: { data: null, timestamp: 0, loading: false },
 };
 
 const CACHE_DURATION = 30000; // 30 seconds
@@ -163,6 +165,35 @@ export async function fetchPromotions(forceRefresh = false) {
 }
 
 /**
+ * Fetch requests with stale-while-revalidate
+ */
+export async function fetchRequests(forceRefresh = false) {
+  if (!forceRefresh && CACHE.requests.data && !isDataStale('requests')) {
+    return CACHE.requests.data;
+  }
+
+  if (CACHE.requests.loading) {
+    return CACHE.requests.data;
+  }
+
+  CACHE.requests.loading = true;
+  notifyListeners();
+
+  try {
+    const data = await listRequests();
+    CACHE.requests.data = data;
+    CACHE.requests.timestamp = Date.now();
+    return data;
+  } catch (error) {
+    console.error('Error fetching requests:', error);
+    return CACHE.requests.data;
+  } finally {
+    CACHE.requests.loading = false;
+    notifyListeners();
+  }
+}
+
+/**
  * Refresh all cached data
  */
 export async function refreshAllData() {
@@ -171,6 +202,7 @@ export async function refreshAllData() {
     fetchProducts(true),
     fetchGallery(true),
     fetchPromotions(true),
+    fetchRequests(true),
   ]);
 }
 

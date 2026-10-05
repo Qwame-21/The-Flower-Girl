@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { formatGHS } from '../lib/ordersModel';
 import { loadCustomersData, saveCustomersData, syncCustomersWithSupabase } from '../data/customersAdapter';
+import { fetchOrders, getCachedData, isDataLoading } from '../data/dataCache';
 import CustomDropdown from '../components/shared/CustomDropdown';
 import CopyIcon from '../components/shared/CopyIcon';
 
@@ -41,11 +42,23 @@ export default function CustomersPage() {
   const [activeCustomer, setActiveCustomer] = useState(null);
   const [notesInput, setNotesInput] = useState('');
 
-  // Sync with Supabase on mount
+  // Load customers from cache/Supabase on mount
   useEffect(() => {
-    syncCustomersWithSupabase().then(result => {
-      setCustomers(result);
-    });
+    async function loadCustomers() {
+      if (!isDataLoading('orders')) {
+        // We have cached orders, display them immediately
+      }
+      
+      try {
+        await syncCustomersWithSupabase();
+        const result = loadCustomersData();
+        setCustomers(result);
+      } catch (err) {
+        console.error('Failed to load customers:', err);
+        // Keep existing data on error
+      }
+    }
+    loadCustomers();
   }, []);
 
   useEffect(() => {
