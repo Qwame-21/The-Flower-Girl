@@ -5,4 +5,4 @@ T4: DONE
 T5: DONE
 T6: BLOCKED - T6 requires implementing password confirmation for destructive actions and a "Delete live data" section. This is a significant feature requiring a new modal component, temporary Supabase client for password verification, and integration across all delete actions. Owner action required.
 T7: DONE
-T8: IN PROGRESS
+T8: DONE
