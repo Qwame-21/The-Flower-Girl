@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Check, LoaderCircle, LocateFixed, MapPin, Trash2 } from 'lucide-react';
-import { initializeCheckout, verifyCheckoutPayment } from '../api/checkoutApi';
+import { initializeCheckout, verifyCheckoutPayment, getErrorMessage } from '../api/checkoutApi';
 import { hasTrackingApi, trackRecord } from '../api/trackingApi';
 import { getSiteSettings, refreshSiteSettings } from '../api/siteFeatures';
 import { formIsoDateOptional } from '../utils/date';
@@ -235,11 +235,19 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
 
       const res = await initializeCheckout(payload);
 
-      const json = await res.json();
+      let json;
+      try {
+        json = await res.json();
+      } catch {
+        setSubmitError('Payment initialisation failed. Please try again.');
+        setSubmitting(false);
+        return;
+      }
 
       if (!res.ok || !json.authorizationUrl) {
         console.error('Paystack init response error:', res.status, json);
-        setSubmitError(json.error || json.message || 'Payment initialisation failed. Please try again.');
+        const error = json.error || json;
+        setSubmitError(getErrorMessage(error));
         setSubmitting(false);
         return;
       }

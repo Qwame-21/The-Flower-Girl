@@ -58,6 +58,8 @@ export default function ShopPage({ onNavigate, cart, setCart, wishlist, setWishl
     setWishlist(current => current.filter(id => id !== product.id));
   };
   const addWithFeedback = product => {
+    const available = product.stock == null ? Infinity : Math.max(0, Number(product.stock));
+    if (available === 0) return;
     add(product);
     setAddedProduct(product.id);
     window.setTimeout(() => setAddedProduct(current => current === product.id ? '' : current), 1600);
