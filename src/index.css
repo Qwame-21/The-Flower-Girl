@@ -5201,7 +5201,7 @@ a {
   letter-spacing: -.005em
 }
 
-.checkout-modal :is(input, textarea, .custom-select>button) {
+.checkout-modal :is(input, textarea, .custom-select>button, .custom-select-menu button) {
   font-family: var(--font-main);
   font-size: 1rem
 }
@@ -6118,6 +6118,11 @@ a {
   border: 0;
   border-radius: 0;
   background: transparent;
+  font: inherit;
+}
+
+.checkout-modal .date-field .custom-select-menu button {
+  font: inherit;
 }
 
 .date-field > div:focus-within,
@@ -6219,14 +6224,14 @@ a {
 }
 
 .custom-select-option {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   width: 100%;
   min-height: 44px;
   padding: .6rem .75rem;
   color: #111;
-  font-family: 'Raleway', sans-serif;
-  font-size: 14px;
-  font-weight: 400;
+  font: inherit;
   text-align: left;
   border: 0;
   border-radius: 4px;
@@ -6269,6 +6274,7 @@ a {
 
 .custom-select-option-label {
   flex: 1;
+  font: inherit;
 }
 
 .custom-select-option-fee {
@@ -6276,6 +6282,7 @@ a {
   margin-left: auto;
   font-size: .85rem;
   color: #666;
+  font: inherit;
 }
 
 .small-link {
