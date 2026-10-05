@@ -12,6 +12,8 @@ export default function CustomSelect({
   placeholder = 'Select…',
   getLabel = opt => opt,
   getValue = opt => opt,
+  getFee = null,
+  modifierClass = '',
 }) {
   const id = useId();
   const buttonRef = useRef(null);
@@ -120,10 +122,15 @@ export default function CustomSelect({
     }
   };
 
+  const formatFee = (fee) => {
+    if (fee === undefined || fee === null) return '';
+    return fee > 0 ? `GHS ${fee.toLocaleString()}` : 'Free';
+  };
+
   return (
     <label className="custom-select-field" htmlFor={`${id}-button`}>
       {label}
-      <div className={`custom-select-wrapper ${open ? 'open' : ''}`}>
+      <div className={`custom-select-wrapper ${modifierClass} ${open ? 'open' : ''}`}>
         <input
           ref={hiddenRef}
           type="hidden"
@@ -146,6 +153,9 @@ export default function CustomSelect({
           onKeyDown={handleKeyDown}
         >
           <span className="custom-select-value">{displayValue || placeholder}</span>
+          {getFee && selectedOption && (
+            <span className="custom-select-fee">{formatFee(getFee(selectedOption))}</span>
+          )}
           <span className="custom-select-chevron" aria-hidden="true">
             <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
               <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -184,7 +194,10 @@ export default function CustomSelect({
                   }}
                   onKeyDown={(e) => handleOptionKeyDown(e, optionValue)}
                 >
-                  {optionLabel}
+                  <span className="custom-select-option-label">{optionLabel}</span>
+                  {getFee && (
+                    <span className="custom-select-option-fee">{formatFee(getFee(option))}</span>
+                  )}
                 </button>
               );
             })}

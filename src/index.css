@@ -6246,6 +6246,52 @@ a {
   font-weight: 500;
 }
 
+/* Delivery selector uses system selection blue instead of pink */
+.custom-select-wrapper.delivery-selector .custom-select-option.selected {
+  background: Highlight;
+  color: HighlightText;
+}
+
+.custom-select-wrapper.delivery-selector .custom-select-option:hover,
+.custom-select-wrapper.delivery-selector .custom-select-option:focus-visible {
+  background: Highlight;
+  color: HighlightText;
+  outline: none;
+}
+
+/* Fee display in delivery selector */
+.custom-select-fee {
+  flex: 0 0 auto;
+  margin-left: .5rem;
+  font-size: .85rem;
+  color: #666;
+}
+
+.custom-select-option-label {
+  flex: 1;
+}
+
+.custom-select-option-fee {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: .85rem;
+  color: #666;
+}
+
+.small-link {
+  display: inline-block;
+  margin-top: .4rem;
+  color: #666;
+  font-size: .75rem;
+  text-decoration: underline;
+  text-decoration-color: rgba(102, 102, 102, .4);
+  transition: text-decoration-color 150ms ease;
+}
+
+.small-link:hover {
+  text-decoration-color: #666;
+}
+
 .custom-select-option:focus-visible {
   outline: 2px solid #111;
   outline-offset: -2px;

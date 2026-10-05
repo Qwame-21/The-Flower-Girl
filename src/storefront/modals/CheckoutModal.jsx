@@ -326,12 +326,15 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
                       onChange={setSelectedDeliveryType}
                       getLabel={opt => opt.label}
                       getValue={opt => opt.value}
+                      getFee={opt => opt.fee}
+                      modifierClass="delivery-selector"
                       disabled={submitting}
                       required
                     />
                   );
                 })()}
                 <div className="checkout-total"><span>Delivery fee</span><strong>{deliveryFee > 0 ? `GHS ${deliveryFee.toLocaleString()}` : 'Free'}</strong></div>
+                <a href="/delivery" target="_blank" rel="noopener noreferrer" className="small-link">How delivery works</a>
               </>
             )}
             <div className="checkout-total"><span>TOTAL</span><strong>GHS {total.toLocaleString()}</strong></div>
