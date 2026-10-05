@@ -136,7 +136,7 @@ BEGIN
   BEGIN
     v_client_key := coalesce(
       current_setting('request.headers', true)::jsonb->>'cf-connecting-ip',
-      (current_setting('request.headers', true)::jsonb->>'x-forwarded-for')::text[])[1],
+      current_setting('request.headers', true)::jsonb->>'x-forwarded-for',
       'unknown'
     );
     -- Clean up: take first IP if comma-separated, truncate to 255 chars
