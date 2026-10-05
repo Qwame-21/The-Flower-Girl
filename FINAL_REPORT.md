@@ -310,6 +310,172 @@ The `settingsAdapter.js` already handles missing columns safely:
 
 **DONE** - All notification toggles are now checked before triggering. Settings save safely handles missing columns. New-column toggles are disabled with helper text before SQL is applied.
 
+## T7: Delivery Selector and Tracking End-to-End
+
+### Delivery flow trace
+
+**CheckoutModal** (`src/storefront/modals/CheckoutModal.jsx`):
+- Lines 38-47: Loads site settings, defaults to first enabled delivery type if `delivery_selector_enabled` is true
+- Lines 53-64: Calculates delivery fee based on selected type from settings
+- Line 66: Computes total = subtotal + deliveryFee
+- Lines 301-336: Shows delivery selector only if `delivery_selector_enabled` is true
+- Line 232-234: Only adds `deliveryType` to payload if selector is enabled and a type is selected
+- Line 339: Passes `isCollection` prop to DeliveryAddressFields
+
+**checkoutApi.js** (`src/storefront/api/checkoutApi.js`):
+- Lines 4-14: Forwards payload unchanged to paystack-init
+
+**paystack-init** (`supabase/functions/paystack-init/index.ts`):
+- Lines 105-107: For collection, uses "Shop collection" as default address if none provided
+- Lines 177-218: Reads `deliveryType`, checks enabled flags from site_settings, computes deliveryFee
+- Lines 220: Computes grandTotal = serverTotal + deliveryFee
+- Lines 239-240: Stores `delivery_type` and `delivery_fee` in `checkout_attempts.checkout_data`
+- Line 261: Sends `grandTotal * 100` to Paystack
+- Lines 309-318: Returns subtotal, deliveryFee, and total to client
+
+**Paystack amount**:
+- Line 261: `amountInPesewas = Math.round(grandTotal * 100)` - server total sent to Paystack
+- This matches the total displayed to the customer
+
+**Client use of server values**:
+- CheckoutModal uses server-returned values after payment return (stored in session and complete state)
+
+**finalize_paid_checkout** (`supabase/schema.sql:279-322`):
+- Lines 308-322: Creates order row from checkout_attempts data
+- Does NOT copy `delivery_type` or `delivery_fee` to orders table
+- Stores only subtotal and total (line 321)
+
+**Delivery data storage status**:
+- Delivery type and fee are stored in `checkout_attempts.checkout_data` but NOT on the `orders` row
+- This means the order record does not preserve which delivery type was chosen
+
+### Tracking flow trace
+
+**TrackOrderPage** (`src/storefront/pages/TrackOrderPage.jsx`):
+- Lines 34-38: Loads site settings for auto-refresh config
+- Lines 42-52: Auto-refresh stops for terminal statuses (completed, cancelled, closed)
+- Lines 54-57: Auto-refresh stops if rate-limited
+- Line 59: Interval clamped to 3-60 seconds
+- Lines 62-64: Refresh skips if already refreshing or tab is hidden
+- Lines 116-120: Refresh triggers when tab becomes visible
+- Line 125: Interval set up with `setInterval`
+- Lines 127-129: Cleanup on unmount
+- Lines 71-75: If rate_limited, sets isRateLimited and stops
+- Lines 108-112: If refresh fails, keeps last result (silently fails)
+- Lines 149-157: search() handles result kinds:
+  - `rate_limited`: Sets isRateLimited, shows message
+  - `order`: Displays order with timeline
+  - `request`: Displays request details
+  - `not_found`: Shows "No record matched"
+
+**User-visible messages**:
+- Rate limited: "Too many attempts. Please wait a few minutes and try again."
+- Not found: "No record matched those details. Check the reference and contact information, then try again."
+- Auto-refresh enabled: Shows "Updates automatically" note on result
+
+**Auto-refresh behavior**:
+- Repeats at configured interval (clamped 3-60 seconds)
+- Pauses while tab is hidden (document.hidden check)
+- Refreshes when tab visibility returns (visibilitychange listener)
+- Never overlaps requests (isRefreshingRef flag)
+- Keeps last successful data if refresh fails (catch block)
+- Stops when tracking is complete (terminal status check)
+
+**Customer experience before SQL**:
+- `delivery_selector_enabled` defaults to false in siteFeatures.js (line 26)
+- Tracking auto-refresh defaults to false (line 27)
+- Customer sees no delivery selector, pays 0 delivery fee
+- Tracking page does not auto-refresh
+
+**Customer experience after SQL**:
+- If `delivery_selector_enabled` is true, customer sees delivery selector
+- Customer pays correct delivery fee based on selection
+- If `tracking_auto_refresh_enabled` is true, tracking page updates automatically
+
+### Optional delivery columns proposal
+
+Since delivery type and fee are not stored on the orders row, the following optional columns can be added. This is NOT applied and requires owner review before running.
+
+**Proposal for section 6 of MASTER_UPDATE.sql**:
+
+```sql
+-- ============================================================================
+-- SECTION 6: OPTIONAL - Add delivery columns to orders table
+-- NOT APPLIED - Review before running
+-- This would allow preserving the chosen delivery type and fee on the order record
+-- ============================================================================
+
+-- Add delivery columns to orders table
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS delivery_type text,
+  ADD COLUMN IF NOT EXISTS delivery_fee numeric;
+
+-- Update finalize_paid_checkout to copy delivery data from checkout_attempts
+CREATE OR REPLACE FUNCTION public.finalize_paid_checkout(
+  verified_reference text,
+  verified_amount numeric,
+  verified_currency text default 'GHS'
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  attempt public.checkout_attempts%rowtype;
+  created_order_id uuid;
+  item_rec record;
+  updated_product record;
+  item_category text;
+begin
+  select * into attempt from public.checkout_attempts
+  where payment_reference = verified_reference
+  for update;
+
+  if not found then raise exception 'checkout_not_found'; end if;
+  if attempt.status = 'paid' and attempt.order_id is not null then
+    return jsonb_build_object('orderId', attempt.order_id, 'trackingNumber', attempt.tracking_number, 'orderCode', attempt.order_code, 'alreadyProcessed', true);
+  end if;
+  if attempt.status <> 'initialized' then raise exception 'checkout_not_payable'; end if;
+  if attempt.currency <> upper(verified_currency) or abs(attempt.total - verified_amount) > 0.01 then
+    raise exception 'payment_mismatch';
+  end if;
+
+  insert into public.orders (
+    tracking_number, order_code, customer_name, customer_email, customer_phone,
+    recipient_name, delivery_address, landmark, location_link, customer_note,
+    card_message, card_style, requested_delivery_date, subtotal, total,
+    payment_provider, payment_reference, payment_status, fulfillment_status,
+    delivery_type, delivery_fee
+  ) values (
+    attempt.tracking_number, attempt.order_code,
+    attempt.checkout_data->>'customer_name', attempt.customer_email,
+    attempt.checkout_data->>'customer_phone', attempt.checkout_data->>'recipient_name',
+    attempt.checkout_data->>'delivery_address', nullif(attempt.checkout_data->>'landmark',''),
+    nullif(attempt.checkout_data->>'location_link',''), nullif(attempt.checkout_data->>'customer_note',''),
+    nullif(attempt.checkout_data->>'card_message',''), nullif(attempt.checkout_data->>'card_style',''),
+    nullif(attempt.checkout_data->>'requested_delivery_date','')::date,
+    attempt.subtotal, attempt.total, 'paystack', attempt.payment_reference, 'paid', 'packaging',
+    attempt.checkout_data->>'delivery_type',
+    (attempt.checkout_data->>'delivery_fee')::numeric
+  ) returning id into created_order_id;
+
+  -- Rest of function remains unchanged (order_items, stock decrement, notifications)
+  ...
+end $$;
+```
+
+### Plain-language answers
+
+**Does a customer selecting "Same-day delivery" pay the correct amount?**
+YES. The paystack-init edge function reads the delivery type from the payload, validates it against site_settings, computes the delivery fee server-side, and sends the grandTotal (subtotal + deliveryFee) to Paystack. The client displays the same total that is sent to Paystack.
+
+**Does the tracking page update automatically?**
+YES, if `tracking_auto_refresh_enabled` is true in site_settings. The tracking page repeats at the configured interval (clamped 3-60 seconds), pauses when the tab is hidden, refreshes when visibility returns, never overlaps requests, keeps the last data on failure, and stops when tracking is complete.
+
+### Status
+
+**DONE** - Delivery and tracking flows have been traced and documented. Delivery type and fee are stored in checkout_attempts but not on orders. Optional proposal added for owner review.
+
 ### Problem identified
 
 The admin product form allowed free-text category and tag input, while the storefront relied on fixed sets of values. There was no guarantee that a product created in the admin would appear under the correct storefront filter. Additionally, the product tag was incorrectly derived from the description field (any product with a description received the "SIGNATURE" tag).
