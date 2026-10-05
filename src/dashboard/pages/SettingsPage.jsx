@@ -126,6 +126,25 @@ function StorePanel({ s, onChange }) {
 // ─── Panel: Delivery ──────────────────────────────────────────────────────────
 function DeliveryPanel({ s, onChange }) {
   const [saving, withSaving] = useSavingState();
+  const [hasSelectorColumn, setHasSelectorColumn] = useState(false);
+
+  // Check if delivery_selector_enabled column exists in database
+  useEffect(() => {
+    async function checkColumn() {
+      try {
+        const { data } = await supabase
+          .from('site_settings')
+          .select('delivery_selector_enabled')
+          .limit(1)
+          .single();
+        setHasSelectorColumn(data && 'delivery_selector_enabled' in data);
+      } catch {
+        setHasSelectorColumn(false);
+      }
+    }
+    checkColumn();
+  }, []);
+
   const [form, setForm] = useState({
     samedayFee:        s.delivery.sameday.fee,
     samedayOn:         s.delivery.sameday.enabled,
@@ -194,10 +213,10 @@ function DeliveryPanel({ s, onChange }) {
         <h2>Delivery &amp; collection</h2>
         <div className="sub">Turn options on/off and set exact fees. The storefront checkout and server total computation read from these settings.</div>
         <div className="set-row" style={{ alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '12px' }}>
-          <div><b>Let customers choose delivery type at checkout</b><div className="sub">When off, checkout behaves as it does today (no delivery selector)</div></div>
+          <div><b>Let customers choose delivery type at checkout</b><div className="sub">When off, checkout behaves as it does today (no delivery selector){!hasSelectorColumn && ' · Needs the database update to take effect'}</div></div>
           <div className="set-end">
             <label className="sw">
-              <input type="checkbox" checked={form.selectorEnabled} onChange={setBool('selectorEnabled')} />
+              <input type="checkbox" checked={form.selectorEnabled} onChange={setBool('selectorEnabled')} disabled={!hasSelectorColumn} />
               <i />
             </label>
           </div>
@@ -272,6 +291,25 @@ function InventoryPanel({ s, onChange }) {
 // ─── Panel: Notifications (Alerts) ───────────────────────────────────────────
 function AlertsPanel({ s, onChange }) {
   const [saving, withSaving] = useSavingState();
+  const [hasTrackingColumns, setHasTrackingColumns] = useState(false);
+
+  // Check if tracking columns exist in database
+  useEffect(() => {
+    async function checkColumns() {
+      try {
+        const { data } = await supabase
+          .from('site_settings')
+          .select('tracking_auto_refresh_enabled, tracking_refresh_interval_seconds, track_max_failed_attempts, track_lockout_minutes')
+          .limit(1)
+          .single();
+        setHasTrackingColumns(data && 'tracking_auto_refresh_enabled' in data);
+      } catch {
+        setHasTrackingColumns(false);
+      }
+    }
+    checkColumns();
+  }, []);
+
   const [form, setForm] = useState({
     ...s.notifications,
     autoRefreshEnabled: s.tracking?.autoRefreshEnabled ?? true,
@@ -334,11 +372,11 @@ function AlertsPanel({ s, onChange }) {
 
       <div className="settings-card" style={{ marginTop: '16px' }}>
         <h2>Order tracking auto-refresh</h2>
-        <div className="sub">Customer-facing tracking page automatically refreshes to show status updates.</div>
+        <div className="sub">Customer-facing tracking page automatically refreshes to show status updates.{!hasTrackingColumns && ' · Needs the database update to take effect'}</div>
         <div className="set-row">
           <div><b>Auto-refresh order tracking</b><div className="sub">When off, customers must manually click Track to see updates</div></div>
           <label className="sw">
-            <input type="checkbox" checked={form.autoRefreshEnabled} onChange={setCheck('autoRefreshEnabled')} />
+            <input type="checkbox" checked={form.autoRefreshEnabled} onChange={setCheck('autoRefreshEnabled')} disabled={!hasTrackingColumns} />
             <i />
           </label>
         </div>
@@ -351,6 +389,7 @@ function AlertsPanel({ s, onChange }) {
             onChange={setNum('refreshIntervalSeconds')}
             min="3"
             max="60"
+            disabled={!hasTrackingColumns}
             style={{ width: '80px' }}
           />
         </div>
@@ -363,6 +402,7 @@ function AlertsPanel({ s, onChange }) {
             onChange={setNum('maxFailedAttempts')}
             min="1"
             max="100"
+            disabled={!hasTrackingColumns}
             style={{ width: '80px' }}
           />
         </div>
@@ -375,6 +415,7 @@ function AlertsPanel({ s, onChange }) {
             onChange={setNum('lockoutMinutes')}
             min="1"
             max="60"
+            disabled={!hasTrackingColumns}
             style={{ width: '80px' }}
           />
         </div>
@@ -415,8 +456,7 @@ function ContentPanel({ s, onChange }) {
       deliveryPage: s.content?.deliveryPage || '',
       policyPage: s.content?.policyPage || '',
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.content?.aboutPage, s.content?.deliveryPage, s.content?.policyPage]);
+  }, [s.content]);
 
   const setText = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 

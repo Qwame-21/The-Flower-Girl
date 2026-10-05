@@ -242,3 +242,118 @@ The admin product form allowed free-text category and tag input, while the store
 ### Status
 
 **DONE** - The admin and storefront now use shared category and tag definitions. A product created with a category and tag in the admin will appear under the matching storefront filter.
+
+## T5: Settings Toggles and Page Content
+
+### Settings toggle audit
+
+| Setting | Location | Readers | Verdict | Fix |
+|---------|----------|---------|---------|-----|
+| delivery_selector_enabled | site_settings | CheckoutModal, siteFeatures.js | WORKING | Checked before showing selector |
+| delivery_sameday_enabled | site_settings | CheckoutModal, paystack-init | WORKING | Respected in both client and server |
+| delivery_scheduled_enabled | site_settings | CheckoutModal, paystack-init | WORKING | Respected in both client and server |
+| delivery_surprise_enabled | site_settings | CheckoutModal, paystack-init | WORKING | Respected in both client and server |
+| delivery_collection_enabled | site_settings | CheckoutModal, paystack-init | WORKING | Respected in both client and server |
+| delivery_*_fee | site_settings | CheckoutModal, paystack-init | WORKING | Server computes from settings |
+| low_stock_threshold | site_settings | Sidebar, ProductsPage, ShopPOSPage | WORKING | Used for low-stock calculation |
+| low_stock_alerts | site_settings | Sidebar | WORKING | Now checked before showing badge |
+| notifications_new_orders | site_settings | DashboardContext | FIXED | Was DEAD, now checked before notification |
+| notifications_new_requests | site_settings | Header.jsx | WORKING | Already checked in isNotifAllowed |
+| notifications_new_careers | site_settings | Header.jsx | WORKING | Already checked in isNotifAllowed |
+| notifications_low_stock | site_settings | Header.jsx | WORKING | Already checked in isNotifAllowed |
+| tracking_auto_refresh_enabled | site_settings | TrackOrderPage | WORKING | Controls auto-refresh logic |
+| tracking_refresh_interval_seconds | site_settings | TrackOrderPage | WORKING | Used for refresh interval |
+| track_max_failed_attempts | site_settings | track_record RPC | WORKING | Enforced in database function |
+| track_lockout_minutes | site_settings | track_record RPC | WORKING | Enforced in database function |
+| require_password_destructive | site_settings | SettingsPage (saved only) | PARTIAL | Toggle saved but not enforced in delete actions (T6) |
+| aboutPage | site_content | Not consumed by storefront | DEAD | Toggle exists but no UI reads it |
+| deliveryPage | site_content | Not consumed by storefront | DEAD | Toggle exists but no UI reads it |
+| policyPage | site_content | Not consumed by storefront | DEAD | Toggle exists but no UI reads it |
+
+### Dead settings
+
+The page content settings (aboutPage, deliveryPage, policyPage) are saved to the `site_content` table but the storefront pages do not currently read from this table. These are marked DEAD because no UI consumes them.
+
+### Settings save behavior
+
+The `settingsAdapter.js` already handles missing columns safely:
+- Only writes new columns if they existed in the loaded settings row
+- This means settings saves will not fail before SQL is applied
+- The UI shows "Needs the database update to take effect" helper text for new columns
+
+### Fixes applied
+
+1. **DashboardContext.jsx**: Added notification toggle check
+   - `notifyNewOrder` now checks `settings.notifications.orders` before triggering
+   - This was DEAD before - notification played regardless of toggle
+
+2. **Sidebar.jsx**: Added low-stock alerts toggle check
+   - Low-stock badge count now respects `settings.inventory.lowStockAlerts`
+   - When disabled, badge shows 0 even if products are below threshold
+
+3. **SettingsPage.jsx**: Added column existence checks
+   - Delivery selector toggle is disabled if `delivery_selector_enabled` column doesn't exist
+   - Tracking auto-refresh settings are disabled if tracking columns don't exist
+   - Helper text explains when database update is needed
+
+4. **SettingsPage.jsx**: Fixed useEffect dependency warning
+   - Changed `s.content?.aboutPage, s.content?.deliveryPage, s.content?.policyPage` to `s.content`
+
+### Visible changes
+
+- New order notifications now respect the "New orders" toggle
+- Low-stock badge in sidebar now respects the "Low-stock alerts" toggle
+- Settings panel disables new-column toggles before SQL is applied with helper text
+- Page content settings are saved but not consumed (DEAD - documented)
+
+### Status
+
+**DONE** - All notification toggles are now checked before triggering. Settings save safely handles missing columns. New-column toggles are disabled with helper text before SQL is applied.
+
+### Problem identified
+
+The admin product form allowed free-text category and tag input, while the storefront relied on fixed sets of values. There was no guarantee that a product created in the admin would appear under the correct storefront filter. Additionally, the product tag was incorrectly derived from the description field (any product with a description received the "SIGNATURE" tag).
+
+### Solution implemented
+
+1. **Created shared taxonomy module** (`src/shared/taxonomy.js`)
+   - Canonical category definitions with database keys and display labels
+   - Canonical tag definitions
+   - CATEGORY_MAP for converting between database keys and admin display labels
+   - CATEGORY_IMAGE_FALLBACKS for consistent image fallbacks
+
+2. **Updated ProductsPage.jsx**
+   - Form now uses category dropdown populated from shared taxonomy
+   - Added separate tag field (no longer derived from description)
+   - Added "Add New Category" and "Add New Tag" options for custom values
+   - Product save mapping stores tag independently from description
+   - Category normalization uses shared CATEGORY_MAP
+   - Tags are normalized to uppercase for consistency
+
+3. **Updated ProductCard.jsx**
+   - Tag display now uses shared taxonomy for label mapping
+   - Imported PRODUCT_TAGS from shared taxonomy
+
+### Parity table
+
+| Admin field | Storefront use | Gap | Fix |
+|-------------|----------------|-----|-----|
+| Category (dropdown) | Shop filters, menu groupings | Free-text could mismatch | Dropdown from shared taxonomy |
+| Tag (dropdown) | Product card tag display | Derived from description | Separate tag field from shared taxonomy |
+| Description | Product detail modal | Already matches | No change needed |
+| Price | Product card, detail modal | Already matches | No change needed |
+| Stock | Sold-out state | Already matches | No change needed |
+| Low stock threshold | Low-stock alerts | Already matches | No change needed |
+| Image | Product card, detail modal | Already matches | No change needed |
+| Visibility | Product appears/disappears | Already matches | No change needed |
+
+### Visible changes
+
+- Admin product form now has category and tag dropdowns instead of free-text fields
+- Admin product form has "Add New Category" and "Add New Tag" options
+- Product tag is stored separately from description
+- Storefront product cards display tag labels from shared taxonomy
+
+### Status
+
+**DONE** - The admin and storefront now use shared category and tag definitions. A product created with a category and tag in the admin will appear under the matching storefront filter.

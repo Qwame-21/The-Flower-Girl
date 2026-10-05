@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { getCachedData, subscribeToCache } from '../../data/dataCache';
+import { getAppSettings } from '../../data/settingsAdapter';
 
 export default function Sidebar({
   isLocked,
@@ -23,6 +24,7 @@ export default function Sidebar({
     const updateCounts = () => {
       const orders = getCachedData('orders') || [];
       const products = getCachedData('products') || [];
+      const settings = getAppSettings();
 
       // Active orders: pending payment or processing (not delivered/cancelled)
       const activeOrders = orders.filter(o =>
@@ -30,11 +32,12 @@ export default function Sidebar({
         (o.fulfillmentStatus !== 'delivered' && o.fulfillmentStatus !== 'cancelled')
       ).length;
 
-      // Low stock: products at or below their low_stock_threshold
-      const lowStock = products.filter(p => {
+      // Low stock: products at or below their low_stock_threshold (only if alerts enabled)
+      const lowStockAlertsEnabled = settings?.inventory?.lowStockAlerts !== false;
+      const lowStock = lowStockAlertsEnabled ? products.filter(p => {
         const threshold = p.low_stock_threshold || 5;
         return p.stock <= threshold;
-      }).length;
+      }).length : 0;
 
       setActiveOrdersCount(activeOrders);
       setStockAlertsCount(lowStock);

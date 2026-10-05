@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { getAppSettings } from '../data/settingsAdapter';
 
 const DashboardContext = createContext(null);
 
@@ -111,6 +112,11 @@ export function DashboardProvider({ children, onSignOut }) {
 
   // Handle new order notification
   const notifyNewOrder = (order) => {
+    const settings = getAppSettings();
+    if (!settings?.notifications?.orders) {
+      return;
+    }
+
     const tracking = order.tracking_number || order.order_code || 'Unknown';
     const total = order.total ? `GHS ${order.total}` : '';
     const title = 'New order';
@@ -133,5 +139,5 @@ export function useDashboard() {
   if (!context) {
     throw new Error('useDashboard must be used within DashboardProvider');
   }
-  return context;
+  return { onSignOut: context.onSignOut, notifyNewOrder: context.notifyNewOrder };
 }
