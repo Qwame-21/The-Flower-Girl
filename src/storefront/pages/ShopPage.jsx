@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { readAdminData, subscribeAdminData } from '../../data/adminStore';
+import { readAdminData, subscribeAdminData, syncFromSupabase } from '../../data/adminStore';
 import { useLiveProducts } from '../hooks/useLiveProducts';
 import ProductCard from '../components/ProductCard';
 import SiteFooter from '../components/SiteFooter';
@@ -14,6 +14,15 @@ export default function ShopPage({ onNavigate, cart, setCart, wishlist, setWishl
   const [addedProduct, setAddedProduct] = useState('');
   const [promotions, setPromotions] = useState(() => readAdminData().promotions || []);
   useEffect(() => subscribeAdminData(data => setPromotions(data.promotions || [])), []);
+  
+  // Refetch promotions on focus
+  useEffect(() => {
+    const handleFocus = () => {
+      syncFromSupabase();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
   
   const { products: liveProducts, loading, error, source } = useLiveProducts();
   
