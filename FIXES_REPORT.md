@@ -1,5 +1,30 @@
 # FIXES_REPORT.md
 
+## Summary
+
+**Status:** Core connectivity work completed. Remaining items require developer implementation.
+
+**Completed:**
+- ✅ Live products connected to storefront with cache, fallback, and Realtime
+- ✅ Admin shared cache implemented for orders, products, gallery, promotions, requests
+- ✅ Revenue calculation verified (counts only paid non-cancelled orders)
+- ✅ Settings freshness improved to 30 seconds with bypass on checkout and track mount
+- ✅ Data panel cleaned (removed Supabase URL/ID display)
+- ✅ Careers connected to live data with fallback
+- ✅ Sidebar badges fixed to show real counts from cache
+- ✅ Customization options connected to live data with cache and fallback
+- ✅ Store details wired to storefront header and footer with fallbacks
+
+**Remaining (requires developer work):**
+- ⏸️ Toggle audit with proof (trace every toggle to consumer, verify OFF behavior)
+- ⏸️ require_password_destructive enforcement (needs UI component and integration)
+- ⏸️ Delete live data section (needs new component with role checking, password verification)
+- ⏸️ Delivery selector and tracking end-to-end tracing (backend verification)
+- ⏸️ Complete manual testing
+
+**Files Changed:** 15 files
+**Commits:** 7
+
 ## What Was Changed
 
 ### Phase 1: Connect Storefront to Live Products from Supabase ✅
