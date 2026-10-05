@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BadgeCheck, CircleDollarSign, LoaderCircle, PackageCheck, Truck } from 'lucide-react';
 import { readAdminData, subscribeAdminData } from '../../data/adminStore';
 import { hasTrackingApi, trackRecord } from '../api/trackingApi';
-import { getSiteSettings } from '../api/siteFeatures';
+import { getSiteSettings, refreshSiteSettings } from '../api/siteFeatures';
 import SiteFooter from '../components/SiteFooter';
 
 function TrackingIcon({ stage }) {
@@ -30,9 +30,9 @@ export default function TrackOrderPage({ onNavigate }) {
   useEffect(() => subscribeAdminData(data => { setTrackingData(data); setResult(current => current ? { ...current, record: (current.kind === 'order' ? data.orders : data.requests).find(record => record.id === current.record.id) || current.record } : current); }), []);
   useEffect(() => { if (result) window.requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }, [result]);
 
-  // Load site settings for auto-refresh config
+  // Load site settings for auto-refresh config (bypass cache for fresh settings)
   useEffect(() => {
-    getSiteSettings().then(settings => {
+    refreshSiteSettings().then(settings => {
       setSiteSettings(settings);
     });
   }, []);

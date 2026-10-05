@@ -1,7 +1,7 @@
 import { supabase } from '../../config/supabase';
 
 const SETTINGS_CACHE_KEY = 'flowergirl-site-settings-v1';
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 30 * 1000; // 30 seconds
 
 /**
  * Load site settings with fallback defaults
@@ -98,43 +98,19 @@ export async function getSiteSettings() {
   } catch {
     return defaults;
   }
+}
 
-  if (!supabase) {
-    return defaults;
-  }
-
+/**
+ * Bypass cache and force refresh
+ */
+export async function refreshSiteSettings() {
+  const SETTINGS_CACHE_KEY = 'flowergirl-site-settings-v1';
+  
   try {
-    const { data, error } = await supabase
-      .from('site_settings')
-      .select('*')
-      .eq('id', 'global')
-      .single();
-
-    if (error || !data) {
-      return defaults;
-    }
-
-    // Merge with defaults, preserving any new columns that exist
-    const settings = { ...defaults };
-
-    for (const key in data) {
-      if (key in settings) {
-        settings[key] = data[key];
-      }
-    }
-
-    // Cache the result
-    try {
-      localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify({
-        data: settings,
-        timestamp: Date.now(),
-      }));
-    } catch {
-      // Cache write failed, return settings anyway
-    }
-
-    return settings;
-  } catch {
-    return defaults;
+    localStorage.removeItem(SETTINGS_CACHE_KEY);
+  } catch (e) {
+    console.warn('Failed to clear cache:', e);
   }
+  
+  return getSiteSettings();
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check, LoaderCircle, LocateFixed, MapPin, Trash2 } from 'lucide-react';
 import { initializeCheckout, verifyCheckoutPayment } from '../api/checkoutApi';
 import { hasTrackingApi, trackRecord } from '../api/trackingApi';
-import { getSiteSettings } from '../api/siteFeatures';
+import { getSiteSettings, refreshSiteSettings } from '../api/siteFeatures';
 import { formIsoDateOptional } from '../utils/date';
 import CardStylePicker from '../components/CardStylePicker';
 import DateField from '../components/DateField';
@@ -30,9 +30,9 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
   const [retryAttempts, setRetryAttempts] = useState(0);
   const subtotal = cart.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
 
-  // Load site settings on mount
+  // Load site settings on mount (bypass cache for fresh delivery fees)
   useEffect(() => {
-    getSiteSettings().then(settings => {
+    refreshSiteSettings().then(settings => {
       setSiteSettings(settings);
       // Default to first enabled delivery type
       if (settings?.delivery_selector_enabled) {
