@@ -74,30 +74,41 @@
 - `src/dashboard/data/dataCache.js` (NEW)
 - `src/dashboard/pages/OverviewPage.jsx`
 - `src/dashboard/pages/OrdersPage.jsx`
+- `src/dashboard/pages/CustomersPage.jsx`
+- `src/dashboard/pages/InsightsPage.jsx`
+- `src/dashboard/pages/RequestsPage.jsx`
 
 **Changes:**
 - Created `dataCache.js` module for shared admin data cache with stale-while-revalidate
+- Added `fetchRequests()` to cache for customer requests
 - Updated OverviewPage to use cached data with loading states
 - Updated OverviewPage to show "—" instead of "0" while loading
 - Updated OverviewPage to keep existing data on fetch failure
 - Updated OrdersPage to use cached data with Realtime
+- Updated CustomersPage to use cached orders (derived from orders cache)
+- Updated InsightsPage to use cached orders and show cached data instantly
+- Updated RequestsPage to use cached requests and keep data on fetch failure
 - Added error states with "Could not refresh. Showing the last loaded data." message
+- ShopPOSPage uses dedicated `loadPosProducts()` (different shape), kept as-is
 
 **Visible Changes:**
 - OverviewPage shows "—" for revenue while loading, not "0"
 - Error message appears if fetch fails: "Could not refresh. Showing the last loaded data."
 - Data persists when navigating between pages
 - OrdersPage shows error state if fetch fails
+- CustomersPage, InsightsPage, RequestsPage now render cached data instantly on mount
 
 **Revenue Calculation Verification:**
+- Ran throwaway script to test revenue calculation with Supabase-shaped rows
 - `orders.js` maps database fields: `payment_status` → `paymentStatus`, `fulfillment_status` → `fulfillmentStatus`, `total` → `total`
 - `statsHelper.js` reads: `paymentStatus`, `fulfillmentStatus`, `total`
 - Field mapping is CORRECT
 - Revenue counts only orders with `paymentStatus === 'paid'` that are not cancelled
 - Staff/POS orders with `paymentStatus === 'pending'` are NOT counted until marked paid
+- Test PASSED: paid order counted, pending order not counted, cancelled paid order not counted
 
 **Sidebar Badges:**
-- Sidebar badge code exists but I did not modify it in this phase
+- Sidebar badge code exists but not yet modified
 - BADGES NEED INVESTIGATION - they may not be showing real counts
 
 ---

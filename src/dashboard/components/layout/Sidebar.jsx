@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
+import { getCachedData, subscribeToCache } from '../../data/dataCache';
 
 export default function Sidebar({
   isLocked,
@@ -17,8 +18,34 @@ export default function Sidebar({
   const [activeOrdersCount, setActiveOrdersCount] = useState(0);
   const [stockAlertsCount, setStockAlertsCount] = useState(0);
 
-  // Note: Notification badges require real data integration
-  // TODO: Connect to admin_notifications and products tables for live counts
+  // Compute badge counts from cached data
+  useEffect(() => {
+    const updateCounts = () => {
+      const orders = getCachedData('orders') || [];
+      const products = getCachedData('products') || [];
+
+      // Active orders: pending payment or processing (not delivered/cancelled)
+      const activeOrders = orders.filter(o =>
+        o.paymentStatus === 'pending' ||
+        (o.fulfillmentStatus !== 'delivered' && o.fulfillmentStatus !== 'cancelled')
+      ).length;
+
+      // Low stock: products at or below their low_stock_threshold
+      const lowStock = products.filter(p => {
+        const threshold = p.low_stock_threshold || 5;
+        return p.stock <= threshold;
+      }).length;
+
+      setActiveOrdersCount(activeOrders);
+      setStockAlertsCount(lowStock);
+    };
+
+    updateCounts();
+
+    // Subscribe to cache updates
+    const unsubscribe = subscribeToCache(updateCounts);
+    return unsubscribe;
+  }, []);
 
   return (
     <aside className={sideNavClass} id="sideNav" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
@@ -98,7 +125,17 @@ export default function Sidebar({
                   <line x1="3" y1="6" x2="21" y2="6" />
                   <path d="M16 10a4 4 0 0 1-8 0" />
                 </svg>
-                {/* TODO: Connect to admin_notifications for live order count */}
+                {activeOrdersCount > 0 && (
+                  <span
+                    className="nav-status-badge"
+                    id="ordersStatusBadge"
+                    title={`${activeOrdersCount} active ${activeOrdersCount === 1 ? 'order' : 'orders'}`}
+                    aria-label={`${activeOrdersCount} active ${activeOrdersCount === 1 ? 'order' : 'orders'}`}
+                    style={{ display: 'flex' }}
+                  >
+                    {activeOrdersCount}
+                  </span>
+                )}
               </div>
               <span className="menu-item-label">Orders</span>
             </NavLink>
@@ -136,7 +173,16 @@ export default function Sidebar({
                   <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
                   <line x1="12" y1="22.08" x2="12" y2="12" />
                 </svg>
-                {/* TODO: Connect to products table for low stock count */}
+                {stockAlertsCount > 0 && (
+                  <span
+                    className="nav-status-badge"
+                    id="productsStatusBadge"
+                    title={`${stockAlertsCount} low stock products`}
+                    style={{ display: 'flex' }}
+                  >
+                    {stockAlertsCount}
+                  </span>
+                )}
               </div>
               <span className="menu-item-label">Products</span>
             </NavLink>
