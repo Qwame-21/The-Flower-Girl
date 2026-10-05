@@ -192,3 +192,53 @@ All four delivery types now handle the address field correctly:
 - **scheduled**: Customer must provide address (required)
 - **surprise**: Customer must provide address (required)
 - **collection**: Address optional, defaults to "Shop collection" if empty
+
+## T4: Product/Category/Tag Parity Between Admin and Storefront
+
+### Problem identified
+
+The admin product form allowed free-text category and tag input, while the storefront relied on fixed sets of values. There was no guarantee that a product created in the admin would appear under the correct storefront filter. Additionally, the product tag was incorrectly derived from the description field (any product with a description received the "SIGNATURE" tag).
+
+### Solution implemented
+
+1. **Created shared taxonomy module** (`src/shared/taxonomy.js`)
+   - Canonical category definitions with database keys and display labels
+   - Canonical tag definitions
+   - CATEGORY_MAP for converting between database keys and admin display labels
+   - CATEGORY_IMAGE_FALLBACKS for consistent image fallbacks
+
+2. **Updated ProductsPage.jsx**
+   - Form now uses category dropdown populated from shared taxonomy
+   - Added separate tag field (no longer derived from description)
+   - Added "Add New Category" and "Add New Tag" options for custom values
+   - Product save mapping stores tag independently from description
+   - Category normalization uses shared CATEGORY_MAP
+   - Tags are normalized to uppercase for consistency
+
+3. **Updated ProductCard.jsx**
+   - Tag display now uses shared taxonomy for label mapping
+   - Imported PRODUCT_TAGS from shared taxonomy
+
+### Parity table
+
+| Admin field | Storefront use | Gap | Fix |
+|-------------|----------------|-----|-----|
+| Category (dropdown) | Shop filters, menu groupings | Free-text could mismatch | Dropdown from shared taxonomy |
+| Tag (dropdown) | Product card tag display | Derived from description | Separate tag field from shared taxonomy |
+| Description | Product detail modal | Already matches | No change needed |
+| Price | Product card, detail modal | Already matches | No change needed |
+| Stock | Sold-out state | Already matches | No change needed |
+| Low stock threshold | Low-stock alerts | Already matches | No change needed |
+| Image | Product card, detail modal | Already matches | No change needed |
+| Visibility | Product appears/disappears | Already matches | No change needed |
+
+### Visible changes
+
+- Admin product form now has category and tag dropdowns instead of free-text fields
+- Admin product form has "Add New Category" and "Add New Tag" options
+- Product tag is stored separately from description
+- Storefront product cards display tag labels from shared taxonomy
+
+### Status
+
+**DONE** - The admin and storefront now use shared category and tag definitions. A product created with a category and tag in the admin will appear under the matching storefront filter.
