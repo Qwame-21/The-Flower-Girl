@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { readAdminData, subscribeAdminData } from '../../data/adminStore';
-import { PRODUCTS } from '../../data/products';
+import { useLiveProducts } from '../hooks/useLiveProducts';
 import ProductCard from '../components/ProductCard';
 import SiteFooter from '../components/SiteFooter';
 import CheckoutModal from '../modals/CheckoutModal';
@@ -14,13 +14,34 @@ export default function ShopPage({ onNavigate, cart, setCart, wishlist, setWishl
   const [addedProduct, setAddedProduct] = useState('');
   const [promotions, setPromotions] = useState(() => readAdminData().promotions || []);
   useEffect(() => subscribeAdminData(data => setPromotions(data.promotions || [])), []);
-  const shopProducts = useMemo(() => PRODUCTS.map(product => { const promotion = promotions.find(item => item.productId === product.id && item.status === 'active' && Number(item.percent) > 0); if (!promotion) return product; const discountPercent = Math.min(90, Number(promotion.percent)); const salePrice = Math.round(product.price * (100 - discountPercent) / 100); return { ...product, originalPriceLabel: product.priceLabel, discountPercent, price: salePrice, priceLabel: `GHS ${salePrice.toLocaleString()}` }; }), [promotions]);
+  
+  const { products: liveProducts, loading, error, source } = useLiveProducts();
+  
+  const shopProducts = useMemo(() => liveProducts.map(product => { 
+    const promotion = promotions.find(item => item.productId === product.id && item.status === 'active' && Number(item.percent) > 0); 
+    if (!promotion) return product; 
+    const discountPercent = Math.min(90, Number(promotion.percent)); 
+    const salePrice = Math.round(product.price * (100 - discountPercent) / 100); 
+    return { ...product, originalPriceLabel: product.priceLabel, discountPercent, price: salePrice, priceLabel: `GHS ${salePrice.toLocaleString()}` }; 
+  }), [liveProducts, promotions]);
   useEffect(() => {
-    setCart(current => current.map(item => {
-      const liveProduct = shopProducts.find(product => product.id === item.id);
-      return liveProduct ? { ...item, ...liveProduct, quantity: item.quantity } : item;
-    }));
-  }, [shopProducts, setCart]);
+    setCart(current => {
+      // Update cart items with live product data
+      // Remove items whose product IDs no longer exist in the live list
+      return current
+        .map(item => {
+          const liveProduct = shopProducts.find(product => product.id === item.id);
+          return liveProduct ? { ...item, ...liveProduct, quantity: item.quantity } : null;
+        })
+        .filter(item => item !== null);
+    });
+    
+    // Clean up wishlist similarly
+    setWishlist(current => {
+      const liveIds = new Set(shopProducts.map(p => p.id));
+      return current.filter(id => liveIds.has(id));
+    });
+  }, [shopProducts, setCart, setWishlist]);
   const add = (product, quantity = 1) => {
     setCart(current => current.some(item => item.id === product.id)
       ? current.map(item => item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item)
@@ -41,6 +62,21 @@ export default function ShopPage({ onNavigate, cart, setCart, wishlist, setWishl
   </>;
   if (openCheckout) return <main className="commerce-page" aria-label="Checkout"><CheckoutModal cart={cart} onClose={onCheckoutHandled} onQuantity={updateQuantity} onNavigate={onNavigate} /></main>;
   if (openWishlist) return <main className="commerce-page" aria-label="Wishlist"><WishlistModal products={savedProducts} onClose={onWishlistHandled} onView={setDetailProduct} onRemove={toggleWishlist} />{productOverlays}</main>;
+  
+  if (error && shopProducts.length === 0) {
+    return (
+      <main className="content-page shop-page">
+        <header className="content-page-heading shop-heading"><div><span>ORDERS & BOOKINGS</span><h1>Shop</h1></div></header>
+        <div className="shop-custom-banner"><div><span>BUILD YOUR OWN</span><h2>Choose every detail.</h2><p>Start with flowers or a box, then add perfume, chocolate, fashion, jewelry, engraving and delivery.</p></div><button className="primary-action" onClick={() => onNavigate?.('customize')}>OPEN GIFT BUILDER</button></div>
+        <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+          <p style={{ fontSize: '1.1rem', color: '#666', marginBottom: '1rem' }}>Products are unavailable right now. Please refresh.</p>
+          <button className="soft-action" onClick={() => window.location.reload()}>Refresh</button>
+        </div>
+        <SiteFooter onNavigate={onNavigate} />
+      </main>
+    );
+  }
+  
   return (
     <main className="content-page shop-page">
       <header className="content-page-heading shop-heading"><div><span>ORDERS & BOOKINGS</span><h1>Shop</h1></div></header>

@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Search, ArrowRight } from 'lucide-react';
 import { PORTFOLIO_SERIES } from '../data/portfolioData';
-import { PRODUCTS } from '../data/products';
+import { getCachedProducts } from '../storefront/data/liveProducts';
 
 const SITE_PATHS = [
   { id: 'about', title: 'About The Gifting Factory', label: 'ABOUT', detail: 'Our story and how each gift is composed', image: '/assets/gifting-factory-logo-transparent-v2.png', keywords: 'about story gifting factory flower girl process' },
@@ -16,6 +16,17 @@ const SITE_PATHS = [
 
 export default function SearchModal({ isOpen, onClose, onSelectSlide, onNavigate }) {
   const [query, setQuery] = useState('');
+  const [products, setProducts] = useState(() => getCachedProducts() || []);
+
+  // Refresh products when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const cached = getCachedProducts();
+      if (cached) {
+        setProducts(cached);
+      }
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -26,7 +37,7 @@ export default function SearchModal({ isOpen, onClose, onSelectSlide, onNavigate
   );
 
   const filteredPaths = SITE_PATHS.filter(item => `${item.title} ${item.label} ${item.detail} ${item.keywords}`.toLowerCase().includes(query.toLowerCase()));
-  const filteredProducts = PRODUCTS.filter(item => `${item.name} ${item.tag} ${item.detail} ${item.priceLabel} ${item.includes.join(' ')}`.toLowerCase().includes(query.toLowerCase()));
+  const filteredProducts = products.filter(item => `${item.name} ${item.tag} ${item.detail} ${item.priceLabel} ${item.includes.join(' ')}`.toLowerCase().includes(query.toLowerCase()));
 
   return (
     <div className="search-modal-backdrop" style={styles.backdrop} onClick={onClose}>

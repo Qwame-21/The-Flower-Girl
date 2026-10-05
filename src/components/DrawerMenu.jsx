@@ -1,14 +1,27 @@
 import { useEffect, useState } from 'react';
 import { MapPin, X } from 'lucide-react';
 import { readAdminData, subscribeAdminData } from '../data/adminStore';
-import { PRODUCTS } from '../data/products';
+import { getCachedProducts } from '../storefront/data/liveProducts';
 
 export default function DrawerMenu({ isOpen, onClose, onNavigate }) {
   const [adminData, setAdminData] = useState(readAdminData);
+  const [products, setProducts] = useState(() => getCachedProducts() || []);
+  
   useEffect(() => subscribeAdminData(setAdminData), []);
+  
+  // Refresh products when drawer opens
+  useEffect(() => {
+    if (isOpen) {
+      const cached = getCachedProducts();
+      if (cached) {
+        setProducts(cached);
+      }
+    }
+  }, [isOpen]);
+  
   if (!isOpen) return null;
   const promotion = (adminData.promotions || []).find(item => item.status === 'active' && Number(item.percent) > 0);
-  const promotedProduct = promotion && [...(adminData.products || []), ...PRODUCTS].find(product => product.id === promotion.productId);
+  const promotedProduct = promotion && [...(adminData.products || []), ...products].find(product => product.id === promotion.productId);
 
   return (
     <div className="storefront-drawer" style={styles.fullPage} onClick={onClose}>
