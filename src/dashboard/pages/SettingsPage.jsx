@@ -7,6 +7,7 @@ import { getAppSettings, syncSettingsWithSupabase, persistSettings } from '../da
 import { supabase } from '../../config/supabase';
 import { useDashboard } from '../contexts/DashboardContext';
 import { logoutToLogin } from '../../admin/utils/logout';
+import PasswordConfirmModal from '../components/PasswordConfirmModal';
 
 // ─── tiny toast helper ───────────────────────────────────────────────────────
 function showToast(msg) {
@@ -549,6 +550,8 @@ function SecurityPanel({ s, onChange }) {
   const [successMsg, setSuccessMsg] = useState('');
   const [saving, setSaving]         = useState(false);
   const [showSignOut, setShowSignOut] = useState(false);
+  const [showSecurityPwConfirm, setShowSecurityPwConfirm] = useState(false);
+  const [pendingDestructiveAction, setPendingDestructiveAction] = useState(null);
 
   useEffect(() => {
     setPwDestruct(s.security.requirePasswordForDestructive);
@@ -620,6 +623,29 @@ function SecurityPanel({ s, onChange }) {
     window.dispatchEvent(new Event('xa12:settingsChanged'));
     await persistSettings(updated);
   }
+
+  const handleDestructiveAction = async (actionCallback) => {
+    if (!s.security.requirePasswordForDestructive) {
+      await actionCallback();
+      return;
+    }
+    setPendingDestructiveAction(() => actionCallback);
+    setShowSecurityPwConfirm(true);
+  };
+
+  const handlePasswordConfirm = async (password) => {
+    try {
+      const { confirmDestructive } = await import('../utils/confirmDestructive');
+      await confirmDestructive(password);
+      if (pendingDestructiveAction) {
+        await pendingDestructiveAction();
+        setPendingDestructiveAction(null);
+      }
+      setShowSecurityPwConfirm(false);
+    } catch (err) {
+      throw err; // Let modal handle the error
+    }
+  };
 
   function handleSignOut() {
     setShowSignOut(false);
@@ -764,38 +790,59 @@ function SecurityPanel({ s, onChange }) {
           </div>
         </div>
       )}
+
+      {/* Password confirmation modal */}
+      <PasswordConfirmModal
+        isOpen={showSecurityPwConfirm}
+        onClose={() => setShowSecurityPwConfirm(false)}
+        onConfirm={handlePasswordConfirm}
+        title="Confirm Destructive Action"
+      />
     </section>
   );
 }
 
 // ─── Panel: Data ──────────────────────────────────────────────────────────────
 function DataPanel() {
-  const [dbCounts, setDbCounts] = useState({ orders: 0, products: 0, requests: 0, reviews: 0 });
+  const { onSignOut } = useDashboard();
+  const [dbCounts, setDbCounts] = useState({ orders: 0, products: 0, requests: 0, reviews: 0, notifications: 0, applications: 0 });
   const [loadingCounts, setLoadingCounts] = useState(true);
+  const [deleteCategories, setDeleteCategories] = useState({ orders: false, requests: false, reviews: false, notifications: false, applications: false });
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDataPwConfirm, setShowDataPwConfirm] = useState(false);
+  const [pendingDeleteAction, setPendingDeleteAction] = useState(null);
+
+  async function loadCounts() {
+    if (!supabase) return;
+    setLoadingCounts(true);
+    try {
+      const [ordersRes, productsRes, requestsRes, reviewsRes, notificationsRes, applicationsRes] = await Promise.all([
+        supabase.from('orders').select('id', { count: 'exact', head: true }),
+        supabase.from('products').select('id', { count: 'exact', head: true }),
+        supabase.from('customer_requests').select('id', { count: 'exact', head: true }),
+        supabase.from('reviews').select('id', { count: 'exact', head: true }),
+        supabase.from('admin_notifications').select('id', { count: 'exact', head: true }),
+        supabase.from('career_applications').select('id', { count: 'exact', head: true }),
+      ]);
+      setDbCounts({
+        orders: ordersRes.count || 0,
+        products: productsRes.count || 0,
+        requests: requestsRes.count || 0,
+        reviews: reviewsRes.count || 0,
+        notifications: notificationsRes.count || 0,
+        applications: applicationsRes.count || 0,
+      });
+    } catch (err) {
+      console.warn('Error loading real database table counts:', err);
+    } finally {
+      setLoadingCounts(false);
+    }
+  }
 
   useEffect(() => {
-    if (!supabase) return;
-    async function loadCounts() {
-      setLoadingCounts(true);
-      try {
-        const [ordersRes, productsRes, requestsRes, reviewsRes] = await Promise.all([
-          supabase.from('orders').select('id', { count: 'exact', head: true }),
-          supabase.from('products').select('id', { count: 'exact', head: true }),
-          supabase.from('customer_requests').select('id', { count: 'exact', head: true }),
-          supabase.from('reviews').select('id', { count: 'exact', head: true }),
-        ]);
-        setDbCounts({
-          orders: ordersRes.count || 0,
-          products: productsRes.count || 0,
-          requests: requestsRes.count || 0,
-          reviews: reviewsRes.count || 0,
-        });
-      } catch (err) {
-        console.warn('Error loading real database table counts:', err);
-      } finally {
-        setLoadingCounts(false);
-      }
-    }
     loadCounts();
   }, []);
 
@@ -834,6 +881,72 @@ function DataPanel() {
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     showToast('Live database export downloaded!');
   }
+
+  async function executeDelete() {
+    setIsDeleting(true);
+    setDeleteProgress('Starting deletion...');
+    const results = [];
+
+    try {
+      if (deleteCategories.orders) {
+        setDeleteProgress('Deleting orders...');
+        const { error } = await supabase.from('orders').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        results.push({ category: 'Orders', success: !error, error: error?.message });
+      }
+
+      if (deleteCategories.requests) {
+        setDeleteProgress('Deleting customer requests...');
+        const { error } = await supabase.from('customer_requests').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        results.push({ category: 'Requests', success: !error, error: error?.message });
+      }
+
+      if (deleteCategories.reviews) {
+        setDeleteProgress('Deleting reviews...');
+        const { error } = await supabase.from('reviews').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        results.push({ category: 'Reviews', success: !error, error: error?.message });
+      }
+
+      if (deleteCategories.notifications) {
+        setDeleteProgress('Deleting notifications...');
+        const { error } = await supabase.from('admin_notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        results.push({ category: 'Notifications', success: !error, error: error?.message });
+      }
+
+      if (deleteCategories.applications) {
+        setDeleteProgress('Deleting job applications...');
+        const { error } = await supabase.from('career_applications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        results.push({ category: 'Applications', success: !error, error: error?.message });
+      }
+
+      // Refresh cache
+      setDeleteProgress('Refreshing data...');
+      loadCounts();
+
+      const successCount = results.filter(r => r.success).length;
+      showToast(`Deleted ${successCount} categories successfully. Check results for errors.`);
+    } catch (err) {
+      showToast(`Deletion failed: ${err.message}`);
+    } finally {
+      setIsDeleting(false);
+      setDeleteProgress('');
+      setDeleteCategories({ orders: false, requests: false, reviews: false, notifications: false, applications: false });
+      setDeleteConfirmText('');
+    }
+  }
+
+  const handlePasswordConfirm = async (password) => {
+    try {
+      const { confirmDestructive } = await import('../utils/confirmDestructive');
+      await confirmDestructive(password);
+      if (pendingDeleteAction) {
+        await pendingDeleteAction();
+        setPendingDeleteAction(null);
+      }
+      setShowPwConfirm(false);
+    } catch (err) {
+      throw err;
+    }
+  };
 
   return (
     <section className="settings-panel on" role="tabpanel" id="set-panel-data">
@@ -882,6 +995,97 @@ function DataPanel() {
           </button>
         </div>
       </div>
+
+      {/* Delete live data section - owner/admin only */}
+      <div className="settings-card" style={{ borderColor: 'rgba(161,75,69,.2)' }}>
+        <h2 style={{ color: '#a14b45' }}>Delete live data</h2>
+        <div className="sub">Permanently delete production data. Export first as backup.</div>
+        <div className="set-row">
+          <div>
+            <b>Orders</b>
+            <div className="sub">{dbCounts.orders} records (includes items and events)</div>
+          </div>
+          <input type="checkbox" checked={deleteCategories.orders} onChange={(e) => setDeleteCategories({...deleteCategories, orders: e.target.checked})} />
+        </div>
+        <div className="set-row">
+          <div>
+            <b>Customer requests</b>
+            <div className="sub">{dbCounts.requests} records</div>
+          </div>
+          <input type="checkbox" checked={deleteCategories.requests} onChange={(e) => setDeleteCategories({...deleteCategories, requests: e.target.checked})} />
+        </div>
+        <div className="set-row">
+          <div>
+            <b>Reviews</b>
+            <div className="sub">{dbCounts.reviews} records</div>
+          </div>
+          <input type="checkbox" checked={deleteCategories.reviews} onChange={(e) => setDeleteCategories({...deleteCategories, reviews: e.target.checked})} />
+        </div>
+        <div className="set-row">
+          <div>
+            <b>Admin notifications</b>
+            <div className="sub">{dbCounts.notifications} records</div>
+          </div>
+          <input type="checkbox" checked={deleteCategories.notifications} onChange={(e) => setDeleteCategories({...deleteCategories, notifications: e.target.checked})} />
+        </div>
+        <div className="set-row">
+          <div>
+            <b>Job applications</b>
+            <div className="sub">{dbCounts.applications} records</div>
+          </div>
+          <input type="checkbox" checked={deleteCategories.applications} onChange={(e) => setDeleteCategories({...deleteCategories, applications: e.target.checked})} />
+        </div>
+        <div style={{ marginTop: '16px', padding: '12px', background: '#fff1f2', borderRadius: '8px', fontSize: '12px', color: '#a14b45' }}>
+          <strong>⚠️ Export first:</strong> Always export your data before deleting. This action cannot be undone.
+        </div>
+        <div className="bar" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', gap: '10px' }}>
+          <button className="btn d" type="button" disabled={isDeleting || !Object.values(deleteCategories).some(Boolean)} onClick={() => setShowDeleteModal(true)}>
+            {isDeleting ? 'Deleting…' : 'Delete Selected'}
+          </button>
+        </div>
+      </div>
+
+      {/* Delete confirmation modal */}
+      {showDeleteModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div style={{ background: '#ffffff', borderRadius: '16px', padding: '24px', maxWidth: '500px', width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600, color: '#a14b45' }}>Confirm Deletion</h3>
+            <p style={{ fontSize: '13px', color: '#747471', margin: '0 0 16px 0' }}>
+              This will permanently delete the selected data. Type <strong>DELETE</strong> to confirm.
+            </p>
+            <input
+              type="text"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE"
+              style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', marginBottom: '16px', textTransform: 'uppercase' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button type="button" className="btn" onClick={() => { setShowDeleteModal(false); setDeleteConfirmText(''); }}>Cancel</button>
+              <button
+                type="button"
+                className="btn d"
+                disabled={deleteConfirmText !== 'DELETE'}
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setPendingDeleteAction(() => executeDelete);
+                  setShowDataPwConfirm(true);
+                }}
+              >
+                Confirm & Enter Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password confirmation modal */}
+      <PasswordConfirmModal
+        isOpen={showDataPwConfirm}
+        onClose={() => { setShowDataPwConfirm(false); setPendingDeleteAction(null); }}
+        onConfirm={handlePasswordConfirm}
+        title="Confirm Deletion"
+      />
     </section>
   );
 }
