@@ -1,5 +1,43 @@
 # Flower Girl - Final Report
 
+## T3: Revenue Discrepancy - 3,750 on Overview, 0 on Orders
+
+### Source of 3,750 identified
+
+The value 3,750 comes from a **default demo product** in `src/admin/api/adminStore.js` line 6:
+```javascript
+{ id: 'product-hamper', name: 'Luxury celebration hamper', category: 'Hampers', price: 'GHS 3,750', stock: 8, visible: true, image: '/assets/hamper-editorial-v2.png' }
+```
+
+This default product price (3,750) appears to be used somewhere in the revenue calculation instead of live Supabase order data.
+
+### Investigation findings
+
+**OverviewPage revenue calculation:**
+- Uses `calculateOrderStats(orders, { cutoffDate })` from `src/dashboard/data/statsHelper.js`
+- `calculateOrderStats` sums `order.total` for orders with `payment_status = 'paid'` and not cancelled
+- Orders come from `fetchOrders()` → `listOrders()` → Supabase
+- With zero real orders, revenue should be 0
+
+**OrdersPage revenue:**
+- Shows 0 because it uses the same live Supabase data source
+
+**The discrepancy:**
+- Overview shows 3,750 while Orders shows 0
+- This suggests Overview may be using cached/persisted data or defaults instead of live Supabase data
+- The exact location where the 3,750 value is being used in the revenue calculation needs to be identified and fixed
+
+### Root cause
+
+The admin dashboard may have stale or default data in local storage or the data cache that is being merged with or used instead of fresh Supabase data. The fix is to ensure:
+1. All dashboard pages use the same live data source (Supabase via dataCache)
+2. Any persisted cache is cleared or replaced (not merged) when Supabase returns an empty list
+3. No sample or demo data is ever displayed as real revenue
+
+### Status
+
+**BLOCKED** - The exact code path where 3,750 is being used in the revenue calculation needs to be identified. The default product with price 3,750 has been found, but the mechanism by which it's affecting the Overview revenue display is not yet clear.
+
 ## T2: Payment Flow Decision Tree
 
 ### How to diagnose why an order placed on the storefront does not reach the admin

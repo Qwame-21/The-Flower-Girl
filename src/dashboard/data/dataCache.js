@@ -64,13 +64,14 @@ export async function fetchOrders(forceRefresh = false) {
 
   try {
     const data = await listOrders();
+    // Replace cache with fresh data (even if empty), never merge
     CACHE.orders.data = data;
     CACHE.orders.timestamp = Date.now();
     return data;
   } catch (error) {
     console.error('Error fetching orders:', error);
-    // Keep existing data on error
-    return CACHE.orders.data;
+    // Keep existing data on error, but don't use stale defaults
+    return CACHE.orders.data || [];
   } finally {
     CACHE.orders.loading = false;
     notifyListeners();
