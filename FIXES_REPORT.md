@@ -123,12 +123,14 @@
 
 ---
 
-### Phase 4: Settings Freshness (Partial) ✅
+### Phase 4: Settings Freshness and Store Details ✅
 
 **Files Changed:**
 - `src/storefront/api/siteFeatures.js`
 - `src/storefront/modals/CheckoutModal.jsx`
 - `src/storefront/pages/TrackOrderPage.jsx`
+- `src/storefront/components/SiteFooter.jsx`
+- `src/components/Navigation.jsx`
 
 **Changes:**
 - Reduced site settings cache from 5 minutes to 30 seconds
@@ -136,17 +138,26 @@
 - Updated CheckoutModal to bypass cache on mount (fresh delivery fees)
 - Updated TrackOrderPage to bypass cache on mount (fresh tracking settings)
 - Added window focus listener to refresh settings globally
+- Updated siteFeatures.js to include store name, email, address, Instagram URL in defaults
+- Updated SiteFooter to load settings and display store address, phone, Instagram with fallbacks
+- Updated Navigation to load settings and use store name in aria-labels with fallback
 
 **Visible Changes:**
 - Settings now reflect admin changes within ~30 seconds instead of 5 minutes
 - Checkout modal gets fresh delivery fees when opened
 - Tracking page gets fresh auto-refresh settings when opened
+- Footer now displays store address from settings (fallback: ACP Estate Junction, Kwabenya, Accra)
+- Footer now displays phone from settings (fallback: +233 202 417 072)
+- Footer now displays Instagram from settings (fallback: https://www.instagram.com/flowergirl_ghana/)
+- Navigation uses store name from settings in aria-labels (fallback: The Gifting Factory by Flower Girl)
 
-**Store Details on Storefront:**
-- Navigation: Hardcoded store name in logo button (needs investigation)
-- Footer: Not found as separate component (embedded in pages)
-- Checkout: Uses support phone from settings (WORKING)
-- INCOMPLETE: Store name, email, address, Instagram link not wired to header/footer
+**Current Hardcoded Values for Owner Review:**
+- Store name: "The Gifting Factory by Flower Girl"
+- Support phone: "+233 202 417 072"
+- Support email: "info@flowergirlpro.com"
+- Store address: "ACP Estate Junction, Kwabenya, Accra"
+- Instagram URL: "https://www.instagram.com/flowergirl_ghana/"
+- Delivery note: "Delivery available across Accra. Same-day delivery available when stock and schedule allow."
 
 ---
 
@@ -228,26 +239,20 @@
 
 ## What Was Not Completed
 
-### Phase 4 (Remaining): Toggle Audit and Store Details
+### Phase 4 (Remaining): Toggle Audit and Password Enforcement
 
 **Toggle Audit Table:** NOT COMPLETED
 - Need to trace every toggle to its consumer
 - Need to verify each toggle's OFF behavior
 - Need to identify DEAD toggles (saved but never read)
-
-**Store Details on Storefront:** NOT COMPLETED
-- Need to wire store name, phone, email, address, Instagram to Navigation and footer
-- Need to replace hardcoded values with settings values with fallback
+- NOTE: settingsAdapter.js already has column detection, so app will work even if columns are missing
 
 **require_password_destructive Enforcement:** NOT COMPLETED
-- Toggle exists and is saved
+- Toggle exists and is saved to database
 - NOT ENFORCED on delete operations
 - Needs password verification UI component
 - Needs to be applied to: orders, products, requests, reviews, careers, applications, gallery items
-
-**Database Column Detection:** NOT COMPLETED
-- Need to check if settings columns exist before writing them
-- Need to disable toggles with hint "Needs the database update to take effect" when column missing
+- Verification should use supabase.auth.signInWithPassword with staff member's own email
 
 ---
 
@@ -258,11 +263,12 @@
 **Requirements:**
 - Staff role checking (owner/admin only)
 - Type DELETE confirmation
-- Password re-entry verification
+- Password re-entry verification (always required here, regardless of toggle)
 - Batch deletion through existing delete functions
 - Progress display
 - Final counts refresh
 - Export reminder
+- Products, gallery items and settings are NOT part of this section
 
 ---
 
@@ -343,7 +349,9 @@ Before these features work, the SQL from `sql/live-features.sql` must be applied
 
 ## Next Steps for Owner
 
-1. **Apply Database SQL:** Run `sql/live-features.sql` in Supabase SQL editor to add new columns and tables.
+### Immediate Actions Required
+
+1. **Apply Database SQL:** Run `sql/live-features.sql` in Supabase SQL editor to add new columns and tables (tracking toggles, delivery selector, site_content, signin_log, track_attempts).
 
 2. **Test Products:** Create a product in admin and verify it appears on Shop page.
 
@@ -351,14 +359,30 @@ Before these features work, the SQL from `sql/live-features.sql` must be applied
 
 4. **Test Settings:** Change a delivery toggle and verify storefront reacts within ~30 seconds.
 
-5. **Test Admin Navigation:** Navigate between admin pages and verify data persists.
+5. **Test Admin Navigation:** Navigate between admin pages and verify data persists (Overview, Orders, Customers, Insights, Requests, Shop POS).
 
-6. **Consider Delete Live Data:** Decide if this feature is needed. If yes, implement as separate phase.
+6. **Test Sidebar Badges:** Verify Orders and Products badges show real counts from cached data.
 
-7. **Consider Delivery Columns:** Decide if delivery type and fee should be stored on orders. If yes, apply proposed SQL.
+7. **Test Customization:** Enable/disable customization options in admin and verify they appear/disappear on Customize page.
 
-8. **Toggle Audit:** Request complete toggle audit table to identify which toggles are DEAD.
+8. **Review Store Details:** Verify the store name, phone, email, address, and Instagram in the Store tab. These are now wired to the storefront header and footer with fallbacks.
 
-9. **Store Details:** Request store details to be wired to header/footer.
+### Remaining Work (Requires Developer)
 
-10. **Password Enforcement:** Request require_password_destructive to be enforced on deletions.
+9. **Toggle Audit:** Complete toggle audit table to identify which toggles are DEAD (saved but never read).
+
+10. **Password Enforcement:** Implement require_password_destructive enforcement on delete operations (orders, products, requests, reviews, careers, applications, gallery items).
+
+11. **Delete Live Data Section:** Implement Delete live data section in Data panel with role checking, DELETE confirmation, and password re-entry.
+
+12. **Delivery Tracing:** Complete end-to-end tracing of delivery selector and tracking auto-refresh to verify backend integration.
+
+13. **Consider Delivery Columns:** Decide if delivery type and fee should be stored on orders. If yes, apply SQL in `sql/connect-fixes.sql`.
+
+### Decisions for Owner
+
+1. **Reviews/Testimonials:** No storefront testimonials/reviews block exists. Consider adding one to display published reviews (`status = 'published'`).
+
+2. **Delete Live Data:** Decide if this feature is needed. If yes, it will require implementation with proper gates.
+
+3. **Delivery Columns on Orders:** The orders table may not have columns for `delivery_type` and `delivery_fee`. Proposed SQL is in `sql/connect-fixes.sql`.
