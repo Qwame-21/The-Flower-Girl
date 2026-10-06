@@ -1,7 +1,7 @@
 MASTER VERSION: 2
 START COMMIT: 0a6b7479a5911e500f499e08e63a702318e5eb9f
 T1: DONE
-T2: NOT STARTED
+T2: IN PROGRESS - Fixed CORS/callback behavior, need to complete investigation and decision tree
 T3: NOT STARTED
 T4: NOT STARTED
 T5: NOT STARTED

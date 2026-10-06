@@ -372,7 +372,15 @@ export default function ProductsPage() {
       setFormError('Valid price is required');
       return;
     }
+    if (!formStock || formStock.trim() === '') {
+      setFormError('Enter how many are in stock');
+      return;
+    }
     const stockVal = parseInt(formStock, 10);
+    if (isNaN(stockVal) || stockVal < 0) {
+      setFormError('Enter a valid stock quantity');
+      return;
+    }
     const thresholdVal = parseInt(formThreshold, 10);
     const discountVal = parseFloat(formDiscount) || 0;
 

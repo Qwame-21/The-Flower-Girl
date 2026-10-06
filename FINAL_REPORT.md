@@ -1,6 +1,107 @@
 # Flower Girl - Go-Live Report
 
-## T1: One SQL File for Everything
+## T2: Why Checkout Fails and Why an Order Does Not Reach the Admin
+
+### paystack-init Behavior Changes (compared to flower-girl-final)
+
+1. CORS headers are now dynamic based on ALLOWED_ORIGINS environment variable
+2. CORS returns null origin for unlisted origins when ALLOWED_ORIGINS is set
+3. CORS returns * for any origin when ALLOWED_ORIGINS is unset (original behavior)
+4. Missing secrets now return structured JSON with code PAYMENT_NOT_CONFIGURED
+5. Missing required fields now return structured JSON with code MISSING_FIELD
+6. Email validation added: checks email format with regex
+7. Collection delivery type uses "Shop collection" as default address when none provided
+8. Cart empty now returns structured JSON with code CART_EMPTY
+9. Product validation errors now return structured JSON with code PRODUCT_UNAVAILABLE
+10. Out of stock errors now return structured JSON with code OUT_OF_STOCK
+11. Delivery disabled errors now return structured JSON with code DELIVERY_UNAVAILABLE
+12. Scheduled delivery now requires a date (MISSING_FIELD if missing)
+13. Scheduled delivery date must be today or future (INVALID_DATE if past)
+14. Invalid delivery type now returns structured JSON with code INVALID_DELIVERY_TYPE
+15. Checkout attempt insert failures now return structured JSON with code INTERNAL
+16. Callback URL validation added with code CALLBACK_NOT_ALLOWED
+17. Callback validation only active when STOREFRONT_URL or ALLOWED_ORIGINS is set
+18. When both STOREFRONT_URL and ALLOWED_ORIGINS are unset, any callback is accepted (original behavior)
+19. Paystack API errors now return structured JSON with code PAYMENT_PROVIDER_ERROR
+20. All errors now log step name and code (no secrets, references, emails, phones)
+21. All errors return structured JSON: { ok: false, error: { code: "...", message: "..." } }
+22. Success response shape unchanged (returns subtotal, deliveryFee, total, reference)
+
+### Pricing, Delivery Fee, Stock Handling, and Paystack Request
+
+**CONFIRMED UNCHANGED:**
+- Pricing logic: subtotal calculated from cart items with promotions
+- Delivery fee calculation: uses site_settings delivery_*_fee values
+- Stock handling: validates stock > quantity before proceeding
+- Paystack request: amountInPesewas = grandTotal * 100, currency = 'GHS', email = customerEmail
+
+### CORS Behavior Matrix
+
+| ALLOWED_ORIGINS | STOREFRONT_URL | Request Origin | Behavior |
+|-----------------|----------------|----------------|----------|
+| unset | unset | http://127.0.0.1:5175 | Allow (original behavior) |
+| unset | unset | http://localhost:5173 | Allow (original behavior) |
+| unset | unset | deployed address | Allow (original behavior) |
+| unset | unset | null/missing | Allow (original behavior) |
+| set | unset | in allowlist | Allow |
+| set | unset | not in allowlist | Reject (null origin) |
+| set | set | matches STOREFRONT_URL | Allow |
+| set | set | in allowlist | Allow |
+| set | set | not in allowlist | Reject (null origin) |
+
+### Callback URL Validation Matrix
+
+| ALLOWED_ORIGINS | STOREFRONT_URL | Callback Origin | Behavior |
+|-----------------|----------------|-----------------|----------|
+| unset | unset | any | Accept (original behavior) |
+| set | unset | in allowlist (https) | Accept |
+| set | unset | not in allowlist (https) | Reject |
+| set | unset | localhost/127.0.0.1 (http, test key) | Accept |
+| set | set | matches STOREFRONT_URL (https) | Accept |
+| set | set | in allowlist (https) | Accept |
+| set | set | not in allowlist (https) | Reject |
+
+**Is it safe to redeploy paystack-init now?** YES - the changes maintain backward compatibility when environment variables are unset, and add security when they are configured.
+
+### Candidate Cause Investigation
+
+| Candidate | File/Line | Verdict | Details |
+|-----------|----------|---------|---------|
+| (a) Products default to stock 0 | src/dashboard/pages/ProductsPage.jsx:345, 388 | POSSIBLE | Form defaults to '10' but server validates stock. Database default needs check. |
+| (b) Scheduled delivery date format | src/storefront/utils/date.js:15, src/storefront/components/DateField.jsx:25 | OK | DateField uses number inputs, formIsoDate pads with zero-padding (YYYY-MM-DD format). |
+| (c) checkout_attempts.customer_email NOT NULL | supabase/schema.sql:122, CheckoutModal.jsx:217 | OK | Email is required in form (CheckoutModal.jsx:349). |
+| (d) orders.customer_phone and delivery_address NOT NULL | supabase/schema.sql:orders, paystack-init/index.ts:138-140 | FIXED | Collection uses "Shop collection" as default when address empty. |
+| (e) checkout_attempts insert payload vs definition | supabase/schema.sql:117-134, paystack-init/index.ts:200-214 | OK | All required fields provided (customer_email, currency, subtotal, total). |
+| (f) Server configuration (PAYSTACK_SECRET_KEY) | paystack-init/index.ts:72-80 | RULED OUT | Returns PAYMENT_NOT_CONFIGURED if missing, which would show different error. |
+| (g) Request (Functions URL, headers, CORS) | checkoutApi.js:26-35 | RULED OUT | Uses correct anon key auth headers. |
+| (h) "Checkout could not be prepared." text | checkoutApi.js:23 | FOUND | This is the fallback message when error code is not recognized. |
+
+### Root Cause Analysis
+
+The client shows "Checkout could not be prepared." which is the fallback message in `checkoutApi.js:23`. This means the server is returning an error response that the client cannot map to a known error code. This could happen if:
+1. The deployed `paystack-init` function does not have the new structured error responses yet
+2. The server is returning an old-format error that predates the structured error codes
+
+**Status: IN PROGRESS** - Need to verify if the deployed function has the new structured error responses, and trace the exact error being returned from the server.
+
+### Order Flow Tracing
+
+| Step | File/Line | Details |
+|------|-----------|---------|
+| CheckoutModal payload | src/storefront/modals/CheckoutModal.jsx:215-234 | Builds payload with customer info, cart, delivery type |
+| checkoutApi.initializeCheckout | src/storefront/api/checkoutApi.js:26-35 | Calls paystack-init with anon key auth |
+| Payment return detection | src/App.jsx:40 | Checks `?payment=return` query string |
+| Payment reference storage | src/storefront/modals/CheckoutModal.jsx:256 | Stores in sessionStorage as `gifting-factory-payment-return` |
+| Verification polling | src/storefront/modals/CheckoutModal.jsx:88-139 | Polls verifyCheckoutPayment and trackRecord every 3 seconds |
+| paystack-verify → finalize_paid_checkout | supabase/functions/paystack-verify/index.ts:80-84 | Calls RPC with verified reference |
+| paystack-webhook → finalize_paid_checkout | supabase/functions/paystack-webhook/index.ts:44-48 | Calls RPC after signature verification |
+| JWT verification for webhook | supabase/config.toml:8-9 | Already set to `verify_jwt = false` |
+
+### paystack-webhook Configuration
+
+**CONFIRMED:** `supabase/config.toml` already has `[functions.paystack-webhook]` with `verify_jwt = false`. No action needed.
+
+
 
 ### SQL File Created
 
