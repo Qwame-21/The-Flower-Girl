@@ -199,7 +199,7 @@ function InsightsTrendChart({ orders, mode }) {
   const isNearTop = activePt ? activePt[1] < 50 : false;
 
   return (
-    <div className="chartwrap" style={{ position: 'relative', width: '100%', overflowX: 'auto' }}>
+    <div className="chartwrap" style={{ position: 'relative', width: '100%', overflowX: 'auto', minHeight: `${h}px` }}>
       <svg
         id="insightsChartSvg"
         viewBox={`0 0 ${w} ${h}`}

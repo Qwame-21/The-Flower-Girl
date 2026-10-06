@@ -234,7 +234,7 @@ function TrendChart({ series, mode }) {
   }
 
   return (
-    <div className="trend-chart-container" style={{ position: 'relative', width: '100%' }}>
+    <div className="trend-chart-container" style={{ position: 'relative', width: '100%', minHeight: `${height}px` }}>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         style={{ width: '100%', height: 'auto', overflow: 'visible', cursor: 'crosshair' }}
@@ -488,7 +488,7 @@ export default function OverviewPage() {
   const prevCutoffDate = prevPeriodDays !== Infinity ? new Date(new Date().getTime() - prevPeriodDays * 86400000) : null;
   const prevStats = calculateOrderStats(orders, { cutoffDate: prevCutoffDate });
 
-  const activeOrdersCount = orders.filter(o => o.fulfillmentStatus !== 'delivered' && o.fulfillmentStatus !== 'cancelled').length;
+  const activeOrdersCount = orders.filter(o => o.fulfillmentStatus !== 'completed' && o.fulfillmentStatus !== 'cancelled').length;
   const pendingPaymentCount = combinedStats.awaitingPaymentCount;
 
   const revDelta = prevStats.totalRevenue > 0 ? Math.round(((combinedStats.totalRevenue - prevStats.totalRevenue) / prevStats.totalRevenue) * 100) : null;
@@ -496,13 +496,13 @@ export default function OverviewPage() {
 
   const hasData = combinedStats.totalRevenue > 0 || combinedStats.totalOrdersCount > 0;
 
-  // Compute order status distribution from real orders
+  // Compute order status distribution from real orders (using dashboard-mapped values)
   const orderStatusData = {
-    delivered: { key: 'delivered', label: 'Delivered', value: orders.filter(o => o.fulfillmentStatus === 'delivered').length, color: 'var(--chart-good, #5E9470)' },
-    preparing: { key: 'preparing', label: 'Processing', value: orders.filter(o => o.fulfillmentStatus === 'preparing').length, color: 'var(--chart-progress, #D0A24A)' },
+    completed: { key: 'completed', label: 'Delivered', value: orders.filter(o => o.fulfillmentStatus === 'completed').length, color: 'var(--chart-good, #5E9470)' },
+    packaging: { key: 'packaging', label: 'Processing', value: orders.filter(o => o.fulfillmentStatus === 'packaging').length, color: 'var(--chart-progress, #D0A24A)' },
     ready: { key: 'ready', label: 'Packed', value: orders.filter(o => o.fulfillmentStatus === 'ready').length, color: 'var(--chart-info, #5F82A6)' },
-    dispatched: { key: 'dispatched', label: 'Dispatched', value: orders.filter(o => o.fulfillmentStatus === 'dispatched').length, color: 'var(--chart-sage, #6E9C7B)' },
-    pending: { key: 'pending', label: 'Pending Payment', value: orders.filter(o => o.paymentStatus === 'pending' && o.fulfillmentStatus !== 'cancelled').length, color: 'var(--chart-bad, #B9645C)' }
+    delivery: { key: 'delivery', label: 'Dispatched', value: orders.filter(o => o.fulfillmentStatus === 'delivery').length, color: 'var(--chart-sage, #6E9C7B)' },
+    pending_payment: { key: 'pending_payment', label: 'Pending Payment', value: orders.filter(o => o.paymentStatus === 'pending' && o.fulfillmentStatus !== 'cancelled').length, color: 'var(--chart-bad, #B9645C)' }
   };
 
   // Inventory data - derived from products table
