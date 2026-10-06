@@ -355,6 +355,10 @@ Since all pages now use the same shared cache fed by Supabase, and the cache rep
 
 **Status:** IMPLEMENTED - Details editor added, stock validation added, taxonomy already shared.
 
+## T5: Settings Toggle Audit - IN PROGRESS
+
+**Status:** Partially completed - Started audit of SettingsPage. Full audit of all settings on all tabs (Store, Delivery, Inventory, Notifications, Security, Page Content, Data) in progress.
+
 
 
 ### SQL File Created
