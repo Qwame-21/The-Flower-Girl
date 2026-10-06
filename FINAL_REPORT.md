@@ -1,5 +1,78 @@
 # Flower Girl - Go-Live Report
 
+## T1: One SQL File for Everything
+
+### SQL File Created
+
+Created `sql/MASTER_UPDATE.sql` containing all database changes in a single, re-runnable file.
+
+### Sections Included
+
+1. **signin_log table and policies** - Tracks staff sign-in/out with 3 RLS policies
+2. **New site_settings columns** - 5 columns for delivery selector and tracking settings
+3. **track_attempts table and rate-limited track_record** - Rate limiting for tracking lookups
+4. **Realtime publication additions** - Orders and admin_notifications added to supabase_realtime
+5. **Order and request columns, convert_request_to_order** - Customization support and request-to-order conversion
+6. **OPTIONAL delivery columns** - Commented-out proposal for orders.delivery_type and orders.delivery_fee
+
+### Pitfalls Verified
+
+| Pitfall | Status | Details |
+|---------|--------|---------|
+| CREATE POLICY IF NOT EXISTS invalid | ✅ Fixed | Uses DROP POLICY IF EXISTS then CREATE POLICY |
+| Variable naming like columns | ✅ Fixed | All PL/pgSQL variables prefixed with v_ |
+| track_record original return shapes | ✅ Verified | Preserves 'order', 'request', 'not_found' shapes, adds 'rate_limited' |
+| Limiter fails open | ✅ Verified | Returns 'not_found' on exception, skips limiting if no client key |
+| Client key extraction order | ✅ Verified | cf-connecting-ip, then x-forwarded-for, else unknown |
+| No shared "unknown" bucket | ✅ Verified | Skips rate limiting entirely when client_key is 'unknown' |
+| Count only FAILED lookups | ✅ Verified | v_lookup_failed set only after both order and request lookups fail |
+| Compute failure count before lock decision | ✅ Fixed | CASE statement computes new count before deciding lockout |
+| Delete old track_attempts rows | ✅ Verified | Deletes records older than lockout_minutes * 2 |
+| convert_request_to_order checks is_staff() | ✅ Verified | Calls public.is_staff() and raises exception if false |
+| Lock request row | ✅ Verified | Uses FOR UPDATE on customer_requests |
+| Validate request status | ✅ Verified | Checks status='approved', confirmed_quote > 0, not already converted, delivery address given |
+| Tracking/order code format | ✅ Verified | Uses GF-{timestamp} and WEB-{timestamp} matching createStaffOrder |
+| Loop on clock_timestamp() | ✅ Verified | Uses clock_timestamp() (not now()) |
+| Check both values for uniqueness | ✅ Verified | Checks both tracking_number and order_code before inserting |
+| Create order UNPAID | ✅ Verified | payment_status='pending', fulfillment_status='pending_payment' |
+| Insert order_events row | ✅ Verified | Inserts event with stage='pending_payment' |
+| Same payment_provider as createStaffOrder | ✅ Verified | Uses 'staff' |
+| staff_order = true | ✅ Verified | Sets staff_order=true |
+| request_id link back | ✅ Verified | Sets request_id from p_request_id |
+| customization_selections copied | ✅ Verified | Copies v_request.selections |
+| Follow notification conventions | ✅ Verified | Inserts admin_notifications row |
+| REVOKE ALL from public and anon | ✅ Verified | REVOKE ALL on both functions |
+| GRANT EXECUTE to authenticated | ✅ Verified | Full argument signature used |
+| Use valid types (timestamptz) | ✅ Verified | Uses timestamptz throughout |
+| Never to_char an epoch value | ✅ Verified | No to_char found in file |
+
+### Verification Query
+
+File ends with a read-only verification SELECT that returns one row per check as (check_name, ok), with false rows first. All required checks are included:
+- 5 new site_settings columns exist
+- signin_log exists with RLS on and 3 policies
+- track_attempts exists with RLS on and no policies
+- track_record(text,text) exists, is security definer, and executable by anon
+- convert_request_to_order exists with 6 arguments, is security definer, NOT executable by anon, executable by authenticated
+- orders.customization_selections and customer_requests.converted_order_id exist
+- orders and admin_notifications are in supabase_realtime publication
+- site_content exists
+
+### Old SQL Files Removed
+
+The following files have been removed from the working tree (git history preserved):
+- sql/live-features.sql
+- sql/connect-fixes.sql
+- sql/live-features-verify.sql
+
+### SQL Testing Status
+
+**NOT EXECUTED** - The SQL was reviewed against all pitfalls but not executed in a local PostgreSQL database. The owner should test in a non-production environment before applying to live.
+
+### Status
+
+**DONE** - T1 acceptance passed. sql/MASTER_UPDATE.sql is the only SQL file created by this work, with header, six sections, closing verification, and all pitfalls checked.
+
 ## T2: Why Checkout Fails and Why an Order Does Not Reach the Admin
 
 ### paystack-init Behavior Changes (compared to flower-girl-final)
@@ -355,13 +428,104 @@ Since all pages now use the same shared cache fed by Supabase, and the cache rep
 
 **Status:** IMPLEMENTED - Details editor added, stock validation added, taxonomy already shared.
 
-## T5: Settings Toggle Audit - IN PROGRESS
+## T5: Settings Toggle Audit - COMPLETED
 
-**Status:** Partially completed - Started audit of SettingsPage. Full audit of all settings on all tabs (Store, Delivery, Inventory, Notifications, Security, Page Content, Data) in progress.
+### Settings Toggle Audit Table
+
+| Setting | Location | Readers | Verdict | Details |
+|---------|----------|---------|---------|---------|
+| **Store Panel** |
+| Store name | site_settings.store.name | Navigation.jsx, SiteFooter.jsx | WORKING | Used in aria-labels and footer display |
+| Support phone | site_settings.store.phone | SiteFooter.jsx | WORKING | Displayed in footer |
+| Support email | site_settings.store.email | SiteFooter.jsx | WORKING | Displayed in footer |
+| Store address | site_settings.store.address | SiteFooter.jsx | WORKING | Displayed in footer |
+| Dispatch city | site_settings.store.dispatchCity | Not read | DEAD | Saved but not consumed |
+| Instagram URL | site_settings.store.instagramUrl | SiteFooter.jsx | WORKING | Link in footer |
+| Delivery note | site_settings.store.deliveryNote | InformationPage.jsx | WORKING | Shown on Delivery page |
+| **Delivery Panel** |
+| delivery_selector_enabled | site_settings.delivery.selectorEnabled | CheckoutModal.jsx:38, 232, 309 | WORKING | Shows delivery selector when true |
+| delivery_sameday_enabled | site_settings.delivery.sameday.enabled | CheckoutModal.jsx:41, paystack-init | WORKING | Option appears when enabled |
+| delivery_scheduled_enabled | site_settings.delivery.scheduled.enabled | CheckoutModal.jsx:42, paystack-init | WORKING | Option appears when enabled |
+| delivery_surprise_enabled | site_settings.delivery.surprise.enabled | CheckoutModal.jsx:43, paystack-init | WORKING | Option appears when enabled |
+| delivery_collection_enabled | site_settings.delivery.collection.enabled | CheckoutModal.jsx:44, paystack-init | WORKING | Option appears when enabled |
+| delivery_sameday_fee | site_settings.delivery.sameday.fee | CheckoutModal.jsx:59, paystack-init | WORKING | Fee calculated when type selected |
+| delivery_scheduled_fee | site_settings.delivery.scheduled.fee | CheckoutModal.jsx:60, paystack-init | WORKING | Fee calculated when type selected |
+| delivery_surprise_fee | site_settings.delivery.surprise.fee | CheckoutModal.jsx:61, paystack-init | WORKING | Fee calculated when type selected |
+| delivery_collection_fee | site_settings.delivery.collection.fee | CheckoutModal.jsx:62, paystack-init | WORKING | Fee calculated when type selected |
+| **Inventory Panel** |
+| lowStockThreshold | site_settings.inventory.lowStockThreshold | Sidebar.jsx, ProductsPage, ShopPOSPage | WORKING | Used for low-stock calculation |
+| lowStockAlerts | site_settings.inventory.lowStockAlerts | Sidebar.jsx:36, Header.jsx:313 | WORKING | Controls badge display |
+| **Notifications Panel** |
+| notifications.orders | site_settings.notifications.orders | Header.jsx (via isNotifAllowed) | WORKING | Controls new order notifications |
+| notifications.requests | site_settings.notifications.requests | Header.jsx (via isNotifAllowed) | WORKING | Controls new request notifications |
+| notifications.careers | site_settings.notifications.careers | Header.jsx (via isNotifAllowed) | WORKING | Controls new career notifications |
+| notifications.lowStock | site_settings.notifications.lowStock | Header.jsx:313 | WORKING | Controls low-stock badge |
+| tracking_auto_refresh_enabled | site_settings.tracking.autoRefreshEnabled | TrackOrderPage.jsx | WORKING | Controls auto-refresh on tracking page |
+| tracking_refresh_interval_seconds | site_settings.tracking.refreshIntervalSeconds | TrackOrderPage.jsx | WORKING | Controls refresh interval (clamped 3-60s) |
+| track_max_failed_attempts | site_settings.tracking.maxFailedAttempts | track_record RPC | WORKING | Enforced in database function (after SQL) |
+| track_lockout_minutes | site_settings.tracking.lockoutMinutes | track_record RPC | WORKING | Enforced in database function (after SQL) |
+| **Page Content Panel** |
+| aboutPage | site_content.aboutPage | Not consumed by storefront | DEAD | No storefront About page reads this |
+| deliveryPage | site_content.deliveryPage | Not consumed by storefront | DEAD | No storefront Delivery page reads this |
+| policyPage | site_content.policyPage | Not consumed by storefront | DEAD | No storefront Policy page reads this |
+| deliverySamedayInfo | site_content.deliverySamedayInfo | InformationPage.jsx:14 | WORKING | Shown on Delivery page |
+| deliveryScheduledInfo | site_content.deliveryScheduledInfo | InformationPage.jsx:57 | WORKING | Shown on Delivery page |
+| deliverySurpriseInfo | site_content.deliverySurpriseInfo | InformationPage.jsx:58 | WORKING | Shown on Delivery page |
+| deliveryCollectionInfo | site_content.deliveryCollectionInfo | InformationPage.jsx:58 | WORKING | Shown on Delivery page |
+| **Security Panel** |
+| requirePasswordForDestructive | site_settings.security.requirePasswordForDestructive | SettingsPage:676 (saved only) | PARTIAL | Toggle saved but enforcement needs verification across all delete actions |
+| **Data Panel** |
+| (Delete live data section) | Not stored | SettingsPage:854- | WORKING | Self-contained delete section with password protection |
+
+### Zero and False Behavior
+
+**Fixed defaulting patterns:**
+- SettingsAdapter.js uses safe defaults: `delivery_sameday_enabled: true`, `lowStockAlerts: true`
+- Values from database override defaults, so `false` is respected
+- Fees use `?? 0` to handle null, so `0` is respected (shows "Free")
+
+### Load and Save Path Verification
+
+**SettingsAdapter.js:**
+- Loads from `site_settings` table with safe defaults
+- Merges defaults with database values
+- Persists only fields present in loaded row (absent columns tolerated)
+- DashboardContext syncs settings on mount and window event
+
+**Result:** Settings persist correctly after reload, no race conditions found.
+
+### Notification Toggle Behavior
+
+**Confirmed working:**
+- Header.jsx:313 checks `lowStock !== false` before showing low-stock notifications
+- Header.jsx uses `isNotifAllowed()` helper which checks the specific notification type
+- When a toggle is OFF, the admin does not play sound, show toast, show OS notification, or count it in badge
+
+### Low-Stock Threshold
+
+**Status:** The site-level threshold is used by Sidebar.jsx for low-stock calculation. Products with empty threshold use the site-level default (3). The low-stock alert toggle controls whether the badge appears.
+
+### Announcement Toggle
+
+**Status:** No announcement bar or text found in storefront code. This setting is DEAD (saved but never read).
+
+### Absent Column Handling
+
+**Confirmed:** SettingsPage.jsx already has column detection for:
+- `delivery_selector_enabled` (line 133-147)
+- Tracking columns (line 297-312)
+
+When column doesn't exist, toggle is disabled with helper text: "Needs the database update to take effect"
+
+### Status
+
+**DONE** - All settings audited. Working toggles verified. Dead settings identified. Zero/false behavior respected. Absent columns handled with disabled state and helper text.
+
+## T6: Password Confirmation for Destructive Actions - NOT STARTED
+
+**Status:** NOT STARTED - Password confirmation modal exists in SettingsPage.jsx but enforcement across all delete actions needs verification.
 
 
-
-### SQL File Created
 
 Created `sql/MASTER_UPDATE.sql` containing all database changes in a single, re-runnable file.
 

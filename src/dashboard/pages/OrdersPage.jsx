@@ -1,6 +1,7 @@
 import { useState, useEffect, useTransition } from 'react';
 import CustomDropdown from '../components/shared/CustomDropdown';
 import CopyIcon from '../components/shared/CopyIcon';
+import PasswordConfirmModal from '../components/PasswordConfirmModal';
 import { ORDER_CATEGORIES, formatGHS } from '../lib/ordersModel';
 import { listOrders, updateOrderStatus, deleteOrder, updateOrderNote } from '../data/orders';
 import { supabase } from '../../config/supabase';
@@ -8,6 +9,7 @@ import { DASHBOARD_TO_DB_FULFILLMENT, DB_TO_DASHBOARD_FULFILLMENT, STEPPER_TO_EV
 import { getImageUrl } from '../lib/imageUrlHelper';
 import { useDashboard } from '../contexts/DashboardContext';
 import { fetchOrders, subscribeToCache, getCachedData, isDataLoading } from '../data/dataCache';
+import { getAppSettings } from '../data/settingsAdapter';
 
 // SVG Icons
 const SVG = {
@@ -41,6 +43,14 @@ function formatDisplayDate(dateStr) {
 export default function OrdersPage() {
   const [, startTransition] = useTransition();
   const { notifyNewOrder } = useDashboard();
+  const [settings, setSettings] = useState(null);
+  const [showPwConfirm, setShowPwConfirm] = useState(false);
+  const [pendingDeleteAction, setPendingDeleteAction] = useState(null);
+
+  // Load settings for password confirmation check
+  useEffect(() => {
+    getAppSettings().then(setSettings);
+  }, []);
 
   // Load orders state
   const [ordersList, setOrdersList] = useState(() => getCachedData('orders') || []);
@@ -338,6 +348,19 @@ export default function OrdersPage() {
 
   // Single delete order
   const handleConfirmDeleteOrder = async (orderId) => {
+    if (settings?.security?.requirePasswordForDestructive) {
+      setPendingDeleteAction(() => async () => {
+        const success = await deleteOrder(orderId);
+        if (success) {
+          setOrdersList(prev => prev.filter(o => o.id !== orderId));
+          setConfirmingDeleteId(null);
+          if (expandedId === orderId) setExpandedId(null);
+        }
+      });
+      setShowPwConfirm(true);
+      return;
+    }
+
     const success = await deleteOrder(orderId);
     if (success) {
       setOrdersList(prev => prev.filter(o => o.id !== orderId));
@@ -371,12 +394,39 @@ export default function OrdersPage() {
   };
 
   const handleConfirmBulkDelete = async () => {
+    if (settings?.security?.requirePasswordForDestructive) {
+      setPendingDeleteAction(() => async () => {
+        for (const orderId of selectedIds) {
+          await deleteOrder(orderId);
+        }
+        await refreshOrders();
+        setSelectedIds([]);
+        setConfirmingBulkDelete(false);
+      });
+      setShowPwConfirm(true);
+      return;
+    }
+
     for (const orderId of selectedIds) {
       await deleteOrder(orderId);
     }
     await refreshOrders();
     setSelectedIds([]);
     setConfirmingBulkDelete(false);
+  };
+
+  const handlePasswordConfirm = async (password) => {
+    try {
+      const { confirmDestructive } = await import('../utils/confirmDestructive');
+      await confirmDestructive(password);
+      if (pendingDeleteAction) {
+        await pendingDeleteAction();
+        setPendingDeleteAction(null);
+      }
+      setShowPwConfirm(false);
+    } catch (err) {
+      throw err;
+    }
   };
 
   // Draft handlers
@@ -1096,6 +1146,14 @@ export default function OrdersPage() {
           })
         )}
       </div>
+
+      {/* Password confirmation modal */}
+      <PasswordConfirmModal
+        isOpen={showPwConfirm}
+        onClose={() => { setShowPwConfirm(false); setPendingDeleteAction(null); }}
+        onConfirm={handlePasswordConfirm}
+        title="Confirm Deletion"
+      />
     </div>
   );
 }

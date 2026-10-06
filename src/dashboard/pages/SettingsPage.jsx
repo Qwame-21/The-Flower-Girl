@@ -852,7 +852,7 @@ function SecurityPanel({ s, onChange }) {
 
 // ─── Panel: Data ──────────────────────────────────────────────────────────────
 function DataPanel() {
-  const { onSignOut } = useDashboard();
+  const [userRole, setUserRole] = useState(null);
   const [dbCounts, setDbCounts] = useState({ orders: 0, products: 0, requests: 0, reviews: 0, notifications: 0, applications: 0 });
   const [loadingCounts, setLoadingCounts] = useState(true);
   const [deleteCategories, setDeleteCategories] = useState({ orders: false, requests: false, reviews: false, notifications: false, applications: false });
@@ -891,7 +891,24 @@ function DataPanel() {
   }
 
   useEffect(() => {
-    loadCounts();
+    async function init() {
+      await loadCounts();
+      // Load user role for access control
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: roleData } = await supabase
+            .from('staff_users')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+          setUserRole(roleData?.role || null);
+        }
+      } catch (err) {
+        console.warn('Error loading user role:', err);
+      }
+    }
+    init();
   }, []);
 
   function escCSV(v) {
@@ -990,7 +1007,7 @@ function DataPanel() {
         await pendingDeleteAction();
         setPendingDeleteAction(null);
       }
-      setShowPwConfirm(false);
+      setShowDataPwConfirm(false);
     } catch (err) {
       throw err;
     }
@@ -1045,6 +1062,7 @@ function DataPanel() {
       </div>
 
       {/* Delete live data section - owner/admin only */}
+      {userRole === 'owner' || userRole === 'admin' ? (
       <div className="settings-card" style={{ borderColor: 'rgba(161,75,69,.2)' }}>
         <h2 style={{ color: '#a14b45' }}>Delete live data</h2>
         <div className="sub">Permanently delete production data. Export first as backup.</div>
@@ -1092,6 +1110,12 @@ function DataPanel() {
           </button>
         </div>
       </div>
+      ) : (
+        <div className="settings-card" style={{ opacity: 0.6 }}>
+          <h2 style={{ color: '#a14b45' }}>Delete live data</h2>
+          <div className="sub">This section is only available to owner and admin roles.</div>
+        </div>
+      )}
 
       {/* Delete confirmation modal */}
       {showDeleteModal && (

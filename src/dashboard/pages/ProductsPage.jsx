@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import CustomDropdown from '../components/shared/CustomDropdown';
+import PasswordConfirmModal from '../components/PasswordConfirmModal';
 import { getImageUrl } from '../lib/imageUrlHelper';
 import { PRODUCT_CATEGORIES, PRODUCT_TAGS } from '../../shared/taxonomy';
 import {
@@ -17,6 +18,7 @@ import {
   updatePromotion,
   deletePromotion
 } from '../data/products';
+import { getAppSettings } from '../data/settingsAdapter';
 
 const PRODUCTS_KEY = 'xa12-products-data-v1';
 
@@ -196,6 +198,7 @@ function normalizeProduct(p, idx = 0) {
 }
 
 export default function ProductsPage() {
+  const [settings, setSettings] = useState(null);
   const [products, setProducts] = useState([]);
   const [promotions, setPromotions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -212,8 +215,15 @@ export default function ProductsPage() {
   const [bulkDiscountInput, setBulkDiscountInput] = useState('');
   const [bulkStatusMessageText, setBulkStatusMessageText] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [showPwConfirm, setShowPwConfirm] = useState(false);
+  const [pendingDeleteAction, setPendingDeleteAction] = useState(null);
 
   const fileInputRef = useRef(null);
+
+  // Load settings for password confirmation check
+  useEffect(() => {
+    getAppSettings().then(setSettings);
+  }, []);
 
   // Form state for drawer
   const [formName, setFormName] = useState('');
@@ -440,12 +450,40 @@ export default function ProductsPage() {
   };
 
   const handleDeleteProduct = async (id) => {
+    if (settings?.security?.requirePasswordForDestructive) {
+      setPendingDeleteAction(() => async () => {
+        const result = await deleteProduct(id);
+        if (result.success) {
+          const productsData = await listProducts();
+          const normalizedProducts = productsData.map((p, idx) => normalizeProduct(p, idx));
+          setProducts(normalizedProducts);
+          setConfirmDeleteId(null);
+        }
+      });
+      setShowPwConfirm(true);
+      return;
+    }
+
     const result = await deleteProduct(id);
     if (result.success) {
       const productsData = await listProducts();
       const normalizedProducts = productsData.map((p, idx) => normalizeProduct(p, idx));
       setProducts(normalizedProducts);
       setConfirmDeleteId(null);
+    }
+  };
+
+  const handlePasswordConfirm = async (password) => {
+    try {
+      const { confirmDestructive } = await import('../utils/confirmDestructive');
+      await confirmDestructive(password);
+      if (pendingDeleteAction) {
+        await pendingDeleteAction();
+        setPendingDeleteAction(null);
+      }
+      setShowPwConfirm(false);
+    } catch (err) {
+      throw err;
     }
   };
 
@@ -1300,6 +1338,14 @@ export default function ProductsPage() {
           </div>
         </div>
       </div>
+
+      {/* Password confirmation modal */}
+      <PasswordConfirmModal
+        isOpen={showPwConfirm}
+        onClose={() => { setShowPwConfirm(false); setPendingDeleteAction(null); }}
+        onConfirm={handlePasswordConfirm}
+        title="Confirm Deletion"
+      />
     </div>
   );
 }
