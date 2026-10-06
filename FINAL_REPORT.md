@@ -295,6 +295,66 @@ Since all pages now use the same shared cache fed by Supabase, and the cache rep
 
 **Conclusion:** The revenue discrepancy described in the old report was already resolved by the shared cache implementation. The 3,750 value in adminStore defaults is not used by the current revenue calculation.
 
+## T4: Admin Forms Must Match What the Storefront Uses
+
+### Details & Benefits Editor - IMPLEMENTED
+
+**Storage:** Uses existing `products.details` column (jsonb array of strings). No SQL needed.
+
+**Placement:** Added directly under Description field in admin product form (ProductsPage.jsx:1086-1184).
+
+**Behavior:**
+- Shows list of saved details with remove, move up, move down controls
+- Input field to add new detail (Enter key also adds)
+- Max 10 items, each 1-80 characters after trimming
+- No duplicates (case-insensitive check)
+- Quick add row with suggestion chips from hardcoded products and live products
+- Up to 12 suggestions shown, excluding already-added details
+
+**Saving:** Stores array of plain strings in `details` on create and update. Update path preserves existing details.
+
+**Storefront Integration:** liveProducts.js line 21 already maps `dbProduct.details` to `includes` array, ProductDetail.jsx line 9 renders as ticked list.
+
+**Status:** IMPLEMENTED - Details editor complete with all required features.
+
+### Stock Validation - IMPLEMENTED
+
+**Change:** Stock is now a required field with validation in admin product form (ProductsPage.jsx:372-379).
+
+**Error message:** "Enter how many are in stock" or "Enter a valid stock quantity".
+
+**Status:** IMPLEMENTED - Stock cannot silently default to 0.
+
+### Taxonomy Dropdowns - ALREADY IMPLEMENTED
+
+**Shared module:** `src/shared/taxonomy.js` exists with:
+- PRODUCT_CATEGORIES (hampers, bundles, care, flowers, personalized)
+- PRODUCT_TAGS (Signature, Seasonal, Subscription, Fresh, etc.)
+- GALLERY_CATEGORIES, CAREER_LOCATIONS, CAREER_EMPLOYMENT_TYPES, CAREER_STATUSES, CUSTOMIZATION_CATEGORIES
+
+**Admin form:** ProductsPage.jsx already uses category and tag dropdowns from shared taxonomy (lines 8, 952-966, 979-993).
+
+**Storefront:** Storefront filters use categories from shared taxonomy.
+
+**Status:** ALREADY IMPLEMENTED - Taxonomy shared between admin and storefront.
+
+### Field Parity Table
+
+| Admin Field | Storefront Use | Gap | Fix |
+|-------------|----------------|-----|-----|
+| Category (dropdown) | Shop filters, menu groupings | Already shared | Already using shared taxonomy |
+| Tag (dropdown) | Product card tag display | Already shared | Already using shared taxonomy |
+| Description | Product detail modal | Already matches | No change needed |
+| Details list | Product detail modal "Details & benefits" | Was missing | Added details editor |
+| Price | Product card, detail modal | Already matches | No change needed |
+| Stock | Sold-out state | Was not required | Added required validation |
+| Low stock threshold | Low-stock alerts | Already matches | No change needed |
+| Image | Product card, detail modal | Already matches | No change needed |
+| Secondary image | Not used by storefront | N/A | No change needed |
+| Visibility | Product appears/disappears | Already matches | No change needed |
+
+**Status:** IMPLEMENTED - Details editor added, stock validation added, taxonomy already shared.
+
 
 
 ### SQL File Created

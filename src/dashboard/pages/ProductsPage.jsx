@@ -187,6 +187,7 @@ function normalizeProduct(p, idx = 0) {
     variants: [],
     imageUrl: getImageUrl(p.image_path) || fallbackImg,
     description: p.description || '',
+    details: Array.isArray(p.details) ? p.details : [],
     sizeType: '',
     isBestseller: false,
     isTrending: false,
@@ -224,6 +225,8 @@ export default function ProductsPage() {
   const [formThreshold, setFormThreshold] = useState('3');
   const [formDiscount, setFormDiscount] = useState('');
   const [formDescription, setFormDescription] = useState('');
+  const [formDetails, setFormDetails] = useState([]);
+  const [formNewDetail, setFormNewDetail] = useState('');
   const [formTag, setFormTag] = useState('SIGNATURE');
   const [formNewTagInput, setFormNewTagInput] = useState('');
   const [formSizeType, setFormSizeType] = useState('');
@@ -346,6 +349,8 @@ export default function ProductsPage() {
     setFormThreshold(p.threshold !== undefined ? String(p.threshold) : '3');
     setFormDiscount(p.discountPercent ? String(p.discountPercent) : '');
     setFormDescription(p.description || '');
+    setFormDetails(p.details || []);
+    setFormNewDetail('');
     setFormTag(p.occasion || 'SIGNATURE');
     setFormNewTagInput('');
     setFormSizeType(p.sizeType || '');
@@ -397,7 +402,7 @@ export default function ProductsPage() {
       low_stock_threshold: isNaN(thresholdVal) ? 3 : thresholdVal,
       tag: finalTag || '',
       description: formDescription.trim(),
-      details: [],
+      details: formDetails,
       image_path: formImageUrl.trim(),
       secondary_image_path: null,
       visible: true,
@@ -521,6 +526,30 @@ export default function ProductsPage() {
     } finally {
       setImporting(false);
     }
+  };
+
+  const handleAddDetail = () => {
+    const trimmed = formNewDetail.trim();
+    if (!trimmed) return;
+    if (formDetails.length >= 10) return;
+    if (formDetails.some(d => d.toLowerCase() === trimmed.toLowerCase())) {
+      setFormError('This detail already exists');
+      return;
+    }
+    if (trimmed.length < 1 || trimmed.length > 80) {
+      setFormError('Detail must be 1 to 80 characters');
+      return;
+    }
+    setFormDetails([...formDetails, trimmed]);
+    setFormNewDetail('');
+    setFormError('');
+  };
+
+  const getQuickAddSuggestions = () => {
+    const hardcodedDetails = DEFAULT_PRODUCTS.flatMap(p => p.details || []);
+    const liveDetails = products.flatMap(p => p.details || []);
+    const allDetails = [...new Set([...hardcodedDetails, ...liveDetails])];
+    return allDetails.filter(d => !formDetails.includes(d));
   };
 
   const getPromotionPercent = (productId) => {
@@ -1078,6 +1107,109 @@ export default function ProductsPage() {
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
               />
+            </div>
+
+            {/* 6. Details & Benefits */}
+            <div className="field-group">
+              <label className="field-label">Details & Benefits</label>
+              <div style={{ marginBottom: '0.5rem' }}>
+                {formDetails.map((detail, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <span style={{ flex: 1 }}>{detail}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newDetails = [...formDetails];
+                        newDetails.splice(idx, 1);
+                        setFormDetails(newDetails);
+                      }}
+                      style={{ padding: '4px 8px', fontSize: '12px', cursor: 'pointer' }}
+                    >
+                      Remove
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (idx > 0) {
+                          const newDetails = [...formDetails];
+                          [newDetails[idx - 1], newDetails[idx]] = [newDetails[idx], newDetails[idx - 1]];
+                          setFormDetails(newDetails);
+                        }
+                      }}
+                      disabled={idx === 0}
+                      style={{ padding: '4px 8px', fontSize: '12px', cursor: idx === 0 ? 'not-allowed' : 'pointer' }}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (idx < formDetails.length - 1) {
+                          const newDetails = [...formDetails];
+                          [newDetails[idx], newDetails[idx + 1]] = [newDetails[idx + 1], newDetails[idx]];
+                          setFormDetails(newDetails);
+                        }
+                      }}
+                      disabled={idx === formDetails.length - 1}
+                      style={{ padding: '4px 8px', fontSize: '12px', cursor: idx === formDetails.length - 1 ? 'not-allowed' : 'pointer' }}
+                    >
+                      ↓
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '0.5rem' }}>
+                <input
+                  type="text"
+                  className="field-input"
+                  placeholder="Add a detail"
+                  value={formNewDetail}
+                  onChange={(e) => setFormNewDetail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddDetail();
+                    }
+                  }}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddDetail}
+                  disabled={formDetails.length >= 10}
+                  style={{ padding: '8px 16px', cursor: formDetails.length >= 10 ? 'not-allowed' : 'pointer' }}
+                >
+                  Add
+                </button>
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <small style={{ color: 'var(--text-muted)' }}>Quick add:</small>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                  {getQuickAddSuggestions().slice(0, 12).map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => {
+                        if (!formDetails.includes(suggestion)) {
+                          setFormDetails([...formDetails, suggestion]);
+                        }
+                      }}
+                      disabled={formDetails.includes(suggestion) || formDetails.length >= 10}
+                      style={{
+                        padding: '4px 12px',
+                        fontSize: '12px',
+                        borderRadius: '16px',
+                        border: '1px solid var(--border)',
+                        background: formDetails.includes(suggestion) ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                        cursor: formDetails.includes(suggestion) || formDetails.length >= 10 ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <small style={{ color: 'var(--text-muted)' }}>{formDetails.length}/10 details</small>
             </div>
 
             {/* 7. Size / Type */}
