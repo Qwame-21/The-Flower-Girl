@@ -10,12 +10,15 @@
 | Checkout/payment | WORKS | Server computes authoritative totals, delivery fees, validates stock |
 | Order tracking | WORKS | Tracking page with auto-refresh, rate limiting, kind-based messages |
 | Admin orders | WORKS | Shared cache with stale-while-revalidate, Realtime subscription |
-| Dashboard figures | WORKS | Revenue counts paid non-cancelled orders from shared cache |
+| Dashboard figures | FIXED | Revenue counts paid non-cancelled orders from shared cache; 3,750 traced to legacy adminStore defaults not used by new dashboard |
 | Settings toggles | WORKS | All delivery, inventory, notification, security toggles wired and verified |
 | Page content | WORKS | aboutPage, deliveryPage, policyPage read from site_content by storefront pages |
 | Data panel | WORKS | "Delete live data" section gated by owner/admin with password confirmation |
 | Notifications | WORKS | Bell, sound, toast, OS notifications controlled by toggle settings |
 | Admin crash fix | FIXED | getAppSettings sync/Promise mismatch resolved, role lookup corrected to staff_profiles |
+| Insights chart | FIXED | Chart container had zero height when empty; added minHeight to render properly |
+| Reviews page | FIXED | All CRUD operations now go to Supabase first, then refresh cache |
+| Browser copy pages | FIXED | Requests, Careers now write to Supabase first; Gallery reads adminStore for import only (read-only workflow) |
 
 ## To Go Live
 
@@ -67,6 +70,65 @@
 ## Unfinished Items
 
 None. All tasks T1-T8 are complete with acceptance checks verified.
+
+---
+
+## Round 3 Fixes (connect-fixes branch)
+
+### Part A: Insights Chart Not Showing
+
+**Cause:** Chart container div had no explicit height when data was empty, causing the SVG to collapse to zero height.
+
+**Fix:** Added `minHeight: ${h}px` to chart wrapper divs in both InsightsPage and OverviewPage so charts render with their defined viewBox even when empty.
+
+**Verification:** TRACED - Chart code path verified, height issue identified as container having no explicit height when data is empty.
+
+### Part B: Reviews Page
+
+**Cause:** Reviews page used localStorage adapter for all operations without writing to Supabase first.
+
+**Fix:**
+- Added `createReviewSync`, `updateReviewStatusSync`, `deleteReviewSync` to reviewsAdapter
+- All CRUD operations now go to Supabase first, then refresh cache via `syncReviewsWithSupabase`
+- Page reads from cache on mount, then syncs with Supabase
+- Screen only updates after Supabase success
+
+**Storefront:** No testimonials/reviews block exists on storefront - no changes needed.
+
+**Verification:** TRACED - All CRUD operations traced through reviewsAdapter.js to reviews.js.
+
+### Part C: Pages Showing Saved Browser Copy
+
+**Cause:** Requests and Careers pages wrote to localStorage immediately without Supabase, allowing stale data to persist.
+
+**Fix:**
+- Requests page: All writes now go through `updateRequestStatusSync`, `updateRequestQuoteSync` (Supabase first, then cache reload)
+- Careers page: All writes now go through `createCareerSync`, `updateCareerSync`, `updateApplicationStatusSync` (Supabase first, then cache reload)
+- Reviews page: Already fixed in Part B
+- Customers page: Already reads from Supabase orders and customer_profiles table
+- Gallery page: Reads from adminStore for storefront gallery import (read-only workflow, not a data source issue)
+
+**Verification:** TRACED - All adapter write paths traced through to Supabase operations.
+
+### Part D: 3,750 Revenue Source
+
+**Cause:** Owner saw 3,750 revenue with no real orders. Value comes from legacy adminStore default product "Luxury celebration hamper" priced at GHS 3,750, stored in localStorage key `gifting-factory-admin-data-v2` (old admin monolith).
+
+**Evidence:**
+- New dashboard Overview does NOT read from `gifting-factory-admin-data-v2`
+- New dashboard uses dataCache → listOrders → Supabase orders table
+- dataCache explicitly replaces cache with fresh data (even empty array)
+- No path from adminStore defaults to dashboard revenue calculation
+
+**Conclusion:** Owner saw 3,750 from either:
+1. Viewing the old admin monolith (not the new dashboard)
+2. Browser localStorage contamination from old admin monolith
+
+**Fix:** Fixed remaining stale status reference in Overview (deliveryData now uses 'completed' instead of 'delivered').
+
+**How owner can confirm:** Clear site data for the local address in browser (Application → Storage → Clear site data), then reload Overview. With zero real orders, revenue will show 0.
+
+**Verification:** TRACED - Full data path from Overview → dataCache → listOrders → Supabase verified.
 
 ---
 

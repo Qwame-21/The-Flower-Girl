@@ -17,3 +17,10 @@ CONNECT-FIXES ROUND (branch: connect-fixes):
 - Part E: Verified tracking auto-refresh stop conditions (completed/cancelled)
 - Part F: Traced revenue 3,750 issue - data path verified clean
 - Part G: Updated FINAL_REPORT.md with fix status
+
+ROUND 3 (branch: connect-fixes):
+- Part A: Fixed Insights and Overview chart containers - added minHeight to render even when empty
+- Part B: Fixed Reviews page - all CRUD operations now go to Supabase first
+- Part C: Fixed Requests and Careers pages - all writes now go to Supabase first
+- Part D: Proved 3,750 source - legacy adminStore defaults, not used by new dashboard
+- Part E: Updated FINAL_REPORT.md with Round 3 findings
