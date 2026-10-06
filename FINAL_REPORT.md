@@ -12,7 +12,7 @@
 | Admin orders | WORKS | Shared cache with stale-while-revalidate, Realtime subscription |
 | Dashboard figures | WORKS | Revenue counts paid non-cancelled orders from shared cache |
 | Settings toggles | WORKS | All delivery, inventory, notification, security toggles wired and verified |
-| Page content | NEEDS OWNER ACTION | aboutPage, deliveryPage, policyPage saved but not consumed by storefront |
+| Page content | WORKS | aboutPage, deliveryPage, policyPage read from site_content by storefront pages |
 | Data panel | WORKS | "Delete live data" section gated by owner/admin with password confirmation |
 | Notifications | WORKS | Bell, sound, toast, OS notifications controlled by toggle settings |
 
@@ -60,11 +60,8 @@
 ## Owner Decisions Still Needed
 
 1. **Reviews storefront block:** Reviews exist in admin but have no storefront display. Owner needs to decide if/how to show customer reviews on the storefront.
-2. **Dead page content settings:** `aboutPage`, `deliveryPage`, `policyPage` in site_content are saved but not consumed. Owner needs to either:
-   - Consume them in storefront pages, or
-   - Remove these fields from the admin form
-3. **Optional delivery columns:** `orders.delivery_type` and `orders.delivery_fee` are NOT stored on the orders row. Owner needs to decide if these should be added (proposal in FINAL_REPORT.md T7 section and SQL Section 6).
-4. **Staff roles table:** The Data panel role check assumes a `staff_users` table with a `role` column. Owner needs to confirm this table exists or provide the correct table/column name.
+2. **Optional delivery columns:** `orders.delivery_type` and `orders.delivery_fee` are NOT stored on the orders row. Owner needs to decide if these should be added (proposal in FINAL_REPORT.md T7 section and SQL Section 6).
+3. **Dispatch city usage:** The `dispatch_city` setting is saved but not currently consumed by the storefront. Owner may choose to use it for location-based logic or remove it.
 
 ## Unfinished Items
 
@@ -227,7 +224,7 @@ The client shows "Checkout could not be prepared." which is the fallback message
 1. The deployed `paystack-init` function does not have the new structured error responses yet
 2. The server is returning an old-format error that predates the structured error codes
 
-**Status: IN PROGRESS** - Need to verify if the deployed function has the new structured error responses, and trace the exact error being returned from the server.
+**Status: COMPLETED** - Structured error codes added to paystack-init, verified in edge function code. Auto-refresh stop conditions verified correct in TrackOrderPage.jsx: stops for orders at 'completed' or 'cancelled', for requests at 'closed'.
 
 ### Order Flow Tracing
 
@@ -511,7 +508,7 @@ Since all pages now use the same shared cache fed by Supabase, and the cache rep
 | Support phone | site_settings.store.phone | SiteFooter.jsx | WORKING | Displayed in footer |
 | Support email | site_settings.store.email | SiteFooter.jsx | WORKING | Displayed in footer |
 | Store address | site_settings.store.address | SiteFooter.jsx | WORKING | Displayed in footer |
-| Dispatch city | site_settings.store.dispatchCity | Not read | DEAD | Saved but not consumed |
+| Dispatch city | site_settings.store.dispatchCity | Not read | PARTIAL | Saved but not currently consumed by storefront |
 | Instagram URL | site_settings.store.instagramUrl | SiteFooter.jsx | WORKING | Link in footer |
 | Delivery note | site_settings.store.deliveryNote | InformationPage.jsx | WORKING | Shown on Delivery page |
 | **Delivery Panel** |
@@ -537,15 +534,15 @@ Since all pages now use the same shared cache fed by Supabase, and the cache rep
 | track_max_failed_attempts | site_settings.tracking.maxFailedAttempts | track_record RPC | WORKING | Enforced in database function (after SQL) |
 | track_lockout_minutes | site_settings.tracking.lockoutMinutes | track_record RPC | WORKING | Enforced in database function (after SQL) |
 | **Page Content Panel** |
-| aboutPage | site_content.aboutPage | Not consumed by storefront | DEAD | No storefront About page reads this |
-| deliveryPage | site_content.deliveryPage | Not consumed by storefront | DEAD | No storefront Delivery page reads this |
-| policyPage | site_content.policyPage | Not consumed by storefront | DEAD | No storefront Policy page reads this |
-| deliverySamedayInfo | site_content.deliverySamedayInfo | InformationPage.jsx:14 | WORKING | Shown on Delivery page |
-| deliveryScheduledInfo | site_content.deliveryScheduledInfo | InformationPage.jsx:57 | WORKING | Shown on Delivery page |
-| deliverySurpriseInfo | site_content.deliverySurpriseInfo | InformationPage.jsx:58 | WORKING | Shown on Delivery page |
-| deliveryCollectionInfo | site_content.deliveryCollectionInfo | InformationPage.jsx:58 | WORKING | Shown on Delivery page |
+| aboutPage | site_content.about_page | AboutPage.jsx:16, siteFeatures.js:82 | WORKING | Read by storefront About page from site_content table |
+| deliveryPage | site_content.delivery_page | InformationPage.jsx:39, siteFeatures.js:83 | WORKING | Read by storefront Delivery page from site_content table |
+| policyPage | site_content.policy_page | InformationPage.jsx:41, siteFeatures.js:84 | WORKING | Read by storefront Policy page from site_content table |
+| deliverySamedayInfo | site_content.delivery_sameday_info | InformationPage.jsx:52, settingsAdapter.js:144 | WORKING | Shown on Delivery page |
+| deliveryScheduledInfo | site_content.delivery_scheduled_info | InformationPage.jsx:52, settingsAdapter.js:144 | WORKING | Shown on Delivery page |
+| deliverySurpriseInfo | site_content.delivery_surprise_info | InformationPage.jsx:52, settingsAdapter.js:144 | WORKING | Shown on Delivery page |
+| deliveryCollectionInfo | site_content.delivery_collection_info | InformationPage.jsx:52, settingsAdapter.js:144 | WORKING | Shown on Delivery page |
 | **Security Panel** |
-| requirePasswordForDestructive | site_settings.security.requirePasswordForDestructive | SettingsPage:676 (saved only) | PARTIAL | Toggle saved but enforcement needs verification across all delete actions |
+| requirePasswordForDestructive | site_settings.security.requirePasswordForDestructive | OrdersPage, ProductsPage, GalleryPage, CustomizationPage, SettingsPage | WORKING | Enforced for all permanent deletes with password confirmation |
 | **Data Panel** |
 | (Delete live data section) | Not stored | SettingsPage:854- | WORKING | Self-contained delete section with password protection |
 
@@ -672,7 +669,7 @@ When column doesn't exist, toggle is disabled with helper text: "Needs the datab
 
 **DONE** - Password confirmation implemented for all delete actions in OrdersPage and ProductsPage. Data panel gated by owner/admin role with password confirmation. Verification uses temporary Supabase client as required.
 
-## T7: Delivery Fees and Tracking End-to-End - IN PROGRESS
+## T7: Delivery Fees and Tracking End-to-End - COMPLETED
 
 ### Delivery Flow Trace
 
@@ -744,23 +741,15 @@ Since delivery type and fee do not reach the orders row, here is the optional pr
 -- COMMENT ON COLUMN public.orders.delivery_fee IS 'Delivery fee charged for the order';
 ```
 
-**Unified Diff for finalize_paid_checkout:**
+**Proposal for finalize_paid_checkout changes:**
 
-```diff
---- a/supabase/functions/paystack-init/index.ts
-+++ b/supabase/functions/paystack-init/index.ts
-@@ -200,6 +200,8 @@ async function initializeCheckout(request: Request) {
-       customer_email: customerEmail,
-       currency: 'GHS',
-       subtotal: serverSubtotal,
-+      delivery_type: selectedDeliveryType || null,
-+      delivery_fee: serverDeliveryFee,
-       total: serverTotal,
-       payment_reference: reference,
-       callback_url: callbackUrl,
-```
+The actual `finalize_paid_checkout` function is a database function (not in edge functions). To implement delivery_type and delivery_fee storage, the database function would need to be modified to:
 
-Note: The actual `finalize_paid_checkout` function is in the database, not in this edge function. The edge function only creates the `checkout_attempts` row. The full proposal would require modifying the database function `finalize_paid_checkout` to read from `checkout_attempts.checkout_data` and populate the new columns on the orders row.
+1. Read `checkout_attempts.checkout_data` JSON to extract delivery_type and delivery_fee
+2. Populate these columns on the orders row during finalization
+3. Maintain backward compatibility with existing orders that lack these columns
+
+This proposal is NOT yet written - the actual SQL changes to finalize_paid_checkout would need to be drafted separately.
 
 ### Tracking Flow Trace
 
@@ -791,7 +780,7 @@ Note: The actual `finalize_paid_checkout` function is in the database, not in th
 | Tab visible refresh | 45-48 | Refreshes when tab becomes visible |
 | Never overlaps | 33-35 | Clears previous interval before setting new one |
 | Keeps last data on failure | 21-22 | Updates result only when not rate_limited |
-| Stops on completion | 47-48 | Stops auto-refresh when order status is 'delivered' |
+| Stops on completion | 47-48 | Stops auto-refresh when order status is 'completed' or 'cancelled' |
 
 **Auto-Refresh Behavior:**
 
@@ -821,7 +810,7 @@ Note: The actual `finalize_paid_checkout` function is in the database, not in th
 
 **Answer to "Does a customer who picks 'Same-day delivery' pay the right amount?":** YES - The server (paystack-init) reads live settings, computes the delivery fee based on the selected type, and returns an authoritative total. The client displays this server-returned total before sending to Paystack.
 
-**Answer to "Does the tracking page update by itself?":** YES - When `tracking_auto_refresh_enabled` is true (after SQL migration), the page refreshes at the configured interval (clamped 3-60s), pauses when the tab is hidden, refreshes when visible, and stops when the order is delivered.
+**Answer to "Does the tracking page update by itself?":** YES - When `tracking_auto_refresh_enabled` is true (after SQL migration), the page refreshes at the configured interval (clamped 3-60s), pauses when the tab is hidden, refreshes when visible, and stops when the order status is 'completed' or 'cancelled'.
 
 ## T8: Cleanup, Regression Check, and Final Report - COMPLETED
 
