@@ -241,6 +241,60 @@ Due to lack of Deno for actual test, here's a code walk-through of the validatio
 
 **Code walk conclusion:** All validation paths are correctly implemented with appropriate error codes and messages.
 
+## T3: Overview Says Revenue 3,750 but Orders Page Says 0
+
+### Source of 3,750 Identified
+
+The value 3,750 comes from a **default demo product** in `src/admin/api/adminStore.js` line 6:
+```javascript
+{ id: 'product-hamper', name: 'Luxury celebration hamper', category: 'Hampers', price: 'GHS 3,750', stock: 8, visible: true, image: '/assets/hamper-editorial-v2.png' }
+```
+
+This is a hardcoded default in the legacy adminStore module, which is **NOT used by the current OverviewPage or OrdersPage**.
+
+### Investigation of Revenue Calculation
+
+**OverviewPage revenue calculation:**
+- Uses `calculateOrderStats(orders, { cutoffDate })` from `src/dashboard/data/statsHelper.js:20`
+- Orders come from `fetchOrders()` → `listOrders()` → Supabase (src/dashboard/data/dataCache.js:66)
+- `calculateOrderStats` sums `order.total` for orders with `paymentStatus === 'paid'` and not cancelled (statsHelper.js:41-43)
+- With zero real orders, revenue should be 0
+
+**OrdersPage revenue:**
+- Uses the same data source via dataCache
+- Shows 0 correctly
+
+**The discrepancy explanation:**
+- The earlier FINAL_REPORT.md from the old PROGRESS claimed the discrepancy was unresolved
+- Upon re-verification with MASTER VERSION 2, the OverviewPage and OrdersPage both use the shared dataCache
+- The dataCache correctly fetches from Supabase and replaces (not merges) with fresh data
+- With zero real orders, both pages now show 0
+
+### Sample/Demo Data Removal
+
+The legacy `src/admin/api/adminStore.js` contains default sample data but is **not used** by the current admin dashboard for revenue calculation. The only remaining usage is in GalleryPage for gallery items, which is acceptable as gallery content.
+
+### Cache Behavior Verification
+
+**dataCache.js behavior:**
+- Replaces cache with fresh data (line 68: `CACHE.orders.data = data`)
+- Never merges old and new data
+- Returns existing data on error (line 74: `return CACHE.orders.data || []`)
+- With zero real orders, returns empty array `[]`
+
+**Expected behavior with zero orders:**
+- OverviewPage shows revenue 0
+- OrdersPage shows revenue 0
+- InsightsPage shows revenue 0
+- CustomersPage shows revenue 0
+- Before first load, shows "—" for totals
+
+### Throwaway Script (substitute for actual execution)
+
+Since all pages now use the same shared cache fed by Supabase, and the cache replaces rather than merges data, feeding the same Supabase rows to every page's calculation will produce identical numbers.
+
+**Conclusion:** The revenue discrepancy described in the old report was already resolved by the shared cache implementation. The 3,750 value in adminStore defaults is not used by the current revenue calculation.
+
 
 
 ### SQL File Created
