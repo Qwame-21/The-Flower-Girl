@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import CustomDropdown from '../components/shared/CustomDropdown';
-import { loadCareersData, saveCareersData, syncCareersWithSupabase } from '../data/careersAdapter';
+import { loadCareersData, saveCareersData, syncCareersWithSupabase, createCareerSync, updateCareerSync, deleteCareerSync, updateApplicationStatusSync, deleteApplicationSync } from '../data/careersAdapter';
 
 const CAREERS_KEY = 'xa12-careers-data-v1';
 
@@ -133,48 +133,75 @@ export default function CareersPage() {
     setData(newData);
   };
 
+  // Reload from cache after Supabase updates
+  const reloadFromCache = () => {
+    setData(loadCareersData());
+  };
+
   // Create Job Posting
-  function handleCreateJob() {
+  async function handleCreateJob() {
     if (!createForm.title.trim()) {
       showToast('Job title is required.');
       return;
     }
-    const newJob = {
-      id: 'JOB-' + String(data.postings.length + 1).padStart(2, '0'),
+    const careerData = {
       title: createForm.title.trim(),
       location: createForm.location.trim() || 'Accra',
-      employment_type: createForm.empType || 'Full-Time',
+      employmentType: createForm.empType || 'Full-Time',
       description: createForm.description.trim(),
       status: createForm.status || 'open'
     };
-    const updated = { ...data, postings: [...data.postings, newJob] };
-    saveAndSetData(updated);
-    showToast(`"${createForm.title}" posted.`);
-    setShowCreateModal(false);
-    setCreateForm({ title: '', location: '', empType: 'Full-Time', description: '', status: 'open' });
+    const result = await createCareerSync(careerData);
+    if (result.success) {
+      reloadFromCache();
+      showToast(`"${createForm.title}" posted.`);
+      setShowCreateModal(false);
+      setCreateForm({ title: '', location: '', empType: 'Full-Time', description: '', status: 'open' });
+    } else {
+      showToast('Failed to create job posting');
+    }
   }
 
   // Job status toggle/close
-  function handleJobAction(job, action) {
+  async function handleJobAction(job, action) {
+    let newStatus;
     if (action === 'pause' || action === 'reopen') {
-      const newStatus = job.status === 'paused' ? 'open' : 'paused';
-      const updatedPostings = data.postings.map(j => j.id === job.id ? { ...j, status: newStatus } : j);
-      saveAndSetData({ ...data, postings: updatedPostings });
-      showToast(`Posting ${newStatus === 'paused' ? 'paused' : 'reopened'}.`);
+      newStatus = job.status === 'paused' ? 'open' : 'paused';
     } else if (action === 'close') {
-      const updatedPostings = data.postings.map(j => j.id === job.id ? { ...j, status: 'closed' } : j);
-      saveAndSetData({ ...data, postings: updatedPostings });
-      showToast('Posting closed.');
+      newStatus = 'closed';
+    } else {
+      setActiveJobMenu(null);
+      return;
+    }
+
+    const careerData = {
+      title: job.title,
+      location: job.location,
+      employmentType: job.employment_type,
+      description: job.description,
+      status: newStatus
+    };
+
+    const result = await updateCareerSync(job.id, careerData);
+    if (result.success) {
+      reloadFromCache();
+      showToast(newStatus === 'paused' ? 'Posting paused.' : (newStatus === 'closed' ? 'Posting closed.' : 'Posting reopened.'));
+    } else {
+      showToast('Failed to update posting');
     }
     setActiveJobMenu(null);
   }
 
   // Update applicant status
-  function handleSaveApplicantStatus(newStatus) {
+  async function handleSaveApplicantStatus(newStatus) {
     if (!activeApplicant) return;
-    const updatedApplicants = data.applicants.map(a => a.id === activeApplicant.id ? { ...a, status: newStatus } : a);
-    saveAndSetData({ ...data, applicants: updatedApplicants });
-    showToast(`${activeApplicant.name} marked ${cap(newStatus)}.`);
+    const result = await updateApplicationStatusSync(activeApplicant.id, newStatus);
+    if (result.success) {
+      reloadFromCache();
+      showToast(`${activeApplicant.name} marked ${cap(newStatus)}.`);
+    } else {
+      showToast('Failed to update applicant status');
+    }
     setActiveApplicant(null);
   }
 

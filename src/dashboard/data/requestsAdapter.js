@@ -1,7 +1,7 @@
 // Adapter to make HOPESON RequestsPage work with Supabase
 // Returns data in the exact shape HOPESON expects
 
-import { listRequests } from './requests';
+import { listRequests, updateRequestStatus, updateRequestQuote, deleteRequest } from './requests';
 import { supabase } from '../../config/supabase';
 
 const REQUESTS_KEY = 'xa12_custom_requests';
@@ -17,7 +17,7 @@ export function loadRequestsData() {
   return [];
 }
 
-// Save requests to localStorage
+// Save requests to localStorage (cache only, writes go through Supabase)
 export function saveRequestsData(list) {
   try {
     localStorage.setItem(REQUESTS_KEY, JSON.stringify(list));
@@ -61,6 +61,33 @@ export async function syncRequestsWithSupabase() {
 
   localStorage.setItem(REQUESTS_KEY, JSON.stringify(mapped));
   return mapped;
+}
+
+// Update request status in Supabase and update cache
+export async function updateRequestStatusSync(id, status, adminNote = null) {
+  const result = await updateRequestStatus(id, status, adminNote);
+  if (result.success) {
+    await syncRequestsWithSupabase();
+  }
+  return result;
+}
+
+// Update request quote in Supabase and update cache
+export async function updateRequestQuoteSync(id, confirmedQuote) {
+  const result = await updateRequestQuote(id, confirmedQuote);
+  if (result.success) {
+    await syncRequestsWithSupabase();
+  }
+  return result;
+}
+
+// Delete request in Supabase and update cache
+export async function deleteRequestSync(id) {
+  const result = await deleteRequest(id);
+  if (result.success) {
+    await syncRequestsWithSupabase();
+  }
+  return result;
 }
 
 /**

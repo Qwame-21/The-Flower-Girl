@@ -1,7 +1,7 @@
 // Adapter to make HOPESON CareersPage work with Supabase
 // Returns data in the exact shape HOPESON expects
 
-import { listCareers, listApplications, updateApplicationStatus, deleteApplication } from './careers';
+import { listCareers, listApplications, updateApplicationStatus, deleteApplication, createCareer, updateCareer, deleteCareer } from './careers';
 
 const CAREERS_KEY = 'xa12-careers-data-v1';
 
@@ -16,7 +16,7 @@ export function loadCareersData() {
   return { postings: [], applicants: [] };
 }
 
-// Save careers to localStorage
+// Save careers to localStorage (cache only, writes go through Supabase)
 export function saveCareersData(data) {
   try {
     localStorage.setItem(CAREERS_KEY, JSON.stringify(data));
@@ -53,5 +53,50 @@ export async function syncCareersWithSupabase() {
 
   const result = { postings: mappedPostings, applicants: mappedApplicants };
   localStorage.setItem(CAREERS_KEY, JSON.stringify(result));
+  return result;
+}
+
+// Create career posting in Supabase and update cache
+export async function createCareerSync(careerData) {
+  const result = await createCareer(careerData);
+  if (result.success) {
+    await syncCareersWithSupabase();
+  }
+  return result;
+}
+
+// Update career posting in Supabase and update cache
+export async function updateCareerSync(id, careerData) {
+  const result = await updateCareer(id, careerData);
+  if (result.success) {
+    await syncCareersWithSupabase();
+  }
+  return result;
+}
+
+// Delete career posting in Supabase and update cache
+export async function deleteCareerSync(id) {
+  const result = await deleteCareer(id);
+  if (result.success) {
+    await syncCareersWithSupabase();
+  }
+  return result;
+}
+
+// Update application status in Supabase and update cache
+export async function updateApplicationStatusSync(id, status) {
+  const result = await updateApplicationStatus(id, status);
+  if (result.success) {
+    await syncCareersWithSupabase();
+  }
+  return result;
+}
+
+// Delete application in Supabase and update cache
+export async function deleteApplicationSync(id) {
+  const result = await deleteApplication(id);
+  if (result.success) {
+    await syncCareersWithSupabase();
+  }
   return result;
 }

@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CopyIcon from '../components/shared/CopyIcon';
-import { loadRequestsData, saveRequestsData, syncRequestsWithSupabase, convertRequestToOrder } from '../data/requestsAdapter';
+import { loadRequestsData, saveRequestsData, syncRequestsWithSupabase, convertRequestToOrder, updateRequestStatusSync, updateRequestQuoteSync, deleteRequestSync } from '../data/requestsAdapter';
 import { fetchRequests, getCachedData, isDataLoading } from '../data/dataCache';
 
 const REQUESTS_KEY = 'xa12_custom_requests';
@@ -175,6 +175,11 @@ export default function RequestsPage() {
     setRequests(updated);
   };
 
+  // Reload from cache after Supabase updates
+  const reloadFromCache = () => {
+    setRequests(loadRequestsData());
+  };
+
   // Load requests from cache/Supabase on mount
   useEffect(() => {
     async function loadRequests() {
@@ -241,7 +246,7 @@ export default function RequestsPage() {
     setQuoteNoteVal(req.admin_note || '');
   }
 
-  function handleSaveQuote() {
+  async function handleSaveQuote() {
     if (!quoteModalReq) return;
     const amount = parseFloat(quoteInputVal);
     if (isNaN(amount) || amount <= 0) {
@@ -249,20 +254,13 @@ export default function RequestsPage() {
       return;
     }
 
-    const updated = requests.map(r => {
-      if (r.id === quoteModalReq.id) {
-        return {
-          ...r,
-          confirmed_quote: amount,
-          admin_note: quoteNoteVal,
-          status: 'quote_needed',
-          quote_date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-        };
-      }
-      return r;
-    });
-
-    saveAndSetRequests(updated);
+    const result = await updateRequestQuoteSync(quoteModalReq.id, amount);
+    if (result.success) {
+      reloadFromCache();
+      showToast('Quote saved');
+    } else {
+      showToast('Failed to save quote');
+    }
 
     const rawPhone = quoteModalReq.phone || '';
     const normalizedPhone = rawPhone.replace(/\D/g, '');
@@ -290,22 +288,17 @@ export default function RequestsPage() {
       title: 'Mark Quote Approved',
       message: `Has ${req.customer_name || 'the customer'} confirmed the price of ${amountStr}?`,
       confirmText: 'Yes, approved',
-      onConfirm: () => {
-        const updated = requests.map(r => {
-          if (r.id === req.id) {
-            return {
-              ...r,
-              status: 'approved',
-              approved_at: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-            };
+      onConfirm: async () => {
+        const result = await updateRequestStatusSync(req.id, 'approved');
+        if (result.success) {
+          reloadFromCache();
+          showToast('Approved');
+          setConfirmModal(null);
+          if (drawerTarget && drawerTarget.id === req.id) {
+            setDrawerTarget(null);
           }
-          return r;
-        });
-        saveAndSetRequests(updated);
-        showToast('Approved');
-        setConfirmModal(null);
-        if (drawerTarget && drawerTarget.id === req.id) {
-          setDrawerTarget(null);
+        } else {
+          showToast('Failed to approve request');
         }
       }
     });
@@ -381,22 +374,21 @@ export default function RequestsPage() {
   }
 
   // Save Drawer Note and Trigger — Monolith lines 23830–23845
-  function handleSaveDrawerNoteAndTrigger(actionType) {
+  async function handleSaveDrawerNoteAndTrigger(actionType) {
     if (!drawerTarget) return;
-    const updated = requests.map(r => {
-      if (r.id === drawerTarget.id) {
-        return { ...r, admin_note: adminNoteDrawerInput };
-      }
-      return r;
-    });
-    saveAndSetRequests(updated);
-    const currentReq = updated.find(r => r.id === drawerTarget.id) || drawerTarget;
+    const result = await updateRequestStatusSync(drawerTarget.id, drawerTarget.status, adminNoteDrawerInput);
+    if (result.success) {
+      reloadFromCache();
+      const currentReq = loadRequestsData().find(r => r.id === drawerTarget.id) || drawerTarget;
 
-    if (actionType === 'compose-quote') handleOpenComposeQuote(currentReq);
-    else if (actionType === 'mark-approved') handleMarkApproved(currentReq);
-    else if (actionType === 'convert-order') handleConvertOrder(currentReq);
-    else if (actionType === 'view-order') navigate('/orders');
-    else if (actionType === 'reopen') handleReopenRequest(currentReq);
+      if (actionType === 'compose-quote') handleOpenComposeQuote(currentReq);
+      else if (actionType === 'mark-approved') handleMarkApproved(currentReq);
+      else if (actionType === 'convert-order') handleConvertOrder(currentReq);
+      else if (actionType === 'view-order') navigate('/orders');
+      else if (actionType === 'reopen') handleReopenRequest(currentReq);
+    } else {
+      showToast('Failed to save note');
+    }
   }
 
   return (
