@@ -514,7 +514,7 @@ export default function OverviewPage() {
   const totalProducts = inventory.healthy + inventory.low + inventory.out;
 
   // Delivery data - derived from orders
-  const deliveredOrders = orders.filter(o => o.fulfillmentStatus === 'delivered');
+  const deliveredOrders = orders.filter(o => o.fulfillmentStatus === 'completed');
   const deliveryData = {
     onTime: { key: 'onTime', label: 'On Time', value: deliveredOrders.length, color: 'var(--chart-good, #5E9470)' },
     runningLate: { key: 'runningLate', label: 'Running Late', value: 0, color: 'var(--chart-bad, #B9645C)' }
