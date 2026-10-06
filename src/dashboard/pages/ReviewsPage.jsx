@@ -3,7 +3,7 @@
 // Storage key: 'xa12-reviews-data-v1'  Instagram URL key: 'xa12-instagram-url-v1'
 
 import { useState, useEffect, useCallback } from 'react';
-import { loadReviews, saveReviews, loadInstagramUrl, saveInstagramUrl, syncReviewsWithSupabase } from '../data/reviewsAdapter';
+import { loadReviews, saveReviews, loadInstagramUrl, saveInstagramUrl, syncReviewsWithSupabase, createReviewSync, updateReviewStatusSync, deleteReviewSync } from '../data/reviewsAdapter';
 
 const REVIEWS_KEY  = 'xa12-reviews-data-v1';
 const INSTAGRAM_KEY = 'xa12-instagram-url-v1';
@@ -180,21 +180,39 @@ export default function ReviewsPage() {
   }
 
   // ── Show/Hide toggle (monolith lines 22108–22118) ────────────────────────
-  function handleToggleVisibility(id) {
-    const updated = reviews.map(r =>
-      r.id === id ? { ...r, status: r.status === 'published' ? 'pending' : 'published' } : r
-    );
-    saveAndSet(updated);
+  async function handleToggleVisibility(id) {
+    const review = reviews.find(r => r.id === id);
+    if (!review) return;
+
+    const newStatus = review.status === 'published' ? 'pending' : 'published';
+    const result = await updateReviewStatusSync(id, newStatus);
+
+    if (result.success) {
+      // Cache will be updated by syncReviewsWithSupabase in the adapter
+      // Reload from cache to get fresh data
+      setReviews(loadReviews());
+      showToast(newStatus === 'published' ? 'Review shown on storefront' : 'Review hidden from storefront');
+    } else {
+      showToast('Failed to update review status');
+    }
   }
 
   // ── Inline delete step 1: show confirm (monolith lines 22120–22126) ───────
   function handleRequestDelete(id) { setInlineDeleteId(id); }
 
   // ── Inline delete step 2: confirm Yes (monolith lines 22127–22135) ────────
-  function handleConfirmDelete(id) {
-    const updated = reviews.filter(r => r.id !== id);
-    setInlineDeleteId(null);
-    saveAndSet(updated);
+  async function handleConfirmDelete(id) {
+    const result = await deleteReviewSync(id);
+
+    if (result.success) {
+      // Cache will be updated by syncReviewsWithSupabase in the adapter
+      // Reload from cache to get fresh data
+      setReviews(loadReviews());
+      setInlineDeleteId(null);
+      showToast('Review deleted');
+    } else {
+      showToast('Failed to delete review');
+    }
   }
 
   // ── Inline delete cancel No (monolith lines 22136–22142) ─────────────────
@@ -218,28 +236,34 @@ export default function ReviewsPage() {
   }
 
   // ── Save new testimonial (monolith lines 22207–22232) ────────────────────
-  function handleSaveDrawer() {
+  async function handleSaveDrawer() {
     const name = draft.name.trim();
     const text = draft.text.trim();
     if (!name || !text) {
       showToast('Please fill in the customer name and review text.');
       return;
     }
-    const newReview = {
-      id:           `rev-${Date.now()}`,
+
+    const reviewData = {
       customerName: name,
-      reviewText:   text,
-      rating:       draft.rating,
-      status:       draft.shown ? 'published' : 'pending',
-      date:         new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-      isFlagged:    false,
-      replyText:    '',
-      replyDate:    '',
+      reviewText: text,
+      rating: draft.rating,
+      status: draft.shown ? 'published' : 'pending',
+      productOrService: 'General' // Default value since form doesn't have this field
     };
-    const updated = [...reviews, newReview];
-    setDrawerOpen(false);
-    setDraft({ name: '', text: '', rating: 5, shown: true });
-    saveAndSet(updated);
+
+    const result = await createReviewSync(reviewData);
+
+    if (result.success) {
+      // Cache will be updated by syncReviewsWithSupabase in the adapter
+      // Reload from cache to get fresh data
+      setReviews(loadReviews());
+      setDrawerOpen(false);
+      setDraft({ name: '', text: '', rating: 5, shown: true });
+      showToast('Testimonial added');
+    } else {
+      showToast('Failed to add testimonial');
+    }
   }
 
   return (

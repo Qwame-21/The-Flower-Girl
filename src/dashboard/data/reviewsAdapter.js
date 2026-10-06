@@ -19,7 +19,7 @@ export function loadReviews() {
   return [];
 }
 
-// Save reviews - will be called by HOPESON page
+// Save reviews - will be called by HOPESON page (cache only, writes go through Supabase)
 export function saveReviews(data) {
   try {
     localStorage.setItem(REVIEWS_KEY, JSON.stringify(data));
@@ -46,6 +46,36 @@ export async function syncReviewsWithSupabase() {
   // Update cache
   localStorage.setItem(REVIEWS_KEY, JSON.stringify(mapped));
   return mapped;
+}
+
+// Create review in Supabase and update cache
+export async function createReviewSync(reviewData) {
+  const result = await createReview(reviewData);
+  if (result.success) {
+    // Refresh cache after successful create
+    await syncReviewsWithSupabase();
+  }
+  return result;
+}
+
+// Update review status in Supabase and update cache
+export async function updateReviewStatusSync(id, status) {
+  const result = await updateReviewStatus(id, status);
+  if (result.success) {
+    // Refresh cache after successful update
+    await syncReviewsWithSupabase();
+  }
+  return result;
+}
+
+// Delete review in Supabase and update cache
+export async function deleteReviewSync(id) {
+  const result = await deleteReview(id);
+  if (result.success) {
+    // Refresh cache after successful delete
+    await syncReviewsWithSupabase();
+  }
+  return result;
 }
 
 // Instagram URL persistence
