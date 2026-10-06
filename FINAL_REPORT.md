@@ -101,6 +101,146 @@ The client shows "Checkout could not be prepared." which is the fallback message
 
 **CONFIRMED:** `supabase/config.toml` already has `[functions.paystack-webhook]` with `verify_jwt = false`. No action needed.
 
+### Owner's Decision Tree for Diagnosing Checkout Failure
+
+Follow these steps in the Supabase and Paystack dashboards to find where the order flow breaks.
+
+#### Step A: Check Browser Network Tab
+
+1. Open Chrome DevTools (Cmd+Option+I)
+2. Go to Network tab
+3. Press "Place Order" on the storefront
+4. Click the `paystack-init` request
+5. Open the Response tab
+
+**What you'll see:**
+- If the response shows a structured error with code and message, that's the real reason
+- Note: New error messages only appear after `paystack-init` is redeployed with the updated code
+
+#### Step B: Check Supabase Table Editor - checkout_attempts
+
+1. Open Supabase Dashboard → Table Editor → `checkout_attempts`
+2. Look for a row for your test order (sort by `created_at` descending)
+
+**If no row exists:**
+- The problem is BEFORE Paystack
+- Possible causes:
+  - `paystack-init` function is not deployed
+  - Wrong environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY)
+  - CORS issues
+  - Network error on the storefront
+- Check the browser console for errors when clicking "Place Order"
+
+**If row exists with status `initialized`:**
+- Payment was not confirmed
+- Possible causes:
+  - The test payment was not completed in Paystack
+  - The webhook or verify function is failing
+- Continue to Step D
+
+**If row exists with status `paid` and an `order_id`:**
+- The order was created successfully
+- If the admin does not show it, it is an admin display problem
+- Continue to Step C
+
+#### Step C: Check Supabase Table Editor - orders
+
+1. Open Supabase Dashboard → Table Editor → `orders`
+2. Look for your test order (sort by `created_at` descending)
+
+**If no row exists:**
+- The finalization failed
+- Check the Edge Function logs for `paystack-verify` or `paystack-webhook` errors
+- Possible causes:
+  - `finalize_paid_checkout` RPC failed (NOT NULL constraint, stock update, notification insert)
+  - Database error
+
+**If row exists but admin does not show it:**
+- Admin display problem
+- Check the browser console on the admin Orders page
+- Check the Realtime subscription in the admin code
+
+#### Step D: Check Supabase Edge Functions
+
+1. Open Supabase Dashboard → Edge Functions
+2. Verify these functions are deployed:
+   - `paystack-init`
+   - `paystack-verify`
+   - `paystack-webhook`
+
+3. For `paystack-webhook`:
+   - Check that JWT verification is OFF
+   - In `supabase/config.toml`, this line exists:
+     ```
+     [functions.paystack-webhook]
+     verify_jwt = false
+     ```
+   - If config.toml does not exist, deploy with `--no-verify-jwt` or disable "Verify JWT" in the dashboard
+
+4. Check Edge Function logs for errors:
+   - Look for `[paystack-init]`, `[paystack-verify]`, `[paystack-webhook]` error messages
+   - Common errors: missing secrets, payment gateway errors, finalization failures
+
+5. Required secret names (check in Secrets tab):
+   - `PAYSTACK_SECRET_KEY` (starts with `sk_test_` or `sk_live_`)
+   - SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are auto-injected
+
+#### Step E: Check Paystack Dashboard
+
+1. Open Paystack Dashboard → Settings → Webhooks
+2. Verify the webhook URL:
+   - Must be: `https://[project-ref].supabase.co/functions/v1/paystack-webhook`
+   - Replace `[project-ref]` with your actual project reference
+
+3. Verify the mode matches:
+   - If using test keys (`sk_test_`), webhook must be in Test mode
+   - If using live keys (`sk_live_`), webhook must be in Live mode
+   - Test keys with live webhook (or vice versa) will never match
+
+4. Check the Paystack Transactions page:
+   - Look for your test transaction
+   - Check if it shows "Success" or "Failed"
+   - If failed, check the failure reason
+
+#### Step F: Test with a Paystack Test Card
+
+When testing in test mode, use a Paystack test card:
+- Card number: `4084 0840 0840 0840`
+- Expiry: Any future date (e.g., 12/25)
+- CVV: Any 3 digits
+- PIN: Any 4 digits
+
+#### Step G: Fix Status
+
+**Already live in local site:**
+- Stock validation in admin form
+- Collection address default to "Shop collection"
+- CORS/callback behavior fixes
+
+**Need redeploy:**
+- paystack-init (for structured error responses)
+- paystack-verify (for structured error logging)
+- paystack-webhook (already has verify_jwt = false in config.toml)
+
+### Validation Logic Code Walk (throwaway test substitute)
+
+Due to lack of Deno for actual test, here's a code walk-through of the validation logic:
+
+| Test Case | Expected Result | Code Path | Actual Result |
+|-----------|----------------|-----------|--------------|
+| In-stock product, sameday delivery | Accept with sameday fee | paystack-init:250-266 | Passes stock check, returns sameday fee |
+| In-stock product, scheduled delivery with date | Accept with scheduled fee | paystack-init:267-283 | Validates date is today/future, returns scheduled fee |
+| Scheduled delivery, single-digit day/month | Accept (DateField pads zeros) | date.js:15 | formIsoDate pads to YYYY-MM-DD |
+| Out-of-stock product | Reject with OUT_OF_STOCK | paystack-init:216-229 | Stock check fails, returns error |
+| Hidden product (visible=false) | Reject with PRODUCT_UNAVAILABLE | paystack-init:208-215 | Visible check fails, returns error |
+| Missing or invalid email | Reject with INVALID_EMAIL | paystack-init:106-116 | Regex validation fails, returns error |
+| Scheduled delivery, missing date | Reject with MISSING_FIELD | paystack-init:272-281 | Date required for scheduled, returns error |
+| Unknown delivery type | Reject with INVALID_DELIVERY_TYPE | paystack-init:298-305 | No matching case, returns error |
+| Missing PAYSTACK_SECRET_KEY | Reject with PAYMENT_NOT_CONFIGURED | paystack-init:72-82 | Secret check fails, returns error |
+| Paystack API error | Reject with PAYMENT_PROVIDER_ERROR | paystack-init:478-493 | API call fails, returns error |
+
+**Code walk conclusion:** All validation paths are correctly implemented with appropriate error codes and messages.
+
 
 
 ### SQL File Created
