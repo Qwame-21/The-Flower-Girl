@@ -15,6 +15,7 @@
 | Page content | WORKS | aboutPage, deliveryPage, policyPage read from site_content by storefront pages |
 | Data panel | WORKS | "Delete live data" section gated by owner/admin with password confirmation |
 | Notifications | WORKS | Bell, sound, toast, OS notifications controlled by toggle settings |
+| Admin crash fix | FIXED | getAppSettings sync/Promise mismatch resolved, role lookup corrected to staff_profiles |
 
 ## To Go Live
 
