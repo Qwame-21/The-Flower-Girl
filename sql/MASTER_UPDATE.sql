@@ -227,7 +227,11 @@ BEGIN
       END,
       locked_until = CASE
         WHEN locked_until IS NOT NULL AND locked_until > clock_timestamp() THEN locked_until
-        WHEN failed_count + 1 >= v_max_attempts THEN clock_timestamp() + (v_lockout_minutes || ' minutes')::interval
+        WHEN (CASE
+          WHEN locked_until IS NOT NULL AND locked_until > clock_timestamp() THEN failed_count
+          WHEN window_started_at < clock_timestamp() - (v_lockout_minutes || ' minutes')::interval THEN 1
+          ELSE failed_count + 1
+        END) >= v_max_attempts THEN clock_timestamp() + (v_lockout_minutes || ' minutes')::interval
         ELSE NULL
       END;
 

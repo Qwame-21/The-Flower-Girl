@@ -11,6 +11,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
   const allowedOrigins = Deno.env.get('ALLOWED_ORIGINS');
   const allowlist = allowedOrigins ? allowedOrigins.split(',').map(o => o.trim()) : [];
   
+  // If ALLOWED_ORIGINS is not set, behave like original (allow any origin)
   let corsOrigin = '*';
   if (allowlist.length > 0 && origin) {
     if (allowlist.includes(origin)) {
@@ -410,23 +411,33 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const configuredStorefront = Deno.env.get('STOREFRONT_URL');
       const allowedOrigins = Deno.env.get('ALLOWED_ORIGINS');
       const allowlist = allowedOrigins ? allowedOrigins.split(',').map(o => o.trim()) : [];
-      const isLocal = ['localhost', '127.0.0.1'].includes(candidate.hostname) && PAYSTACK_SECRET.startsWith('sk_test_');
-      const isConfigured = configuredStorefront && candidate.origin === new URL(configuredStorefront).origin;
-      const isInAllowlist = allowlist.includes(candidate.origin);
-      if ((candidate.protocol === 'https:' && (isConfigured || isInAllowlist)) || (candidate.protocol === 'http:' && isLocal)) {
-        callbackUrl = candidate.toString();
+      
+      // Only validate callback if restrictions are configured
+      // If both STOREFRONT_URL and ALLOWED_ORIGINS are unset, behave like original (allow any)
+      const hasRestrictions = configuredStorefront || allowlist.length > 0;
+      
+      if (hasRestrictions) {
+        const isLocal = ['localhost', '127.0.0.1'].includes(candidate.hostname) && PAYSTACK_SECRET.startsWith('sk_test_');
+        const isConfigured = configuredStorefront && candidate.origin === new URL(configuredStorefront).origin;
+        const isInAllowlist = allowlist.includes(candidate.origin);
+        if ((candidate.protocol === 'https:' && (isConfigured || isInAllowlist)) || (candidate.protocol === 'http:' && isLocal)) {
+          callbackUrl = candidate.toString();
+        } else {
+          console.error('[paystack-init] CALLBACK_NOT_ALLOWED', candidate.origin);
+          return new Response(JSON.stringify({
+            ok: false,
+            error: {
+              code: 'CALLBACK_NOT_ALLOWED',
+              message: 'Payment callback URL is not allowed.'
+            }
+          }), {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
       } else {
-        console.error('[paystack-init] CALLBACK_NOT_ALLOWED', candidate.origin);
-        return new Response(JSON.stringify({
-          ok: false,
-          error: {
-            code: 'CALLBACK_NOT_ALLOWED',
-            message: 'Payment callback URL is not allowed.'
-          }
-        }), {
-          status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        // No restrictions configured - accept any callback (original behavior)
+        callbackUrl = candidate.toString();
       }
     } catch {
       console.error('[paystack-init] CALLBACK_NOT_ALLOWED invalid URL');
