@@ -5,6 +5,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../config/supabase";
 import { focusAndScrollToFirstError } from "../lib/formValidationHelper";
+import { getAppSettings } from "../data/settingsAdapter";
+import PasswordConfirmModal from "../components/PasswordConfirmModal";
 
 const STORAGE_KEY = "xa12-customization-v3";
 
@@ -117,6 +119,14 @@ export default function CustomizationPage() {
   const [formData, setFormData] = useState({});
   const [formErrors, setFormErrors] = useState({});
   const [formSaving, setFormSaving] = useState(false);
+  const [settings, setSettings] = useState(() => getAppSettings());
+  const [showPwConfirm, setShowPwConfirm] = useState(false);
+  const [pendingDeleteAction, setPendingDeleteAction] = useState(null);
+
+  // Load settings for password confirmation check
+  useEffect(() => {
+    setSettings(getAppSettings());
+  }, []);
 
   const fetchCustomizationOptions = useCallback(async () => {
     setLoadState("loading");
@@ -280,6 +290,27 @@ export default function CustomizationPage() {
 
   async function executeDelete() {
     if (!confirm) return;
+
+    if (settings?.security?.requirePasswordForDestructive) {
+      setPendingDeleteAction(() => async () => {
+        if (confirm.type === "delete-category") {
+          persist(categories.filter(c => c.id !== confirm.catId));
+          showToast("Category deleted.");
+        } else {
+          persist(categories.map(c => c.id === confirm.catId ? { ...c, options: c.options.filter(o => o.id !== confirm.optId) } : c));
+          if (supabase && confirm.optId && !String(confirm.optId).startsWith('local-')) {
+            try {
+              await supabase.from("customization_options").delete().eq("id", confirm.optId);
+            } catch (e) { console.error("DB delete option failed:", e); }
+          }
+          showToast("Option removed.");
+        }
+        setConfirm(null);
+      });
+      setShowPwConfirm(true);
+      return;
+    }
+
     if (confirm.type === "delete-category") {
       persist(categories.filter(c => c.id !== confirm.catId));
       showToast("Category deleted.");
@@ -294,6 +325,20 @@ export default function CustomizationPage() {
     }
     setConfirm(null);
   }
+
+  const handlePasswordConfirm = async (password) => {
+    try {
+      const { confirmDestructive } = await import("../utils/confirmDestructive");
+      await confirmDestructive(password);
+      if (pendingDeleteAction) {
+        await pendingDeleteAction();
+        setPendingDeleteAction(null);
+      }
+      setShowPwConfirm(false);
+    } catch (err) {
+      throw err;
+    }
+  };
 
   const drawerTitle = drawer ? (drawer.mode === "new-category" ? "New Category" : drawer.mode === "edit-category" ? "Edit Category" : drawer.mode === "new-option" ? "New Option" : "Edit Option") : "";
   const isCategory = drawer && (drawer.mode === "new-category" || drawer.mode === "edit-category");
@@ -454,6 +499,14 @@ export default function CustomizationPage() {
       ) : (
         <ConfirmModal title={confirm.title} body={confirm.body} confirmLabel="Delete" danger onConfirm={executeDelete} onCancel={() => setConfirm(null)} />
       ))}
+
+      {/* Password confirmation modal */}
+      <PasswordConfirmModal
+        isOpen={showPwConfirm}
+        onClose={() => { setShowPwConfirm(false); setPendingDeleteAction(null); }}
+        onConfirm={handlePasswordConfirm}
+        title="Confirm Deletion"
+      />
     </div>
   );
 }

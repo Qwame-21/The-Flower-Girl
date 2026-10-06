@@ -6,6 +6,8 @@ import { readAdminData, subscribeAdminData } from '../../data/adminStore';
 import { supabase } from '../../config/supabase';
 import CustomDropdown from '../components/shared/CustomDropdown';
 import { getImageUrl } from '../lib/imageUrlHelper';
+import { getAppSettings } from '../data/settingsAdapter';
+import PasswordConfirmModal from '../components/PasswordConfirmModal';
 
 // Toast helper
 function showToast(msg) {
@@ -256,6 +258,9 @@ export default function GalleryPage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importMessage, setImportMessage] = useState('');
+  const [settings, setSettings] = useState(() => getAppSettings());
+  const [showPwConfirm, setShowPwConfirm] = useState(false);
+  const [pendingDeleteAction, setPendingDeleteAction] = useState(null);
 
   // Load storefront gallery from adminStore (read-only)
   useEffect(() => {
@@ -265,6 +270,11 @@ export default function GalleryPage() {
       setStorefrontGallery(newData.gallery || []);
     });
     return unsubscribe;
+  }, []);
+
+  // Load settings for password confirmation check
+  useEffect(() => {
+    setSettings(getAppSettings());
   }, []);
 
   // Load uploaded photos from Supabase
@@ -353,6 +363,36 @@ export default function GalleryPage() {
   async function handleDeleteConfirmed() {
     if (!deleteTarget || !supabase) return;
 
+    if (settings?.security?.requirePasswordForDestructive) {
+      setPendingDeleteAction(() => async () => {
+        // Delete from storage
+        if (deleteTarget.image_path) {
+          await supabase
+            .storage
+            .from('storefront-media')
+            .remove([deleteTarget.image_path]);
+        }
+
+        // Delete from database
+        const { error } = await supabase
+          .from('gallery_items')
+          .delete()
+          .eq('id', deleteTarget.id);
+
+        if (error) {
+          console.error('Error deleting photo:', error);
+          showToast('Failed to delete photo');
+        } else {
+          setUploadedPhotos(prev => prev.filter(p => p.id !== deleteTarget.id));
+          showToast('Photo removed from gallery.');
+        }
+
+        setDeleteTarget(null);
+      });
+      setShowPwConfirm(true);
+      return;
+    }
+
     // Delete from storage
     if (deleteTarget.image_path) {
       await supabase
@@ -377,6 +417,20 @@ export default function GalleryPage() {
 
     setDeleteTarget(null);
   }
+
+  const handlePasswordConfirm = async (password) => {
+    try {
+      const { confirmDestructive } = await import('../utils/confirmDestructive');
+      await confirmDestructive(password);
+      if (pendingDeleteAction) {
+        await pendingDeleteAction();
+        setPendingDeleteAction(null);
+      }
+      setShowPwConfirm(false);
+    } catch (err) {
+      throw err;
+    }
+  };
 
   // Handle import storefront gallery
   async function handleImportStorefrontGallery() {
@@ -643,6 +697,14 @@ export default function GalleryPage() {
           onConfirm={handleDeleteConfirmed}
         />
       )}
+
+      {/* Password confirmation modal */}
+      <PasswordConfirmModal
+        isOpen={showPwConfirm}
+        onClose={() => { setShowPwConfirm(false); setPendingDeleteAction(null); }}
+        onConfirm={handlePasswordConfirm}
+        title="Confirm Deletion"
+      />
     </div>
   );
 }

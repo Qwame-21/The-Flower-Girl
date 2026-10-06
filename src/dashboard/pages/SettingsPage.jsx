@@ -853,6 +853,7 @@ function SecurityPanel({ s, onChange }) {
 // ─── Panel: Data ──────────────────────────────────────────────────────────────
 function DataPanel() {
   const [userRole, setUserRole] = useState(null);
+  const [settings, setSettings] = useState(() => getAppSettings());
   const [dbCounts, setDbCounts] = useState({ orders: 0, products: 0, requests: 0, reviews: 0, notifications: 0, applications: 0 });
   const [loadingCounts, setLoadingCounts] = useState(true);
   const [deleteCategories, setDeleteCategories] = useState({ orders: false, requests: false, reviews: false, notifications: false, applications: false });
@@ -893,14 +894,15 @@ function DataPanel() {
   useEffect(() => {
     async function init() {
       await loadCounts();
-      // Load user role for access control
+      // Load user role for access control from staff_profiles table
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const { data: roleData } = await supabase
-            .from('staff_users')
+            .from('staff_profiles')
             .select('role')
-            .eq('id', user.id)
+            .eq('user_id', user.id)
+            .eq('active', true)
             .single();
           setUserRole(roleData?.role || null);
         }
@@ -909,6 +911,11 @@ function DataPanel() {
       }
     }
     init();
+  }, []);
+
+  // Load settings for password confirmation check (live reload)
+  useEffect(() => {
+    setSettings(getAppSettings());
   }, []);
 
   function escCSV(v) {
@@ -1140,8 +1147,13 @@ function DataPanel() {
                 disabled={deleteConfirmText !== 'DELETE'}
                 onClick={() => {
                   setShowDeleteModal(false);
-                  setPendingDeleteAction(() => executeDelete);
-                  setShowDataPwConfirm(true);
+                  // Check if password confirmation is required
+                  if (settings?.security?.requirePasswordForDestructive) {
+                    setPendingDeleteAction(() => executeDelete);
+                    setShowDataPwConfirm(true);
+                  } else {
+                    executeDelete();
+                  }
                 }}
               >
                 Confirm & Enter Password
