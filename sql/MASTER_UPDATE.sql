@@ -128,11 +128,10 @@ DECLARE
   v_rate_limit_rec public.track_attempts%rowtype;
   v_max_attempts integer;
   v_lockout_minutes integer;
-  v_lookup_failed boolean := false;
 BEGIN
   v_normalized_lookup_phone := public.normalize_phone(lookup_contact);
 
-  -- Extract client key from headers safely
+  -- Extract client key from headers safely (wrapped in its own exception block)
   BEGIN
     v_client_key := coalesce(
       current_setting('request.headers', true)::jsonb->>'cf-connecting-ip',
@@ -146,10 +145,8 @@ BEGIN
   END;
 
   -- If no valid client key, skip rate limiting (fail open)
-  IF v_client_key = 'unknown' OR v_client_key IS NULL OR trim(v_client_key) = '' THEN
-    -- Proceed without rate limiting
-  ELSE
-    -- Read rate limit settings from site_settings with safe defaults
+  IF v_client_key != 'unknown' AND v_client_key IS NOT NULL AND trim(v_client_key) != '' THEN
+    -- Read rate limit settings from site_settings with safe defaults (wrapped in its own exception block)
     BEGIN
       SELECT
         coalesce(track_max_failed_attempts, 10),
@@ -162,16 +159,20 @@ BEGIN
       v_lockout_minutes := 15;
     END;
 
-    -- Check if client is locked out
-    SELECT * INTO v_rate_limit_rec FROM public.track_attempts WHERE client_key = v_client_key;
+    -- Check if client is locked out (wrapped in its own exception block)
+    BEGIN
+      SELECT * INTO v_rate_limit_rec FROM public.track_attempts WHERE client_key = v_client_key;
 
-    IF FOUND AND v_rate_limit_rec.locked_until IS NOT NULL AND v_rate_limit_rec.locked_until > clock_timestamp() THEN
-      -- Client is locked out
-      RETURN jsonb_build_object(
-        'kind', 'rate_limited',
-        'retryAfterSeconds', extract(epoch from (v_rate_limit_rec.locked_until - clock_timestamp()))::integer
-      );
-    END IF;
+      IF FOUND AND v_rate_limit_rec.locked_until IS NOT NULL AND v_rate_limit_rec.locked_until > clock_timestamp() THEN
+        -- Client is locked out
+        RETURN jsonb_build_object(
+          'kind', 'rate_limited',
+          'retryAfterSeconds', extract(epoch from (v_rate_limit_rec.locked_until - clock_timestamp()))::integer
+        );
+      END IF;
+    EXCEPTION WHEN OTHERS THEN
+      NULL; -- Limiter problem never blocks the real lookup
+    END;
   END IF;
 
   -- Try to find order first
@@ -207,44 +208,41 @@ BEGIN
     RETURN v_result;
   END IF;
 
-  -- Lookup failed - increment rate limit counter
-  v_lookup_failed := true;
-
-  -- Only apply rate limiting if we have a valid client key
+  -- Lookup failed - increment rate limit counter (wrapped in its own exception block)
   IF v_client_key != 'unknown' AND v_client_key IS NOT NULL AND trim(v_client_key) != '' THEN
-    -- Insert or update rate limit record
-    INSERT INTO public.track_attempts (client_key, failed_count, window_started_at, locked_until)
-    VALUES (v_client_key, 1, clock_timestamp(), NULL)
-    ON CONFLICT (client_key) DO UPDATE SET
-      failed_count = CASE
-        WHEN locked_until IS NOT NULL AND locked_until > clock_timestamp() THEN failed_count
-        WHEN window_started_at < clock_timestamp() - (v_lockout_minutes || ' minutes')::interval THEN 1
-        ELSE failed_count + 1
-      END,
-      window_started_at = CASE
-        WHEN window_started_at < clock_timestamp() - (v_lockout_minutes || ' minutes')::interval THEN clock_timestamp()
-        ELSE window_started_at
-      END,
-      locked_until = CASE
-        WHEN locked_until IS NOT NULL AND locked_until > clock_timestamp() THEN locked_until
-        WHEN (CASE
+    BEGIN
+      -- Insert or update rate limit record
+      INSERT INTO public.track_attempts (client_key, failed_count, window_started_at, locked_until)
+      VALUES (v_client_key, 1, clock_timestamp(), NULL)
+      ON CONFLICT (client_key) DO UPDATE SET
+        failed_count = CASE
           WHEN locked_until IS NOT NULL AND locked_until > clock_timestamp() THEN failed_count
           WHEN window_started_at < clock_timestamp() - (v_lockout_minutes || ' minutes')::interval THEN 1
           ELSE failed_count + 1
-        END) >= v_max_attempts THEN clock_timestamp() + (v_lockout_minutes || ' minutes')::interval
-        ELSE NULL
-      END;
+        END,
+        window_started_at = CASE
+          WHEN window_started_at < clock_timestamp() - (v_lockout_minutes || ' minutes')::interval THEN clock_timestamp()
+          ELSE window_started_at
+        END,
+        locked_until = CASE
+          WHEN locked_until IS NOT NULL AND locked_until > clock_timestamp() THEN locked_until
+          WHEN (CASE
+            WHEN locked_until IS NOT NULL AND locked_until > clock_timestamp() THEN failed_count
+            WHEN window_started_at < clock_timestamp() - (v_lockout_minutes || ' minutes')::interval THEN 1
+            ELSE failed_count + 1
+          END) >= v_max_attempts THEN clock_timestamp() + (v_lockout_minutes || ' minutes')::interval
+          ELSE NULL
+        END;
 
-    -- Clean up old records occasionally (delete records older than lockout minutes * 2)
-    DELETE FROM public.track_attempts
-    WHERE window_started_at < clock_timestamp() - (v_lockout_minutes * 2 || ' minutes')::interval;
+      -- Clean up old records occasionally (delete records older than lockout minutes * 2)
+      DELETE FROM public.track_attempts
+      WHERE window_started_at < clock_timestamp() - (v_lockout_minutes * 2 || ' minutes')::interval;
+    EXCEPTION WHEN OTHERS THEN
+      NULL; -- Limiter problem never blocks the real lookup
+    END;
   END IF;
 
   -- Return not found result
-  RETURN jsonb_build_object('kind', 'not_found');
-
-EXCEPTION WHEN OTHERS THEN
-  -- On any error, return not found to avoid exposing internals
   RETURN jsonb_build_object('kind', 'not_found');
 END $$;
 
@@ -346,14 +344,23 @@ BEGIN
   -- Generate unique tracking number and order code
   -- Format: GF-{last 6 digits of timestamp} and WEB-{last 6 digits of timestamp}
   -- This mirrors the pattern from createStaffOrder in src/dashboard/data/orders.js
-  LOOP
-    v_tracking_number := 'GF-' || right((extract(epoch from clock_timestamp()) * 1000)::bigint::text, 6);
-    v_order_code := 'WEB-' || right((extract(epoch from clock_timestamp()) * 1000)::bigint::text, 6);
+  -- Loop continues until BOTH tracking number AND order code are unused
+  -- After 5 collisions, switch to random six-digit suffixes
+  FOR attempt IN 1..10 LOOP
+    IF attempt <= 5 THEN
+      -- First 5 attempts: use timestamp-based suffixes
+      v_tracking_number := 'GF-' || right((extract(epoch from clock_timestamp()) * 1000)::bigint::text, 6);
+      v_order_code := 'WEB-' || right((extract(epoch from clock_timestamp()) * 1000)::bigint::text, 6);
+    ELSE
+      -- After 5 collisions: use random six-digit suffixes
+      v_tracking_number := 'GF-' || lpad((floor(random() * 1000000))::int::text, 6, '0');
+      v_order_code := 'WEB-' || lpad((floor(random() * 1000000))::int::text, 6, '0');
+    END IF;
 
-    SELECT count(*) INTO v_exists FROM public.orders WHERE tracking_number = v_tracking_number;
-    EXIT WHEN v_exists = 0;
+    -- Check BOTH tracking number AND order code for uniqueness
+    SELECT count(*) INTO v_exists FROM public.orders
+    WHERE tracking_number = v_tracking_number OR order_code = v_order_code;
 
-    SELECT count(*) INTO v_exists FROM public.orders WHERE order_code = v_order_code;
     EXIT WHEN v_exists = 0;
   END LOOP;
 
