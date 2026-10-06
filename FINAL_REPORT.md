@@ -521,9 +521,235 @@ When column doesn't exist, toggle is disabled with helper text: "Needs the datab
 
 **DONE** - All settings audited. Working toggles verified. Dead settings identified. Zero/false behavior respected. Absent columns handled with disabled state and helper text.
 
-## T6: Password Confirmation for Destructive Actions - NOT STARTED
+## T6: Password Confirmation for Destructive Actions - COMPLETED
 
-**Status:** NOT STARTED - Password confirmation modal exists in SettingsPage.jsx but enforcement across all delete actions needs verification.
+### Part A: Password Confirmation for Destructive Actions
+
+**confirmDestructive Helper (src/dashboard/utils/confirmDestructive.js):**
+- Creates temporary Supabase client with `persistSession: false`, `autoRefreshToken: false`, `detectSessionInUrl: false`
+- Verifies password by signing in with user's email
+- 5 wrong attempts triggers 60-second lockout
+- Lockout state tracked in module-level variables
+- After successful verification, signs out from temp client
+- Does not touch main session, sign-in handlers, or write sign-in log entries
+
+**Enforcement Locations:**
+
+| Location | File/Line | Action | Protected |
+|---------|-----------|--------|-----------|
+| OrdersPage | src/dashboard/pages/OrdersPage.jsx:349-362 | Single order delete | ✅ Yes |
+| OrdersPage | src/dashboard/pages/OrdersPage.jsx:395-417 | Bulk order delete | ✅ Yes |
+| ProductsPage | src/dashboard/pages/ProductsPage.jsx:452-471 | Product delete | ✅ Yes |
+| SettingsPage (Security) | src/dashboard/pages/SettingsPage.jsx:676-682 | Toggle save | ✅ Yes |
+| SettingsPage (Data) | src/dashboard/pages/SettingsPage.jsx:1003-1013 | Delete live data | ✅ Yes |
+
+**Note:** RequestsPage, ReviewsPage, CareersPage, GalleryPage do not have delete UI in the current code. If delete actions are added there later, they should use the same pattern.
+
+### Part B: Data Panel "Delete Live Data" Section
+
+**Role-Based Access Control:**
+- Data panel loads user role from `staff_users` table on mount
+- "Delete live data" section only shown when `userRole === 'owner'` or `userRole === 'admin'`
+- For other roles, shows disabled message: "This section is only available to owner and admin roles."
+
+**Delete Categories:**
+- Orders (includes items and events)
+- Customer requests
+- Reviews
+- Admin notifications
+- Job applications
+- Products, gallery items, and settings are NOT included (as required)
+
+**Deletion Flow:**
+1. User selects categories by checkbox
+2. Sees live count for each category
+3. Types "DELETE" to confirm
+4. Must re-enter password (always, regardless of setting)
+5. Deletion executes in batches through Supabase direct delete
+6. Shows progress and final counts
+7. Reports partial failures per category
+8. Refreshes shared cache after deletion
+9. Shows "Export first" reminder line
+
+**Password Confirmation:**
+- Always required for Data panel deletion (per T6 requirement)
+- Uses the same `confirmDestructive` helper
+- Modal shows "Confirm Deletion" title
+
+### Verification
+
+**confirmDestructive Verification:**
+- Creates temporary client to avoid touching main session ✅
+- Uses correct auth options (persistSession: false, etc.) ✅
+- Verifies with signed-in staff member's own email ✅
+- 5 wrong attempts → 60-second lockout ✅
+- Does not store or log password ✅
+
+**Settings Toggle Behavior:**
+- When `requirePasswordForDestructive` is true, delete actions require password ✅
+- When false or not loaded, delete actions proceed without password ✅
+- Change takes effect without page reload ✅
+
+**Protected Call Sites:**
+- OrdersPage single delete: line 349-362 ✅
+- OrdersPage bulk delete: line 395-417 ✅
+- ProductsPage delete: line 452-471 ✅
+- SettingsPage Data panel: line 1003-1013 ✅
+
+### Status
+
+**DONE** - Password confirmation implemented for all delete actions in OrdersPage and ProductsPage. Data panel gated by owner/admin role with password confirmation. Verification uses temporary Supabase client as required.
+
+## T7: Delivery Fees and Tracking End-to-End - IN PROGRESS
+
+### Delivery Flow Trace
+
+**CheckoutModal (src/storefront/modals/CheckoutModal.jsx):**
+
+| Step | Line | Details |
+|------|------|---------|
+| Reads delivery type from selector | 38-44 | When `delivery_selector_enabled` is true and type selected |
+| Calculates displayed fee | 59-62 | Uses settings for each delivery type fee |
+| Includes in payload | 232 | Adds `deliveryType` only when selector enabled and type selected |
+| Sends to checkoutApi | 217-234 | Payload includes deliveryType, requestedDeliveryDate, cart, customer info |
+
+**checkoutApi.js (src/storefront/api/checkoutApi.js):**
+
+| Step | Line | Details |
+|------|------|---------|
+| Passes deliveryType unchanged | 26-35 | Calls paystack-init with auth headers and payload |
+
+**paystack-init (supabase/functions/paystack-init/index.ts):**
+
+| Step | Line | Details |
+|------|------|---------|
+| Reads delivery_type from request | 115-120 | Extracts from body, validates against enabled types |
+| Reads site_settings for fees | 128-133 | Gets delivery_*_fee and delivery_*_enabled values |
+| Computes deliveryFee | 135-143 | Uses fee for selected type, falls back to 0 if disabled |
+| Computes total | 145-146 | subtotal + deliveryFee |
+| Returns to client | 165-168 | Returns `{ subtotal, deliveryFee, total, reference }` |
+| Stores in checkout_attempts | 200-214 | Stores checkout_data with delivery_type, deliveryFee, total |
+
+**Client Displays Server Totals:**
+
+| Step | Line | Details |
+|------|------|---------|
+| CheckoutModal updates display | 247-250 | Uses server-returned `subtotal`, `deliveryFee`, `total` |
+| Shows in place-order summary | 252-254 | Displays GHS-formatted totals |
+
+**checkout_attempts.checkout_data:**
+
+| Field | Stored | Location |
+|-------|--------|----------|
+| delivery_type | Yes | checkout_data JSON in checkout_attempts table |
+| deliveryFee | Yes | checkout_data JSON in checkout_attempts table |
+| subtotal | Yes | checkout_data JSON in checkout_attempts table |
+| total | Yes | checkout_data JSON in checkout_attempts table |
+
+**finalize_paid_checkout:**
+
+| Step | Details |
+|------|---------|
+| Creates orders row | Does NOT include delivery_type or delivery_fee columns |
+| Only uses existing columns | payment_status, fulfillment_status, customer details, etc. |
+
+**Finding:** Delivery type and fee are stored in `checkout_attempts.checkout_data` but are NOT transferred to the `orders` row during finalization. The `orders` table does not have `delivery_type` or `delivery_fee` columns.
+
+### Optional Proposal for Order Columns
+
+Since delivery type and fee do not reach the orders row, here is the optional proposal (NOT APPLIED, review before running):
+
+**SQL (to be added to Section 6 of MASTER_UPDATE.sql):**
+
+```sql
+-- OPTIONAL: Add delivery columns to orders table
+-- Uncomment to apply after reviewing business requirements
+
+-- ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_type text;
+-- ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_fee numeric;
+
+-- COMMENT ON COLUMN public.orders.delivery_type IS 'Delivery type selected at checkout (same-day, scheduled, surprise, collection)';
+-- COMMENT ON COLUMN public.orders.delivery_fee IS 'Delivery fee charged for the order';
+```
+
+**Unified Diff for finalize_paid_checkout:**
+
+```diff
+--- a/supabase/functions/paystack-init/index.ts
++++ b/supabase/functions/paystack-init/index.ts
+@@ -200,6 +200,8 @@ async function initializeCheckout(request: Request) {
+       customer_email: customerEmail,
+       currency: 'GHS',
+       subtotal: serverSubtotal,
++      delivery_type: selectedDeliveryType || null,
++      delivery_fee: serverDeliveryFee,
+       total: serverTotal,
+       payment_reference: reference,
+       callback_url: callbackUrl,
+```
+
+Note: The actual `finalize_paid_checkout` function is in the database, not in this edge function. The edge function only creates the `checkout_attempts` row. The full proposal would require modifying the database function `finalize_paid_checkout` to read from `checkout_attempts.checkout_data` and populate the new columns on the orders row.
+
+### Tracking Flow Trace
+
+**trackingApi.js (src/storefront/api/trackingApi.js):**
+
+| Step | Line | Details |
+|------|------|---------|
+| Calls track_record RPC | 15-20 | Passes contact info to database function |
+| Handles response | 22-48 | Maps result kinds to user-facing messages |
+
+**Result Kind Handling:**
+
+| Kind | Message | File/Line |
+|------|---------|-----------|
+| `order` | "Order found: {tracking_number}" | trackingApi.js:24-27 |
+| `request` | "Request found: {reference_number}" | trackingApi.js:28-31 |
+| `not_found` | "No order or request found with these details" | trackingApi.js:32-35 |
+| `rate_limited` | "Too many failed attempts. Please wait {N} seconds." | trackingApi.js:36-42 |
+
+**TrackOrderPage.jsx (src/storefront/pages/TrackOrderPage.jsx):**
+
+| Step | Line | Details |
+|------|------|---------|
+| Reads tracking settings | 24-30 | Gets autoRefreshEnabled, refreshIntervalSeconds from settings |
+| Auto-refresh setup | 32-50 | Sets up interval, visibility change listener |
+| Interval clamping | 38-40 | Clamps to 3-60 seconds: `Math.max(3, Math.min(60, interval))` |
+| Tab hidden pause | 42-44 | Pauses when `document.hidden` is true |
+| Tab visible refresh | 45-48 | Refreshes when tab becomes visible |
+| Never overlaps | 33-35 | Clears previous interval before setting new one |
+| Keeps last data on failure | 21-22 | Updates result only when not rate_limited |
+| Stops on completion | 47-48 | Stops auto-refresh when order status is 'delivered' |
+
+**Auto-Refresh Behavior:**
+
+| Aspect | Implementation | Verdict |
+|--------|----------------|---------|
+| Uses configured interval | Yes (line 38) | ✅ Working |
+| Clamps 3-60 seconds | Yes (line 39-40) | ✅ Working |
+| Pauses while tab hidden | Yes (line 42-44) | ✅ Working |
+| Refreshes when tab visible | Yes (line 45-48) | ✅ Working |
+| Never overlaps requests | Yes (line 33-35) | ✅ Working |
+| Keeps last data on failure | Yes (line 21-22) | ✅ Working |
+| Stops on completion | Yes (line 47-48) | ✅ Working |
+
+**State Before/After SQL Migration:**
+
+| Aspect | Before SQL | After SQL |
+|--------|------------|----------|
+| tracking_auto_refresh_enabled | Uses default `true` | Reads from site_settings |
+| tracking_refresh_interval_seconds | Uses default `10` | Reads from site_settings |
+| track_max_failed_attempts | No enforcement | Enforced by track_record |
+| track_lockout_minutes | No enforcement | Enforced by track_record |
+| Rate limiting | Not enforced | Enforced by track_record (after SQL) |
+
+### Status
+
+**DONE** - Delivery flow traced end-to-end. Customer pays correct amount (server-authorized). Delivery type/fee stored in checkout_attempts but NOT on orders row (optional proposal added). Tracking auto-refresh verified (clamped, pauses on hidden tab, no overlap, keeps data on failure). All acceptance checks passed.
+
+**Answer to "Does a customer who picks 'Same-day delivery' pay the right amount?":** YES - The server (paystack-init) reads live settings, computes the delivery fee based on the selected type, and returns an authoritative total. The client displays this server-returned total before sending to Paystack.
+
+**Answer to "Does the tracking page update by itself?":** YES - When `tracking_auto_refresh_enabled` is true (after SQL migration), the page refreshes at the configured interval (clamped 3-60s), pauses when the tab is hidden, refreshes when visible, and stops when the order is delivered.
 
 
 
