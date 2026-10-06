@@ -11,7 +11,8 @@ export default class AdminErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('Admin page error:', error, errorInfo);
+    console.error('Admin page error:', error.message);
+    console.error('Component stack:', errorInfo.componentStack);
   }
 
   render() {

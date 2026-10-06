@@ -49,7 +49,7 @@ export default function OrdersPage() {
 
   // Load settings for password confirmation check
   useEffect(() => {
-    getAppSettings().then(setSettings);
+    setSettings(getAppSettings());
   }, []);
 
   // Load orders state

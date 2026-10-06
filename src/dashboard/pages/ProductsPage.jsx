@@ -222,7 +222,7 @@ export default function ProductsPage() {
 
   // Load settings for password confirmation check
   useEffect(() => {
-    getAppSettings().then(setSettings);
+    setSettings(getAppSettings());
   }, []);
 
   // Form state for drawer
