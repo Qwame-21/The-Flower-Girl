@@ -44,7 +44,7 @@ export async function syncCareersWithSupabase() {
     email: a.email,
     phone: a.phone,
     location: a.location,
-    date: a.created_at ? new Date(a.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
+    date: a.created_at ? new Date(a.created_at).toLocaleDateString('en-GB', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric' }) : '',
     portfolio_url: a.portfolio_url,
     resume: a.resume,
     status: a.status,

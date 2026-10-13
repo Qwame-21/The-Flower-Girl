@@ -32,7 +32,7 @@ export async function syncRequestsWithSupabase() {
   const mapped = requests.map(r => ({
     id: r.id,
     reference: r.reference,
-    created_at: r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
+    created_at: r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric' }) : '',
     status: r.status,
     customer_name: r.customer_name,
     phone: r.phone,

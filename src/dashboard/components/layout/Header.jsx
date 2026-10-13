@@ -6,6 +6,7 @@ import { supabase } from '../../../config/supabase';
 import { playNotificationSound, playUnmuteSound } from '../../lib/sounds';
 import { fetchSignInLogs, recordSignIn } from '../../lib/signinLog';
 import { getAppSettings, syncSettingsWithSupabase } from '../../data/settingsAdapter';
+import { addToast } from '../../lib/toastStore';
 
 const ROUTE_TITLE_MAP = {
   '/overview': 'OVERVIEW',
@@ -67,14 +68,43 @@ function positionDropdown(trigger, dropdown, options = {}) {
   dropdown.style.right = right === 'auto' ? 'auto' : `${right}px`;
 }
 
+function getAccraClockText() {
+  const now = new Date();
+  const dtf = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Accra',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  const parts = Object.fromEntries(dtf.formatToParts(now).map(p => [p.type, p.value]));
+  const weekday = (parts.weekday || '').toUpperCase();
+  const day = parts.day;
+  const month = (parts.month || '').toUpperCase();
+  const year = parts.year;
+  const hour = parts.hour;
+  const minute = parts.minute;
+  const second = parts.second;
+  return `${weekday}, ${day} ${month} ${year} • ${hour}:${minute}:${second} GMT`;
+}
+
 function formatLogDateTime(isoString) {
   if (!isoString) return '';
   const d = new Date(isoString);
   if (isNaN(d.getTime())) return isoString;
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const dayStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-  const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-  return `${dayStr}, ${timeStr}`;
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Accra',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  }).format(d);
 }
 
 export default function Header({ onToggleMobile }) {
@@ -82,21 +112,8 @@ export default function Header({ onToggleMobile }) {
   const activeTitle = ROUTE_TITLE_MAP[location.pathname] || 'OVERVIEW';
   const { onSignOut } = useDashboard();
 
-  // Live top bar clock state — lazy initializer computes the correct
-  // time string immediately so first render is never empty (no layout flash).
-  const [clockText, setClockText] = useState(() => {
-    const now = new Date();
-    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-    const dayName = days[now.getDay()];
-    const dateNum = now.getDate();
-    const monthName = months[now.getMonth()];
-    const year = now.getFullYear();
-    const hrs = String(now.getHours()).padStart(2, '0');
-    const mins = String(now.getMinutes()).padStart(2, '0');
-    const secs = String(now.getSeconds()).padStart(2, '0');
-    return `${dayName}, ${dateNum} ${monthName} ${year} • ${hrs}:${mins}:${secs}`;
-  });
+  // Live top bar clock state — Accra time with GMT suffix
+  const [clockText, setClockText] = useState(getAccraClockText);
 
   // Notification state
   const [isMuted, setIsMuted] = useState(() => localStorage.getItem('notifications-muted') === 'true');
@@ -326,20 +343,8 @@ export default function Header({ onToggleMobile }) {
 
   useEffect(() => {
     function updateClock() {
-      const now = new Date();
-      const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-      const dayName = days[now.getDay()];
-      const dateNum = now.getDate();
-      const monthName = months[now.getMonth()];
-      const year = now.getFullYear();
-      const hrs = String(now.getHours()).padStart(2, '0');
-      const mins = String(now.getMinutes()).padStart(2, '0');
-      const secs = String(now.getSeconds()).padStart(2, '0');
-      setClockText(`${dayName}, ${dateNum} ${monthName} ${year} • ${hrs}:${mins}:${secs}`);
+      setClockText(getAccraClockText());
     }
-    // No initial call needed — useState lazy init already set the correct time.
-    // Start the interval to keep it ticking every second.
     const timer = setInterval(updateClock, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -454,6 +459,15 @@ export default function Header({ onToggleMobile }) {
           if (!isMuted && isNotifAllowed(newNotif)) {
             playNotificationSound();
           }
+          if (isNotifAllowed(newNotif)) {
+            addToast({
+              id: newNotif.id,
+              title: newNotif.title,
+              body: newNotif.body,
+              type: newNotif.type,
+              route: newNotif.route
+            });
+          }
           return [{
             id: newNotif.id,
             type: newNotif.type,
@@ -475,6 +489,15 @@ export default function Header({ onToggleMobile }) {
           if (prev.some(n => n.id === newNotif.id)) return prev;
           if (!isMuted && isNotifAllowed(newNotif)) {
             playNotificationSound();
+          }
+          if (isNotifAllowed(newNotif)) {
+            addToast({
+              id: newNotif.id,
+              title: newNotif.title,
+              body: newNotif.body,
+              type: newNotif.type,
+              route: newNotif.route
+            });
           }
           return [{
             id: newNotif.id,

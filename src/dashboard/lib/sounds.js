@@ -35,10 +35,10 @@ if (typeof document !== 'undefined') {
 // Notification chime — two-note sine: E5 then A5
 const NOTE_CHIME_1_HZ   = 659;   // E5
 const NOTE_CHIME_2_HZ   = 880;   // A5
-const NOTE_CHIME_DUR_MS = 120;   // each note duration ms
-const NOTE_CHIME_ATK_MS = 10;    // attack ms
-const NOTE_CHIME_DELAY  = 0.110; // second note starts at 110 ms (seconds)
-const NOTE_CHIME_GAIN   = 0.08;  // peak gain
+const NOTE_CHIME_DUR_MS = 280;   // each note duration ms
+const NOTE_CHIME_ATK_MS = 15;    // attack ms
+const NOTE_CHIME_DELAY  = 0.200; // second note starts at 200 ms (seconds)
+const NOTE_CHIME_GAIN   = 0.45;  // peak gain (clear audible chime)
 
 // Mute confirmation — descending A4→E4 over 140 ms
 const NOTE_MUTE_HZ_START = 440;  // A4

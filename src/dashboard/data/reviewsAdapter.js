@@ -37,7 +37,7 @@ export async function syncReviewsWithSupabase() {
     reviewText: r.review_text,
     rating: r.rating,
     status: r.status || 'pending',
-    date: r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
+    date: r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric' }) : '',
     isFlagged: r.is_flagged || false,
     replyText: r.reply_text || '',
     replyDate: r.reply_date || ''

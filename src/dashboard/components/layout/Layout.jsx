@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import ToastContainer from '../ToastContainer';
 import { useIdleTimer } from '../../lib/idle';
 import AdminErrorBoundary from '../ErrorBoundary';
 
@@ -83,6 +84,7 @@ export default function Layout() {
           </div>
         </section>
       </main>
+      <ToastContainer />
     </div>
   );
 }

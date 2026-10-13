@@ -475,6 +475,10 @@ html, body {
   line-height: 1;
 }
 
+#ordersStatusBadge {
+  background-color: #2563eb !important;
+}
+
 .side-navigation.collapsed .nav-status-badge {
   top: 2px;
   right: 2px;
@@ -824,11 +828,11 @@ html, body {
 
 .notif-dropdown {
   position: fixed;
-  width: 320px;
+  width: 340px;
   background: rgb(245, 245, 243);
   border: 1px solid rgba(26, 26, 26, 0.12);
   border-radius: 18px;
-  padding: 16px;
+  padding: 0;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15);
   opacity: 0;
   pointer-events: none;
@@ -836,7 +840,7 @@ html, body {
   transform-origin: top right;
   transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: var(--z-dropdown);
-  overflow: visible;
+  overflow: hidden;
 }
 
 .notif-dropdown.active {
@@ -846,18 +850,26 @@ html, body {
 }
 
 .dropdown-header {
+  --notif-btn-h: 34px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 18px 12px;
   border-bottom: 1px solid var(--divider-color);
-  margin-bottom: 10px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .dropdown-header-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .notif-close-btn {
@@ -891,9 +903,8 @@ html, body {
   background: rgba(26, 26, 26, 0.04);
   border: 1px solid rgba(26, 26, 26, 0.12);
   border-radius: 50%;
-  /* FIX 3: match clear-all-btn height of 32px */
-  width: 32px;
-  height: 32px;
+  width: var(--notif-btn-h, 34px);
+  height: var(--notif-btn-h, 34px);
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -967,8 +978,7 @@ html, body {
   border: 1px solid rgba(26, 26, 26, 0.12);
   border-radius: 16px;
   padding: 0 14px;
-  /* FIX 3: align with mute-toggle-btn at 32px */
-  height: 32px;
+  height: var(--notif-btn-h, 34px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -993,6 +1003,7 @@ html, body {
 .notif-body {
   min-height: 80px;
   max-height: 400px;
+  padding: 0 4px 8px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -1137,12 +1148,7 @@ html, body {
   text-align: center;
 }
 
-.notif-body {
-  max-height: 400px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(26, 26, 26, 0.2) transparent;
-}
+
 
 .notif-body::-webkit-scrollbar {
   width: 6px;
@@ -1409,7 +1415,7 @@ html, body {
   }
 
   .notif-dropdown {
-    width: 290px;
+    width: 310px;
     right: 12px;
     left: auto;
   }
@@ -1453,9 +1459,10 @@ html, body {
   }
 
   .notif-dropdown {
-    width: calc(100vw - 32px);
-    max-width: 300px;
-    right: -45px;
+    width: calc(100vw - 24px);
+    max-width: 340px;
+    right: 8px;
+    left: auto;
   }
 
   .menu-item {
@@ -5489,15 +5496,45 @@ input:checked + .toggle-slider:before {
 }
 
 .contact-icon-tile {
-  width: 34px;
-  height: 34px;
-  background: #e5e7eb;
-  border-radius: 10px;
+  width: 20px;
+  height: 20px;
+  background: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #4b5563;
+  color: var(--text-muted, #6b7280);
   flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.order-section-divider {
+  border: none;
+  border-top: 1px solid rgba(26, 26, 26, 0.08);
+  margin: 18px 0;
+}
+
+.order-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.order-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.order-section-title {
+  font-family: var(--font-family-base);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7280;
 }
 
 .contact-detail-content {
@@ -5815,6 +5852,7 @@ input:checked + .toggle-slider:before {
   border: 1px solid rgba(26, 26, 26, 0.15);
   border-radius: 9999px;
   padding: 6px 16px;
+  min-width: 175px;
   height: 32px;
   font-family: var(--font-family-base);
   font-size: 12px;
@@ -5823,16 +5861,95 @@ input:checked + .toggle-slider:before {
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   transition: all 0.2s ease;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.save-note-capsule-btn:hover {
+.save-note-capsule-btn:hover:not(:disabled) {
   background: #1a1a1a;
   color: #ffffff;
   border-color: #1a1a1a;
+}
+
+.save-note-capsule-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.save-note-capsule-btn.saving {
+  background: rgba(26, 26, 26, 0.04);
+  color: var(--text-muted);
+  border-color: rgba(26, 26, 26, 0.15);
+}
+
+.save-note-capsule-btn.saved {
+  background: #15803d;
+  color: #ffffff;
+  border-color: #15803d;
+}
+
+.save-note-capsule-btn.failed {
+  background: #b91c1c;
+  color: #ffffff;
+  border-color: #b91c1c;
+}
+
+.save-note-action-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.last-saved-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Delivery Confirmation Status Indicator */
+.delivery-status-indicator-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: rgba(26, 26, 26, 0.02);
+  border: 1px solid rgba(26, 26, 26, 0.06);
+  border-radius: 8px;
+}
+
+.delivery-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.delivery-status-pill.confirmed {
+  color: #15803d;
+}
+
+.delivery-status-pill.pending {
+  color: #b45309;
+}
+
+.unsaved-changes-pill {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #b45309;
+  background: rgba(217, 119, 6, 0.1);
+  border: 1px solid rgba(217, 119, 6, 0.25);
+  border-radius: 12px;
+  padding: 2px 8px;
 }
 
 /* Update Delete Order Button */
@@ -10599,6 +10716,117 @@ button[data-trend-mode].active {
 
 @keyframes xToastIn {
   from { opacity: 0; transform: translateY(12px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Dashboard Notification Toast Popups */
+.dashboard-toast-stack {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 380px;
+  width: calc(100vw - 32px);
+  pointer-events: none;
+}
+
+.dashboard-toast-card {
+  pointer-events: auto;
+  background: #ffffff;
+  color: var(--text-primary);
+  border: 1px solid rgba(26, 26, 26, 0.12);
+  border-radius: 12px;
+  padding: 12px 14px 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: toastCardSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dashboard-toast-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.16);
+}
+
+.toast-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.toast-type-pill {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-family-base);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: rgba(26, 26, 26, 0.05);
+  padding: 3px 8px;
+  border-radius: 20px;
+}
+
+.toast-close-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
+}
+
+.toast-close-btn:hover {
+  color: var(--text-primary);
+}
+
+.toast-card-title {
+  font-family: var(--font-family-base);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.toast-card-text {
+  font-family: var(--font-family-base);
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.toast-progress-track {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(26, 26, 26, 0.06);
+}
+
+.toast-progress-bar {
+  height: 100%;
+  background: #1a1a1a;
+  transition: width 0.05s linear;
+}
+
+@keyframes toastCardSlideIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
