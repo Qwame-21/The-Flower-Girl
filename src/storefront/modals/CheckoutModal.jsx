@@ -305,7 +305,7 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
               <strong>GHS {(item.price * item.quantity).toLocaleString()}</strong>
               <button className="checkout-remove" type="button" onClick={() => onQuantity(item.id, 0)} aria-label={`Remove ${item.name} from order`}><Trash2 size={17} strokeWidth={1.6} /></button>
             </div>)}</div>
-            <div className="checkout-total"><span>SUBTOTAL</span><strong>GHS {subtotal.toLocaleString()}</strong></div>
+            <div className="checkout-total"><span>Items subtotal</span><strong>GHS {subtotal.toLocaleString()}</strong></div>
             {siteSettings?.delivery_selector_enabled && (
               <>
                 {(() => {
@@ -341,11 +341,29 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
                     />
                   );
                 })()}
-                <div className="checkout-total"><span>Delivery fee</span><strong>{deliveryFee > 0 ? `GHS ${deliveryFee.toLocaleString()}` : 'Free'}</strong></div>
+                {(() => {
+                  const deliveryTypeNames = {
+                    sameday: 'Same-day delivery',
+                    scheduled: 'Scheduled delivery',
+                    surprise: 'Surprise delivery',
+                    collection: 'Shop collection',
+                  };
+                  const typeLabel = deliveryTypeNames[selectedDeliveryType] || 'Delivery';
+                  const feeDisplay = selectedDeliveryType === 'collection'
+                    ? 'Collection, free'
+                    : (deliveryFee > 0 ? `GHS ${deliveryFee.toLocaleString()}` : 'Free');
+
+                  return (
+                    <div className="checkout-total">
+                      <span>Delivery ({typeLabel})</span>
+                      <strong>{feeDisplay}</strong>
+                    </div>
+                  );
+                })()}
                 <a href="/delivery" target="_blank" rel="noopener noreferrer" className="small-link">How delivery works</a>
               </>
             )}
-            <div className="checkout-total"><span>TOTAL</span><strong>GHS {total.toLocaleString()}</strong></div>
+            <div className="checkout-total"><span>Total</span><strong>GHS {total.toLocaleString()}</strong></div>
             <div className="checkout-contact-grid"><label>Customer name<input name="customer" required disabled={submitting} /></label><label>Email for receipt<input name="email" required type="email" disabled={submitting} /></label><PhoneInput required disabled={submitting} /><label><span className="field-label">Recipient name <small>optional</small></span><input name="recipient-name" placeholder="Leave blank if you are receiving it" disabled={submitting} /></label></div>
             <DeliveryAddressFields disabled={submitting} isCollection={selectedDeliveryType === 'collection'} /><label>Nearest landmark<input name="landmark" disabled={submitting} /></label>
             <div className="location-field"><label>Google Maps or location link<input type="url" value={locationLink} onChange={event => setLocationLink(event.target.value)} placeholder="https://maps.google.com/..." disabled={submitting} /></label><button type="button" onClick={useCurrentLocation} disabled={submitting}><LocateFixed size={15} /> USE MY LOCATION</button>{locationStatus && <small><MapPin size={13} />{locationStatus}</small>}</div>

@@ -4,10 +4,51 @@ export function hasTrackingApi() {
   return Boolean(supabase);
 }
 
+// Columns that exist in the original schema (always safe to query).
+const BASE_SELECT = `
+  id,
+  order_code,
+  tracking_number,
+  customer_name,
+  customer_email,
+  customer_phone,
+  fulfillment_status,
+  payment_status,
+  created_at,
+  order_events (stage, customer_note, created_at)
+`;
+
+// Additional columns added by migrations. Queried in the first pass;
+// if PostgREST rejects the query (400 "column does not exist") we fall back
+// to BASE_SELECT and return nulls for the optional fields.
+const EXTENDED_SELECT = `
+  id,
+  order_code,
+  tracking_number,
+  customer_name,
+  customer_email,
+  customer_phone,
+  recipient_name,
+  fulfillment_status,
+  payment_status,
+  estimated_delivery,
+  requested_delivery_date,
+  delivery_type,
+  delivery_window,
+  admin_note,
+  created_at,
+  order_events (stage, customer_note, created_at)
+`;
+
 /**
  * Looks up an order directly from the orders table by order_code or tracking_number,
  * then validates the contact (phone or email) matches.
  * Returns { data: { kind, ... } } shaped like the old RPC to keep TrackOrderPage compatible.
+ *
+ * Degrades gracefully when optional migration columns don't exist yet:
+ *  - First tries EXTENDED_SELECT (all columns).
+ *  - If PostgREST returns a column-not-found error (HTTP 400 / code PGRST204 or message
+ *    containing "column"), retries with BASE_SELECT and omits the optional fields.
  */
 export async function trackRecord(reference, credential) {
   if (!supabase) return { data: null, error: 'Supabase not configured' };
@@ -16,29 +57,47 @@ export async function trackRecord(reference, credential) {
   const contact = credential.trim().toLowerCase();
   const digits = contact.replace(/\D/g, '');
 
-  // Search orders by order_code OR tracking_number (case-insensitive)
-  const { data: orders, error } = await supabase
+  // --- First pass: try extended columns ---
+  let orders = null;
+  let queryError = null;
+  let usingBaseOnly = false;
+
+  const firstResult = await supabase
     .from('orders')
-    .select(`
-      id,
-      order_code,
-      tracking_number,
-      customer_name,
-      customer_email,
-      customer_phone,
-      fulfillment_status,
-      payment_status,
-      estimated_delivery,
-      requested_delivery_date,
-      admin_note,
-      order_events (stage, customer_note, created_at)
-    `)
+    .select(EXTENDED_SELECT)
     .or(`order_code.ilike.${ref},tracking_number.ilike.${ref}`)
     .limit(10);
 
-  if (error) {
-    console.error('trackRecord error:', error);
-    return { data: null, error: error.message };
+  if (firstResult.error) {
+    const msg = firstResult.error.message || '';
+    const isColumnMissing =
+      (firstResult.error.code && firstResult.error.code.startsWith('42')) ||
+      msg.toLowerCase().includes('column') ||
+      msg.toLowerCase().includes('does not exist') ||
+      firstResult.error.code === 'PGRST204';
+
+    if (isColumnMissing) {
+      // --- Fallback: base columns only ---
+      console.warn('[trackRecord] Extended columns not found, falling back to base select:', msg);
+      usingBaseOnly = true;
+      const fallback = await supabase
+        .from('orders')
+        .select(BASE_SELECT)
+        .or(`order_code.ilike.${ref},tracking_number.ilike.${ref}`)
+        .limit(10);
+
+      if (fallback.error) {
+        console.error('[trackRecord] Base query also failed:', fallback.error);
+        return { data: null, error: fallback.error.message };
+      }
+      orders = fallback.data;
+    } else {
+      // Genuine network / auth / RLS error — surface it
+      console.error('[trackRecord] Lookup failed:', firstResult.error);
+      return { data: null, error: firstResult.error.message };
+    }
+  } else {
+    orders = firstResult.data;
   }
 
   if (!orders || orders.length === 0) {
@@ -85,11 +144,16 @@ export async function trackRecord(reference, credential) {
       kind: 'order',
       trackingNumber: matched.tracking_number || matched.order_code,
       customerName: matched.customer_name,
+      // Optional — null when migration not yet run
+      recipientName: usingBaseOnly ? null : (matched.recipient_name ?? null),
       status: FULFILLMENT_MAP[matched.fulfillment_status] || matched.fulfillment_status || 'packaging',
       paymentStatus: matched.payment_status,
-      estimatedDelivery: matched.estimated_delivery,
-      requestedDeliveryDate: matched.requested_delivery_date,
-      adminNote: matched.admin_note,
+      estimatedDelivery: usingBaseOnly ? null : (matched.estimated_delivery ?? null),
+      deliveryType: usingBaseOnly ? null : (matched.delivery_type ?? null),
+      deliveryWindow: usingBaseOnly ? null : (matched.delivery_window ?? null),
+      requestedDeliveryDate: usingBaseOnly ? null : (matched.requested_delivery_date ?? null),
+      adminNote: usingBaseOnly ? null : (matched.admin_note ?? null),
+      createdAt: matched.created_at,
       events,
       ...eventFields,
     },

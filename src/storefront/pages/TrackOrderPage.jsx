@@ -4,6 +4,7 @@ import { readAdminData, subscribeAdminData } from '../../data/adminStore';
 import { hasTrackingApi, trackRecord } from '../api/trackingApi';
 import { getSiteSettings, refreshSiteSettings } from '../api/siteFeatures';
 import SiteFooter from '../components/SiteFooter';
+import { parseDateString, formatDateISO, formatDateDisplay as accraFormatDate, todayAccra } from '../../shared/dateUtils';
 
 function TrackingIcon({ stage }) {
   if (stage === 'paid') return <CircleDollarSign />;
@@ -37,9 +38,9 @@ export default function TrackOrderPage({ onNavigate }) {
     });
   }, []);
 
-  // Auto-refresh logic
+  // Auto-refresh logic (defaults to enabled, refreshing every 8s unless explicitly disabled in settings)
   useEffect(() => {
-    if (!result || !siteSettings?.tracking_auto_refresh_enabled) {
+    if (!result || siteSettings?.tracking_auto_refresh_enabled === false) {
       return;
     }
 
@@ -56,7 +57,7 @@ export default function TrackOrderPage({ onNavigate }) {
       return;
     }
 
-    const intervalSeconds = Math.max(3, Math.min(60, siteSettings.tracking_refresh_interval_seconds || 10));
+    const intervalSeconds = Math.max(3, Math.min(60, siteSettings?.tracking_refresh_interval_seconds || 8));
 
     const refresh = async () => {
       if (isRefreshingRef.current || document.hidden) {
@@ -83,11 +84,15 @@ export default function TrackOrderPage({ onNavigate }) {
             record: {
               tracking: data.trackingNumber,
               customer: data.customerName,
+              recipient: data.recipientName || data.customerName,
               status: data.status,
               paymentStatus: data.paymentStatus,
               estimatedDelivery: data.estimatedDelivery,
+              deliveryType: data.deliveryType,
+              deliveryWindow: data.deliveryWindow,
               requestedDeliveryDate: data.requestedDeliveryDate,
               adminNote: data.adminNote,
+              createdAt: data.createdAt,
               ...eventFields
             }
           });
@@ -152,7 +157,7 @@ export default function TrackOrderPage({ onNavigate }) {
         matched = null;
       } else if (data?.kind === 'order') {
         const eventFields = Object.fromEntries((data.events || []).flatMap(item => [[`${item.stage}At`, item.createdAt], [`${item.stage}Note`, item.note]]));
-        matched = { kind: 'order', record: { tracking: data.trackingNumber, customer: data.customerName, status: data.status, paymentStatus: data.paymentStatus, estimatedDelivery: data.estimatedDelivery, requestedDeliveryDate: data.requestedDeliveryDate, adminNote: data.adminNote, ...eventFields } };
+        matched = { kind: 'order', record: { tracking: data.trackingNumber, customer: data.customerName, recipient: data.recipientName || data.customerName, status: data.status, paymentStatus: data.paymentStatus, estimatedDelivery: data.estimatedDelivery, deliveryType: data.deliveryType, deliveryWindow: data.deliveryWindow, requestedDeliveryDate: data.requestedDeliveryDate, adminNote: data.adminNote, createdAt: data.createdAt, ...eventFields } };
       } else if (data?.kind === 'request') matched = { kind: 'request', record: { reference: data.reference, name: data.customerName, status: data.status, service: data.service, preferredDate: data.preferredDate, quoteTotal: data.confirmedQuote, adminNote: data.adminNote } };
     }
     setResult(matched);
@@ -165,6 +170,57 @@ export default function TrackOrderPage({ onNavigate }) {
   const order = result?.kind === 'order' ? result.record : null;
   const request = result?.kind === 'request' ? result.record : null;
 
+  // Delivery type and schedule formatting helpers
+  const formatDeliveryTypeName = (type) => {
+    if (!type) return '';
+    const key = type.toLowerCase().trim();
+    if (key === 'sameday') return 'Same-day delivery';
+    if (key === 'scheduled') return 'Scheduled delivery';
+    if (key === 'surprise') return 'Surprise delivery';
+    if (key === 'collection') return 'Shop collection';
+    return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  const formatDeliveryWindow = (win) => {
+    if (!win) return '';
+    const lower = win.toLowerCase().trim();
+    if (lower === 'morning') return '9:00 AM – 12:00 PM';
+    if (lower === 'afternoon') return '12:00 PM – 4:00 PM';
+    if (lower === 'evening') return '4:00 PM – 7:00 PM';
+    return win;
+  };
+
+  // Build the delivery block data — timezone-safe, using Africa/Accra calendar dates
+  const getDeliveryInfo = (ord) => {
+    if (!ord) return null;
+    const typeName = formatDeliveryTypeName(ord.deliveryType);
+    const winLabel = formatDeliveryWindow(ord.deliveryWindow);
+
+    // Customer requested date — parse safely without new Date(string)
+    let requestedStr = '';
+    if (ord.requestedDeliveryDate) {
+      const p = parseDateString(ord.requestedDeliveryDate);
+      if (p) requestedStr = accraFormatDate(formatDateISO(p));
+    }
+
+    // Admin confirmed date — may be stored as ISO timestamp or YYYY-MM-DD
+    let confirmedDateStr = '';
+    if (ord.estimatedDelivery) {
+      // Try YYYY-MM-DD prefix first
+      const match = String(ord.estimatedDelivery).match(/^(\d{4}-\d{2}-\d{2})/);
+      if (match) {
+        const p = parseDateString(match[1]);
+        if (p) confirmedDateStr = accraFormatDate(formatDateISO(p));
+      }
+    }
+
+    const hasConfirmed = !!(confirmedDateStr);
+
+    return { typeName, requestedStr, confirmedDateStr, winLabel, hasConfirmed };
+  };
+
+  const deliveryInfo = order ? getDeliveryInfo(order) : null;
+
   return <main className="content-page track-page">
     <header className="content-page-heading track-page-heading"><span>ORDER &amp; REQUEST TRACKING</span><h1>Follow your<br />gift.</h1><p>Enter the reference we shared and either the phone number or email used for the request.</p></header>
     <section className="track-workspace">
@@ -173,8 +229,83 @@ export default function TrackOrderPage({ onNavigate }) {
         <label>Phone number or email<input value={credential} onChange={event => setCredential(event.target.value)} required placeholder="024 000 0000 or you@example.com" /></label>
         <button className="primary-action" disabled={searching}>{searching ? 'CHECKING…' : 'TRACK'}</button>
       </form>
-      {order && <article ref={resultRef} className="tracking-result"><span>{order.tracking}</span><h2>{order.customer}</h2><p>Your order is currently <strong>{labels[order.status] || order.status}</strong>.</p>{siteSettings?.tracking_auto_refresh_enabled && <small className="tracking-auto-refresh-note">Updates automatically</small>}<div className="tracking-timeline">{stages.map(stage => { const done = stages.indexOf(stage) <= stages.indexOf(order.status) || (stage === 'paid' && order.paymentStatus === 'paid'); const current = stage === order.status || (stage === 'paid' && order.status === 'pending_payment'); const note = order[`${stage}Note`] || (current ? order.adminNote : ''); return <i key={stage} className={`${done ? 'done' : ''} ${current ? 'is-current' : ''}`}><b><TrackingIcon stage={stage} /></b><span className="tracking-stage-label">{stage === 'paid' && order.paymentStatus !== 'paid' ? 'Awaiting payment' : labels[stage]}</span><time>{order[`${stage}At`] ? new Date(order[`${stage}At`]).toLocaleString('en-GH') : 'Update pending'}</time>{note && <small>{note}</small>}</i>; })}</div><section className="track-order-details"><p><strong>Recipient:</strong> {order.recipient || order.customer}</p><p><strong>Delivery:</strong> {order.delivery || 'Awaiting confirmation'}</p><p><strong>Payment:</strong> {order.paymentStatus === 'paid' ? 'Confirmed' : 'Awaiting confirmation'}</p>{order.estimatedDelivery && <p><strong>Estimated delivery:</strong> {new Date(order.estimatedDelivery).toLocaleString('en-GH')}</p>}{order.adminNote && <p><strong>Latest update:</strong> {order.adminNote}</p>}</section></article>}
-      {request && <article ref={resultRef} className="tracked-request tracking-result"><span>{request.reference || request.id}</span><h2>{request.name || 'Custom request'}</h2><p>Your request is <strong>{request.status === 'converted' ? 'now an order' : request.status === 'approved' ? 'approved' : request.status === 'quote_needed' ? 'being quoted' : 'received'}</strong>.</p>{siteSettings?.tracking_auto_refresh_enabled && <small className="tracking-auto-refresh-note">Updates automatically</small>}<section className="track-order-details"><p><strong>Service:</strong> {request.service || request.selections?.join(', ') || 'Bespoke gift'}</p><p><strong>Preferred date:</strong> {request.preferredDate || 'To confirm'}</p>{request.quoteTotal && <p><strong>Confirmed quote:</strong> GHS {Number(request.quoteTotal).toLocaleString()}</p>}<p><strong>Latest update:</strong> {request.adminNote || 'The team will contact you as the request progresses.'}</p></section></article>}
+      {order && <article ref={resultRef} className="tracking-result">
+        <span>{order.tracking}</span>
+        <h2>{order.customer}</h2>
+        <p>Your order is currently <strong>{labels[order.status] || order.status}</strong>.</p>
+        <small className="tracking-auto-refresh-note">Updates automatically</small>
+        <div className="tracking-timeline">
+          {stages.map(stage => {
+            const done = stages.indexOf(stage) <= stages.indexOf(order.status) || (stage === 'paid' && order.paymentStatus === 'paid');
+            const current = stage === order.status || (stage === 'paid' && order.status === 'pending_payment');
+            
+            // Format reached time or provide sensible fallback if order reached this stage
+            let timeDisplay = 'Update pending';
+            if (order[`${stage}At`]) {
+              try {
+                timeDisplay = new Date(order[`${stage}At`]).toLocaleString('en-GH', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+              } catch (e) {
+                timeDisplay = String(order[`${stage}At`]);
+              }
+            } else if (stage === 'packaging' && done && (order.paidAt || order.createdAt)) {
+              try {
+                timeDisplay = new Date(order.paidAt || order.createdAt).toLocaleString('en-GH', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+              } catch (e) {
+                timeDisplay = 'Processing';
+              }
+            } else if (done && !order[`${stage}At`]) {
+              timeDisplay = 'Completed';
+            }
+
+            return (
+              <i key={stage} className={`${done ? 'done' : ''} ${current ? 'is-current' : ''}`}>
+                <b><TrackingIcon stage={stage} /></b>
+                <span className="tracking-stage-label">{stage === 'paid' && order.paymentStatus !== 'paid' ? 'Awaiting payment' : labels[stage]}</span>
+                <time>{timeDisplay}</time>
+              </i>
+            );
+          })}
+        </div>
+        <section className="track-order-details">
+          <p><strong>Recipient:</strong> {order.recipient || order.customer}</p>
+
+          {/* Delivery / note block — clean, no accent bar */}
+          <div className="track-team-note-block">
+            {/* Row 1: Requested (always shown when delivery type or requested date is known) */}
+            {(deliveryInfo?.typeName || deliveryInfo?.requestedStr) && (
+              <div className="track-note-row">
+                <span className="track-note-label">Requested</span>
+                <span className="track-note-value">
+                  {[deliveryInfo.typeName, deliveryInfo.requestedStr].filter(Boolean).join(' · ')}
+                </span>
+              </div>
+            )}
+
+            {/* Row 2: Confirmed delivery — shown after admin saves; otherwise show 'will confirm' */}
+            <div className="track-note-row">
+              <span className="track-note-label">Confirmed delivery</span>
+              {deliveryInfo?.hasConfirmed ? (
+                <span className="track-note-value">
+                  {[deliveryInfo.confirmedDateStr, deliveryInfo.winLabel].filter(Boolean).join(' · ')}
+                </span>
+              ) : (
+                <span className="track-note-value track-note-pending">We will confirm your final delivery time shortly</span>
+              )}
+            </div>
+
+            {/* Row 3: Message from team — only when admin has written a note */}
+            {order.adminNote && (
+              <div className="track-note-row">
+                <span className="track-note-label">Message</span>
+                <span className="track-note-value">{order.adminNote}</span>
+              </div>
+            )}
+          </div>
+
+          <p><strong>Payment:</strong> {order.paymentStatus === 'paid' ? 'Confirmed' : 'Awaiting confirmation'}</p>
+        </section>
+      </article>}
+      {request && <article ref={resultRef} className="tracked-request tracking-result"><span>{request.reference || request.id}</span><h2>{request.name || 'Custom request'}</h2><p>Your request is <strong>{request.status === 'converted' ? 'now an order' : request.status === 'approved' ? 'approved' : request.status === 'quote_needed' ? 'being quoted' : 'received'}</strong>.</p><small className="tracking-auto-refresh-note">Updates automatically</small><section className="track-order-details"><p><strong>Service:</strong> {request.service || request.selections?.join(', ') || 'Bespoke gift'}</p><p><strong>Preferred date:</strong> {request.preferredDate || 'To confirm'}</p>{request.quoteTotal && <p><strong>Confirmed quote:</strong> GHS {Number(request.quoteTotal).toLocaleString()}</p>}<p><strong>Latest update:</strong> {request.adminNote || 'The team will contact you as the request progresses.'}</p></section></article>}
       {searched && !result && <div className="track-empty"><p>{isRateLimited ? 'Too many attempts. Please wait a few minutes and try again.' : 'No record matched those details. Check the reference and contact information, then try again.'}</p><a href={`tel:${String(trackingData.settings.supportPhone || '').replace(/[^+\d]/g, '')}`}>Call {trackingData.settings.supportPhone}</a></div>}
     </section>
     <SiteFooter onNavigate={onNavigate} />
