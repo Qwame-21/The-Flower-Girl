@@ -140,7 +140,7 @@ DECLARE
 BEGIN
   IF (NEW.fulfillment_status = 'completed' AND (OLD.fulfillment_status IS NULL OR OLD.fulfillment_status != 'completed')) THEN
     -- Generate items summary
-    SELECT COALESCE(string_agg(name || ' (x' || quantity || ')', ', '), 'No items')
+    SELECT COALESCE(string_agg(item_name || ' (x' || quantity || ')', ', '), 'No items')
     INTO v_items_summary
     FROM public.order_items
     WHERE order_id = NEW.id;
@@ -173,7 +173,7 @@ SELECT
   o.customer_phone,
   o.customer_email,
   COALESCE(o.total, 0.00),
-  (SELECT COALESCE(string_agg(i.name || ' (x' || i.quantity || ')', ', '), 'No items') FROM public.order_items i WHERE i.order_id = o.id),
+  (SELECT COALESCE(string_agg(i.item_name || ' (x' || i.quantity || ')', ', '), 'No items') FROM public.order_items i WHERE i.order_id = o.id),
   COALESCE(o.updated_at, o.created_at),
   COALESCE(o.is_demo, false)
 FROM public.orders o

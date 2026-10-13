@@ -193,13 +193,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-  if (productError || promotionError || !dbProducts || dbProducts.length !== productIds.length) {
-    console.error('[paystack-init] PRODUCT_VALIDATION_FAILED');
+  if (productError || promotionError) {
+    console.error('[paystack-init] PRODUCT_VALIDATION_FAILED db_error:', productError?.message || promotionError?.message);
     return new Response(JSON.stringify({
       ok: false,
       error: {
         code: 'PRODUCT_UNAVAILABLE',
-        message: 'The live catalogue could not validate every item. Refresh the shop and try again.'
+        message: 'The live catalogue could not be reached. Please try again.'
+      }
+    }), {
+      status: 503,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+  if (!dbProducts || dbProducts.length !== productIds.length) {
+    const foundIds = new Set((dbProducts || []).map((p: { id: string }) => p.id));
+    const missingIds = productIds.filter(id => !foundIds.has(id));
+    console.error('[paystack-init] PRODUCT_VALIDATION_FAILED not_in_catalogue ids=' + missingIds.join(','));
+    return new Response(JSON.stringify({
+      ok: false,
+      error: {
+        code: 'PRODUCT_UNAVAILABLE',
+        message: 'One or more items in your cart are no longer available. Refresh the shop and try again.'
       }
     }), {
       status: 409,
@@ -215,22 +230,35 @@ Deno.serve(async (req: Request): Promise<Response> => {
   for (const cartItem of cart) {
     const dbProduct = priceMap.get(cartItem.id);
 
-    if (!dbProduct || dbProduct.visible === false) {
-      console.error('[paystack-init] PRODUCT_UNAVAILABLE', cartItem.id);
+    if (!dbProduct) {
+      console.error('[paystack-init] PRODUCT_UNAVAILABLE not_found id=' + cartItem.id);
       return new Response(JSON.stringify({
         ok: false,
         error: {
           code: 'PRODUCT_UNAVAILABLE',
-          message: `${dbProduct?.name || cartItem.name} is no longer available.`
+          message: `${cartItem.name} is no longer available.`
         }
       }), {
-        status: 400,
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (dbProduct.visible === false) {
+      console.error('[paystack-init] PRODUCT_UNAVAILABLE hidden id=' + cartItem.id + ' name=' + dbProduct.name);
+      return new Response(JSON.stringify({
+        ok: false,
+        error: {
+          code: 'PRODUCT_UNAVAILABLE',
+          message: `${dbProduct.name} is no longer available.`
+        }
+      }), {
+        status: 409,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     const qty = Math.max(1, Math.round(cartItem.quantity || 1));
     if (qty > Number(dbProduct.stock)) {
-      console.error('[paystack-init] OUT_OF_STOCK', dbProduct.name, dbProduct.stock);
+      console.error('[paystack-init] OUT_OF_STOCK id=' + cartItem.id + ' name=' + dbProduct.name + ' stock=' + dbProduct.stock + ' requested=' + qty);
       return new Response(JSON.stringify({
         ok: false,
         error: {
@@ -266,7 +294,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    deliveryFee = Number(siteSettings.delivery_sameday_fee);
+    const rawFee = siteSettings.delivery_sameday_fee;
+    const parsedFee = Number(rawFee);
+    if (rawFee === undefined || rawFee === null || !Number.isFinite(parsedFee) || parsedFee < 0) {
+      console.error('[paystack-init] DELIVERY_FEE_MISSING setting="delivery_sameday_fee" rawValue=' + rawFee);
+      return new Response(JSON.stringify({
+        ok: false,
+        error: {
+          code: 'DELIVERY_FEE_MISSING',
+          message: 'Same-day delivery fee is not configured in site settings.'
+        }
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    deliveryFee = parsedFee;
   } else if (deliveryType === 'scheduled') {
     if (siteSettings.delivery_scheduled_enabled === false) {
       console.error('[paystack-init] DELIVERY_UNAVAILABLE scheduled');
@@ -310,7 +353,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    deliveryFee = Number(siteSettings.delivery_scheduled_fee);
+    const rawFee = siteSettings.delivery_scheduled_fee;
+    const parsedFee = Number(rawFee);
+    if (rawFee === undefined || rawFee === null || !Number.isFinite(parsedFee) || parsedFee < 0) {
+      console.error('[paystack-init] DELIVERY_FEE_MISSING setting="delivery_scheduled_fee" rawValue=' + rawFee);
+      return new Response(JSON.stringify({
+        ok: false,
+        error: {
+          code: 'DELIVERY_FEE_MISSING',
+          message: 'Scheduled delivery fee is not configured in site settings.'
+        }
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    deliveryFee = parsedFee;
   } else if (deliveryType === 'surprise') {
     if (siteSettings.delivery_surprise_enabled === false) {
       console.error('[paystack-init] DELIVERY_UNAVAILABLE surprise');
@@ -325,7 +383,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    deliveryFee = Number(siteSettings.delivery_surprise_fee);
+    const rawFee = siteSettings.delivery_surprise_fee;
+    const parsedFee = Number(rawFee);
+    if (rawFee === undefined || rawFee === null || !Number.isFinite(parsedFee) || parsedFee < 0) {
+      console.error('[paystack-init] DELIVERY_FEE_MISSING setting="delivery_surprise_fee" rawValue=' + rawFee);
+      return new Response(JSON.stringify({
+        ok: false,
+        error: {
+          code: 'DELIVERY_FEE_MISSING',
+          message: 'Surprise delivery fee is not configured in site settings.'
+        }
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    deliveryFee = parsedFee;
   } else if (deliveryType === 'collection') {
     if (siteSettings.delivery_collection_enabled === false) {
       console.error('[paystack-init] DELIVERY_UNAVAILABLE collection');
@@ -340,7 +413,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    deliveryFee = Number(siteSettings.delivery_collection_fee);
+    const rawFee = siteSettings.delivery_collection_fee;
+    const parsedFee = Number(rawFee);
+    if (rawFee === undefined || rawFee === null || !Number.isFinite(parsedFee) || parsedFee < 0) {
+      console.error('[paystack-init] DELIVERY_FEE_MISSING setting="delivery_collection_fee" rawValue=' + rawFee);
+      return new Response(JSON.stringify({
+        ok: false,
+        error: {
+          code: 'DELIVERY_FEE_MISSING',
+          message: 'Store collection fee is not configured in site settings.'
+        }
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    deliveryFee = parsedFee;
   } else {
     console.error('[paystack-init] INVALID_DELIVERY_TYPE', deliveryType);
     return new Response(JSON.stringify({
@@ -356,6 +444,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const grandTotal = serverTotal + deliveryFee;
+  // Guard: serverTotal and deliveryFee must both be finite numbers. If either is
+  // NaN (e.g. a fee column returns an unexpected non-numeric value from the DB)
+  // grandTotal becomes NaN, which JSON.stringify serialises as null, causing a
+  // NOT NULL constraint violation on checkout_attempts.total (Postgres 23502).
+  if (!Number.isFinite(grandTotal) || !Number.isFinite(serverTotal) || grandTotal < 0) {
+    console.error('[paystack-init] TOTAL_COMPUTATION_FAILED serverTotal=' + serverTotal + ' deliveryFee=' + deliveryFee + ' grandTotal=' + grandTotal);
+    return new Response(JSON.stringify({
+      ok: false,
+      error: {
+        code: 'INTERNAL',
+        message: 'Order total could not be calculated. Please try again.'
+      }
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
 
   // ── Generate references ───────────────────────────────────────────────────────
   const timestamp = Date.now();

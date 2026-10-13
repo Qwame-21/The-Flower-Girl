@@ -74,7 +74,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const amount = Number(verified.amount) / 100;
   const currency = String(verified.currency || '').toUpperCase();
   if (!Number.isFinite(amount) || currency !== 'GHS') {
-    return json({ error: 'Payment details rejected' }, 409);
+    console.error('[paystack-verify] PAYMENT_DETAILS_REJECTED amount=' + amount + ' currency=' + currency);
+    return json({ error: 'Payment details rejected' }, 409, corsHeaders);
   }
 
   // Finalize paid checkout via Security Definer RPC as Service Role
