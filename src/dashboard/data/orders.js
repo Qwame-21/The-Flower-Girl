@@ -52,6 +52,19 @@ export async function listOrders() {
     subtotal: order.subtotal,
     total: order.total,
     paymentStatus: order.payment_status,
+    deliveryType: order.delivery_type || (
+      (Number(order.total) - Number(order.subtotal)) === 120 ? 'sameday' :
+      (Number(order.total) - Number(order.subtotal)) === 90 ? 'scheduled' :
+      (Number(order.total) - Number(order.subtotal)) === 140 ? 'surprise' :
+      (Number(order.total) - Number(order.subtotal)) === 0 && Number(order.subtotal) > 0 ? 'collection' : null
+    ),
+    deliveryFee: (order.delivery_fee !== null && order.delivery_fee !== undefined && Number(order.delivery_fee) > 0)
+      ? Number(order.delivery_fee)
+      : (Number(order.total) > Number(order.subtotal) ? (Number(order.total) - Number(order.subtotal)) : Number(order.delivery_fee || 0)),
+    deliveryWindow: order.delivery_window || null,
+    paymentProvider: order.payment_provider || 'paystack',
+    paymentReference: order.payment_reference || null,
+    paymentDate: order.created_at,
     fulfillmentStatus: DB_TO_DASHBOARD_FULFILLMENT[order.fulfillment_status] || order.fulfillment_status,
     estimatedDelivery: order.estimated_delivery,
     adminNote: order.admin_note,
@@ -62,18 +75,19 @@ export async function listOrders() {
     items: (order.order_items || []).map(item => ({
       id: item.id,
       productId: item.product_id,
-      sku: null,
+      sku: item.product_id || item.sku || null,
       name: item.item_name,
       variant: '',
       qty: item.quantity,
       unitPrice: item.unit_price,
       category: item.metadata?.category || null, // Category stored in metadata by finalize_paid_checkout
+      discountPercent: item.metadata?.discount_percent ?? item.metadata?.discountPercent ?? null,
       image: item.metadata?.image || item.metadata?.imageUrl || null,
       imageUrl: item.metadata?.image || item.metadata?.imageUrl || null,
-      metadata: item.metadata
+      metadata: item.metadata || {}
     })),
     auditLog: (order.order_events || []).map(event => ({
-      time: new Date(event.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+      time: new Date(event.created_at).toLocaleTimeString('en-US', { timeZone: 'Africa/Accra', hour: '2-digit', minute: '2-digit', hour12: true }),
       note: event.customer_note || '',
       stage: event.stage
     }))
@@ -132,10 +146,15 @@ export async function updateOrderStatus(orderId, action, customerNote = '', user
     }
   } else if (action === 'packed' || action === 'ready') {
     if (currentOrder.fulfillment_status === 'ready') {
-      // Undo Packed
+      // Undo Packed -> return to packaging
       isUndo = true;
       targetDbStatus = 'packaging';
-      eventStagesToDelete = ['ready'];
+      eventStagesToDelete = ['ready', 'delivery', 'completed'];
+    } else if (currentOrder.fulfillment_status === 'delivery' || currentOrder.fulfillment_status === 'completed') {
+      // Rolling back from Dispatched or Delivered to Packed
+      isUndo = true;
+      targetDbStatus = 'ready';
+      eventStagesToDelete = ['delivery', 'completed'];
     } else {
       // Advance Packed
       targetDbStatus = 'ready';
@@ -144,10 +163,15 @@ export async function updateOrderStatus(orderId, action, customerNote = '', user
     }
   } else if (action === 'dispatched' || action === 'delivery') {
     if (currentOrder.fulfillment_status === 'delivery') {
-      // Undo Dispatched
+      // Undo Dispatched -> return to ready
       isUndo = true;
       targetDbStatus = 'ready';
-      eventStagesToDelete = ['delivery'];
+      eventStagesToDelete = ['delivery', 'completed'];
+    } else if (currentOrder.fulfillment_status === 'completed') {
+      // Rolling back from Delivered to Dispatched
+      isUndo = true;
+      targetDbStatus = 'delivery';
+      eventStagesToDelete = ['completed'];
     } else {
       // Advance Dispatched
       targetDbStatus = 'delivery';
@@ -156,7 +180,7 @@ export async function updateOrderStatus(orderId, action, customerNote = '', user
     }
   } else if (action === 'delivered' || action === 'completed') {
     if (currentOrder.fulfillment_status === 'completed') {
-      // Undo Delivered
+      // Undo Delivered -> return to delivery
       isUndo = true;
       targetDbStatus = 'delivery';
       eventStagesToDelete = ['completed'];
@@ -224,6 +248,18 @@ export async function updateOrderStatus(orderId, action, customerNote = '', user
     });
   }
 
+  // Safely record to activity_log if table exists
+  try {
+    await supabase.from('activity_log').insert({
+      event_type: 'order_status_change',
+      description: `Order ${updatedOrder.order_code || updatedOrder.tracking_number || orderId} status changed to ${targetDbStatus}`,
+      metadata: { order_id: orderId, old_status: currentOrder.fulfillment_status, new_status: targetDbStatus, action, note: customerNote },
+      user_id: userId
+    });
+  } catch (logErr) {
+    // Activity log write is non-blocking
+  }
+
   return { success: true, data: updatedOrder };
 }
 
@@ -258,6 +294,8 @@ export async function createStaffOrder(orderData) {
         card_message: orderData.cardMessage || orderData.card_message || null,
         card_style: orderData.cardStyle || orderData.card_style || null,
         requested_delivery_date: orderData.requestedDeliveryDate || orderData.requested_delivery_date || null,
+        delivery_type: orderData.deliveryType || orderData.delivery_type || 'standard',
+        delivery_fee: orderData.deliveryFee ?? orderData.delivery_fee ?? 0,
         subtotal: orderData.subtotal,
         total: orderData.total,
         payment_provider: orderData.paymentProvider || orderData.payment_provider || 'staff',
@@ -407,22 +445,27 @@ export async function deleteOrder(orderId) {
   return true;
 }
 
-// Update order admin note
-export async function updateOrderNote(orderId, adminNote) {
+// Update order admin note and optionally estimated delivery and delivery window
+export async function updateOrderNote(orderId, adminNote, estimatedDelivery = undefined, deliveryWindow = undefined) {
   if (!supabase) {
     console.warn('Supabase not configured');
     return null;
   }
 
+  const payload = {};
+  if (adminNote !== undefined) payload.admin_note = adminNote;
+  if (estimatedDelivery !== undefined) payload.estimated_delivery = estimatedDelivery;
+  if (deliveryWindow !== undefined) payload.delivery_window = deliveryWindow;
+
   const { data: order, error } = await supabase
     .from('orders')
-    .update({ admin_note: adminNote })
+    .update(payload)
     .eq('id', orderId)
     .select()
     .single();
 
   if (error) {
-    console.error('Error updating order note:', error);
+    console.error('Error updating order note/delivery:', error);
     return null;
   }
 

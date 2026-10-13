@@ -9,35 +9,162 @@ import { DASHBOARD_TO_DB_FULFILLMENT, DB_TO_DASHBOARD_FULFILLMENT, STEPPER_TO_EV
 import { getImageUrl } from '../lib/imageUrlHelper';
 import { useDashboard } from '../contexts/DashboardContext';
 import { fetchOrders, subscribeToCache, getCachedData, isDataLoading } from '../data/dataCache';
-import { getAppSettings } from '../data/settingsAdapter';
+import {
+  parseDateString,
+  formatDateISO,
+  formatDateDisplay as accraFormatDateDisplay,
+  formatDeliveryWindowShort,
+  formatDeliveryWindowFull,
+  getDeliverySubtitle,
+  todayAccra,
+  timestampToAccraDate,
+  dateRange,
+  compareDates
+} from '../../shared/dateUtils';
 
 // SVG Icons
+// SVG Icons (clean thin-stroke line icons, 18-20px)
 const SVG = {
-  close: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
-  search: <svg className="search-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
-  banknote: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
-  shoppingBag: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>,
-  clock: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-  avatar: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>,
-  chevron: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>,
-  phone: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
-  email: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
-  location: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
+  close: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  search: <svg className="search-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+  banknote: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
+  payment: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
+  shoppingBag: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>,
+  clock: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  avatar: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>,
+  chevron: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>,
+  phone: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
+  email: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+  location: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
+  pin: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
+  map: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>,
+  truck: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>,
+  note: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+  giftCard: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+  pen: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>,
+  sparkles: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/></svg>,
+  whatsapp: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>,
+  calendar: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
   restore: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
 };
 
 function formatDate(date) {
-  return date.toISOString().split('T')[0];
+  if (!date) return '';
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function formatDateDisplay(date) {
-  return date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+  if (!date) return '';
+  if (typeof date === 'string') {
+    const match = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const d = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
+      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+  }
+  const d = new Date(date);
+  return isNaN(d.getTime()) ? String(date) : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function formatDisplayDate(dateStr) {
+  return formatDateDisplay(dateStr);
+}
+
+function formatRequestedDate(dateStr) {
   if (!dateStr) return '';
+  const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const y = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10) - 1;
+    const d = parseInt(match[3], 10);
+    const date = new Date(y, m, d);
+    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  }
   const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+  return isNaN(date.getTime()) ? String(dateStr) : date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function getCleanCustomerNote(rawNote) {
+  if (!rawNote) return '';
+  const lines = rawNote.split(/\r?\n/);
+  const filtered = lines.filter(line => {
+    const trimmed = line.trim();
+    return !trimmed.toLowerCase().startsWith('gift card:') && !trimmed.toLowerCase().startsWith('card style:');
+  });
+  return filtered.join('\n').trim();
+}
+
+function getDeliveryTypeName(type) {
+  if (!type) return 'Standard delivery';
+  const key = type.toLowerCase().trim();
+  const map = {
+    sameday: 'Same-day delivery',
+    scheduled: 'Scheduled delivery',
+    surprise: 'Surprise delivery',
+    collection: 'Shop collection',
+    standard: 'Standard delivery',
+  };
+  return map[key] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// Collapsible free text component (3 lines max with Show more / Show less toggle)
+function CollapsibleText({ text, maxLines = 3, style = {} }) {
+  const [expanded, setExpanded] = useState(false);
+  const textRef = useState(null)[0];
+  const [canToggle, setCanToggle] = useState(false);
+
+  useEffect(() => {
+    if (!text) {
+      setCanToggle(false);
+      return;
+    }
+    const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+    setCanToggle(lines.length > maxLines || text.length > 140);
+  }, [text, maxLines]);
+
+  if (!text) return null;
+
+  return (
+    <div style={style}>
+      <div
+        style={!expanded ? {
+          display: '-webkit-box',
+          WebkitLineClamp: maxLines,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          lineHeight: '1.45',
+          whiteSpace: 'pre-wrap'
+        } : {
+          lineHeight: '1.45',
+          whiteSpace: 'pre-wrap'
+        }}
+      >
+        {text}
+      </div>
+      {canToggle && (
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '2px 0 0 0',
+            fontSize: '11px',
+            fontWeight: 600,
+            color: '#2563eb',
+            cursor: 'pointer',
+            marginTop: '3px'
+          }}
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export default function OrdersPage() {
@@ -151,6 +278,8 @@ export default function OrdersPage() {
   const [confirmingBulkCancel, setConfirmingBulkCancel] = useState(false);
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
   const [panelDrafts, setPanelDrafts] = useState({});
+  const [saveStates, setSaveStates] = useState({});
+  const [lastSavedTimes, setLastSavedTimes] = useState({});
 
   // Filter ONLY live non-delivered orders for Orders page (delivered moves to Log)
   const liveOrders = ordersList.filter(o => o.fulfillmentStatus !== 'delivered');
@@ -441,29 +570,85 @@ export default function OrdersPage() {
   };
 
   const handleSaveNote = async (order) => {
+    setSaveStates(prev => ({ ...prev, [order.id]: 'saving' }));
     const draft = panelDrafts[order.id] || {};
+    let estDeliveryIso = undefined;
+
+    // Earliest allowed date: later of order's Accra creation date and today in Accra
+    const orderCreatedAccra = timestampToAccraDate(order.orderDate || order.createdAt) || todayAccra();
+    const todayStr = todayAccra();
+    const earliestAllowed = compareDates(orderCreatedAccra, todayStr) >= 0 ? orderCreatedAccra : todayStr;
+
+    // Use draft date; if none set, fall back to requested delivery date (parsed safely)
+    let dateVal = draft.date;
+    if (!dateVal && order.requestedDeliveryDate) {
+      const parsed = parseDateString(order.requestedDeliveryDate);
+      if (parsed) dateVal = formatDateISO(parsed);
+    }
+
+    // Guard: reject dates before earliest allowed
+    if (dateVal && compareDates(dateVal, earliestAllowed) < 0) {
+      setSaveStates(prev => ({ ...prev, [order.id]: 'failed' }));
+      setOrderErrors(prev => ({
+        ...prev,
+        [order.id]: `Cannot save a past date (${accraFormatDateDisplay(dateVal)}). Earliest allowed: ${accraFormatDateDisplay(earliestAllowed)}.`
+      }));
+      return;
+    }
+
+    if (dateVal) {
+      try {
+        const win = draft.window || '';
+        let timeStr = '12:00:00';
+        if (win === 'morning') timeStr = '09:00:00';
+        else if (win === 'afternoon') timeStr = '13:00:00';
+        else if (win === 'evening') timeStr = '17:00:00';
+        // Build ISO from date+time using UTC to avoid local-timezone shift on save
+        estDeliveryIso = `${dateVal}T${timeStr}+00:00`;
+      } catch (e) {
+        console.warn('Error formatting estimated delivery date:', e);
+      }
+    }
+
+    const winVal = draft.window !== undefined ? draft.window : (order.deliveryWindow || undefined);
+
     const nextOrders = ordersList.map(o => {
       if (o.id !== order.id) return o;
       const updated = { ...o };
       if (draft.note !== undefined) updated.adminNote = draft.note;
-      if (draft.date) {
+      if (winVal !== undefined) updated.deliveryWindow = winVal;
+      if (dateVal) {
         updated.estimatedDeliveryAt = {
-          date: draft.date,
-          window: draft.window || '',
-          from: draft.from || '',
-          to: draft.to || ''
+          date: dateVal,
+          window: winVal || '',
         };
-        const dateDisp = formatDisplayDate(draft.date);
-        const winDisp = draft.window ? ` · ${draft.window}` : '';
-        updated.estimatedDelivery = `${dateDisp}${winDisp}`;
+        const winDisp = winVal ? ` · ${winVal}` : '';
+        updated.estimatedDelivery = estDeliveryIso || `${accraFormatDateDisplay(dateVal)}${winDisp}`;
       }
       return updated;
     });
     setOrdersList(nextOrders);
 
-    // Update admin note in Supabase
-    if (draft.note !== undefined) {
-      await updateOrderNote(order.id, draft.note);
+    // Persist: admin note, estimated_delivery date+time, and delivery_window
+    const noteVal = draft.note !== undefined ? draft.note : (order.adminNote || '');
+    const res = await updateOrderNote(order.id, noteVal, estDeliveryIso, winVal);
+    if (!res) {
+      setSaveStates(prev => ({ ...prev, [order.id]: 'failed' }));
+      setOrderErrors(prev => ({ ...prev, [order.id]: 'Failed to save note / delivery schedule' }));
+    } else {
+      setOrderErrors(prev => ({ ...prev, [order.id]: null }));
+      const nowAccra = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Africa/Accra',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      }).format(new Date());
+      setLastSavedTimes(prev => ({ ...prev, [order.id]: nowAccra }));
+      setSaveStates(prev => ({ ...prev, [order.id]: 'saved' }));
+      setTimeout(() => {
+        setSaveStates(prev => ({ ...prev, [order.id]: 'idle' }));
+      }, 2000);
     }
   };
 
@@ -738,7 +923,7 @@ export default function OrdersPage() {
 
             const sourceTag = order.source === 'staff' ? 'Staff' : 'Online';
             const amount = order.total || 0;
-            const deliveryInfo = order.estimatedDelivery ? ` · ${order.estimatedDelivery}` : '';
+            const deliveryInfo = getDeliverySubtitle(order);
 
             const isPaid = order.paymentStatus === 'paid';
             const stepperSteps = [
@@ -768,30 +953,64 @@ export default function OrdersPage() {
             const draftTo = draft.to !== undefined ? draft.to : '';
             const draftNote = draft.note !== undefined ? draft.note : (order.adminNote || '');
 
+            // Timezone-safe: parse YYYY-MM-DD without new Date(string) to avoid UTC shift
+            const requestedDateStr = order.requestedDeliveryDate
+              ? (() => { const p = parseDateString(order.requestedDeliveryDate); return p ? formatDateISO(p) : ''; })()
+              : '';
+
+            // Earliest allowed: later of order's Accra creation date and today in Accra
+            const orderCreatedAccraDate = timestampToAccraDate(order.orderDate || order.createdAt) || todayAccra();
+            const todayAccraDate = todayAccra();
+            const tomorrowAccraDate = dateRange(todayAccraDate, 2)[1];
+            const earliestDate = compareDates(orderCreatedAccraDate, todayAccraDate) >= 0 ? orderCreatedAccraDate : todayAccraDate;
+
             const hasStructuredDelivery = order.estimatedDeliveryAt && typeof order.estimatedDeliveryAt === 'object';
-            let selectedDate = draftDate || (hasStructuredDelivery ? order.estimatedDeliveryAt.date || '' : '');
-            let selectedWindow = draftWindow || (hasStructuredDelivery ? order.estimatedDeliveryAt.window || '' : '');
-            let customFrom = draftFrom || (hasStructuredDelivery ? order.estimatedDeliveryAt.from || '' : '');
-            let customTo = draftTo || (hasStructuredDelivery ? order.estimatedDeliveryAt.to || '' : '');
+            // Preselect: saved confirmed date > requested date (if valid) > earliest allowed
+            const savedConfirmedDate = hasStructuredDelivery ? order.estimatedDeliveryAt.date || '' : '';
+            let selectedDate = draftDate ||
+              (savedConfirmedDate && compareDates(savedConfirmedDate, earliestDate) >= 0 ? savedConfirmedDate : '') ||
+              (requestedDateStr && compareDates(requestedDateStr, earliestDate) >= 0 ? requestedDateStr : '') ||
+              earliestDate;
+            let selectedWindow = draftWindow || (hasStructuredDelivery ? order.estimatedDeliveryAt.window || '' : '') || (order.deliveryWindow || '');
 
-            const today = new Date();
-            const tomorrow = new Date(today);
-            tomorrow.setDate(tomorrow.getDate() + 1);
-
-            const dateOptions = [
-              { value: '', label: 'Not set' },
-              { value: formatDate(today), label: `Today · ${formatDateDisplay(today)}` },
-              { value: formatDate(tomorrow), label: `Tomorrow · ${formatDateDisplay(tomorrow)}` }
-            ];
-            for (let i = 2; i <= 6; i++) {
-              const d = new Date(today);
-              d.setDate(d.getDate() + i);
-              dateOptions.push({
-                value: formatDate(d),
-                label: `${d.toLocaleDateString('en-US', { weekday: 'short' })} ${d.getDate()} ${d.toLocaleDateString('en-US', { month: 'short' })}`
-              });
+            // Build date options: no past dates, 14 days forward from earliest
+            const dateOptions = [{ value: '', label: 'Not set' }];
+            const forwardDates = dateRange(earliestDate, 14);
+            forwardDates.forEach(ds => {
+              const shortDate = accraFormatDateDisplay(ds, false);
+              let label = shortDate;
+              if (ds === todayAccraDate) {
+                label = `Today · ${shortDate}`;
+              } else if (ds === tomorrowAccraDate) {
+                label = `Tomorrow · ${shortDate}`;
+              }
+              if (ds === requestedDateStr) {
+                label = `${label} · Requested`;
+              }
+              dateOptions.push({ value: ds, label });
+            });
+            // If saved confirmed date is outside the 14-day window, add it too
+            if (savedConfirmedDate && !forwardDates.includes(savedConfirmedDate) && compareDates(savedConfirmedDate, earliestDate) >= 0) {
+              dateOptions.push({ value: savedConfirmedDate, label: `Confirmed · ${accraFormatDateDisplay(savedConfirmedDate, false)}` });
             }
-            dateOptions.push({ value: 'custom', label: 'Pick another date…' });
+
+            const hasConfirmedDelivery = !!order.estimatedDelivery;
+            let confirmedSummary = '';
+            if (hasConfirmedDelivery) {
+              const m = String(order.estimatedDelivery).match(/^(\d{4}-\d{2}-\d{2})/);
+              const dateLabel = m ? accraFormatDateDisplay(m[1]) : '';
+              const winLabel = formatDeliveryWindowFull(order.deliveryWindow);
+              confirmedSummary = [dateLabel, winLabel].filter(Boolean).join(' · ');
+            }
+
+            const savedDateVal = order.estimatedDelivery ? (order.estimatedDelivery.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || '') : '';
+            const savedWinVal = order.deliveryWindow || '';
+            const savedNoteVal = order.adminNote || '';
+
+            const hasUnsavedChanges =
+              (draft.date !== undefined && draft.date !== savedDateVal) ||
+              (draft.window !== undefined && draft.window !== savedWinVal) ||
+              (draft.note !== undefined && draft.note !== savedNoteVal);
 
             const timeWindows = [
               { value: '', label: 'Not set' },
@@ -801,11 +1020,35 @@ export default function OrdersPage() {
               { value: 'custom', label: 'Custom time…' }
             ];
 
-            let nextStageLabel = 'MARK PACKAGED FIRST';
-            if (order.paymentStatus === 'pending') nextStageLabel = 'MARK AS PAID FIRST';
-            else if (order.fulfillmentStatus === 'packaging' || order.fulfillmentStatus === 'preparing') nextStageLabel = 'MARK PACKAGED FIRST';
-            else if (order.fulfillmentStatus === 'ready' || order.fulfillmentStatus === 'packed') nextStageLabel = 'DISPATCH ORDER';
-            else if (order.fulfillmentStatus === 'dispatched' || order.fulfillmentStatus === 'delivery') nextStageLabel = 'MARK DELIVERED';
+            let nextStageLabel = 'MARK PACKED';
+            let nextStageAction = null;
+            let isNextStageDisabled = false;
+
+            if (order.paymentStatus === 'pending') {
+              nextStageLabel = 'MARK AS PAID FIRST';
+              nextStageAction = 'paid';
+              isNextStageDisabled = false;
+            } else if (order.fulfillmentStatus === 'packaging' || order.fulfillmentStatus === 'preparing' || order.fulfillmentStatus === 'paid') {
+              nextStageLabel = 'MARK PACKED';
+              nextStageAction = 'packed';
+              isNextStageDisabled = false;
+            } else if (order.fulfillmentStatus === 'ready' || order.fulfillmentStatus === 'packed') {
+              nextStageLabel = 'DISPATCH ORDER';
+              nextStageAction = 'dispatched';
+              isNextStageDisabled = false;
+            } else if (order.fulfillmentStatus === 'dispatched' || order.fulfillmentStatus === 'delivery') {
+              nextStageLabel = 'MARK DELIVERED';
+              nextStageAction = 'delivered';
+              isNextStageDisabled = false;
+            } else if (order.fulfillmentStatus === 'completed' || order.fulfillmentStatus === 'delivered') {
+              nextStageLabel = 'ORDER DELIVERED';
+              nextStageAction = null;
+              isNextStageDisabled = true;
+            } else if (order.fulfillmentStatus === 'cancelled') {
+              nextStageLabel = 'ORDER CANCELLED';
+              nextStageAction = null;
+              isNextStageDisabled = true;
+            }
 
             return (
               <div key={order.id} className={`order-card ${isExpanded ? 'expanded' : ''} ${isSelected ? 'selected' : ''}`}>
@@ -833,9 +1076,9 @@ export default function OrdersPage() {
                       <span className="order-source-tag">{sourceTag}</span>
                       {offTrackPill}
                     </div>
-                    {hasCodes && (
+                    {(hasCodes || deliveryInfo) && (
                       <div className="order-product-codes">
-                        {productCodesDisplay}{deliveryInfo}
+                        {productCodesDisplay ? `${productCodesDisplay}${deliveryInfo}` : deliveryInfo.replace(/^ · /, '')}
                       </div>
                     )}
                   </div>
@@ -906,241 +1149,531 @@ export default function OrdersPage() {
                 </div>
 
                 {/* Expanded details panel */}
-                {isExpanded && (
-                  <div className="order-details-panel">
-                    <div className="details-panel-grid">
-                      {/* Left: Customer Info */}
-                      <div className="details-column customer-column">
-                        <div className="customer-info-section">
-                          <div className="customer-header-row">
-                            <div className="customer-name-display">{order.customerName}</div>
-                            <div className="customer-header-right">
-                              <span className="order-code-chip code-with-copy">
-                                {displayCode}
-                                <CopyIcon text={displayCode} />
-                              </span>
-                              <button className="print-badge-btn" onClick={() => window.print()}>PRINT</button>
-                            </div>
-                          </div>
+                {isExpanded && (() => {
+                  const itemsSubtotal = (order.items || []).reduce((sum, it) => sum + ((it.unitPrice || 0) * (it.qty || 1)), 0);
+                  const deliveryFee = Number(order.deliveryFee || 0);
+                  const grandTotal = Number(order.total || (itemsSubtotal + deliveryFee));
 
-                          <div className="contact-details-grid">
-                            <div className="contact-detail-row">
-                              <div className="contact-icon-tile">{SVG.phone}</div>
-                              <div className="contact-detail-content">
-                                <div className="contact-detail-label">PHONE</div>
-                                <div className="contact-detail-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  {order.customerPhone || order.phone ? (
-                                    <>
+                  return (
+                    <div className="order-details-panel">
+                      {orderErrors[order.id] && (
+                        <div style={{
+                          margin: '0 0 16px 0',
+                          padding: '10px 14px',
+                          background: 'rgba(220, 38, 38, 0.08)',
+                          border: '1px solid rgba(220, 38, 38, 0.25)',
+                          borderRadius: '8px',
+                          color: '#dc2626',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                          <span>{orderErrors[order.id]}</span>
+                        </div>
+                      )}
+
+                      <div className="details-panel-grid">
+                        {/* Left: Customer, Order, Payment & Delivery Details */}
+                        <div className="details-column customer-column">
+                          <div className="customer-info-section">
+                            <div className="customer-header-row" style={{ alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                              <div>
+                                <div className="customer-name-display" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  {order.customerName}
+                                  <span style={{
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    background: order.staffOrder ? 'rgba(37, 99, 235, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                    color: order.staffOrder ? '#2563eb' : '#059669',
+                                    border: `1px solid ${order.staffOrder ? 'rgba(37, 99, 235, 0.2)' : 'rgba(16, 185, 129, 0.2)'}`
+                                  }}>
+                                    {order.staffOrder ? 'Staff Created (POS)' : 'Online Order'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="customer-header-right">
+                                <span className="order-code-chip code-with-copy" title="Order Code">
+                                  {displayCode}
+                                  <CopyIcon text={displayCode} />
+                                </span>
+                                {order.trackingNumber && order.trackingNumber !== displayCode && (
+                                  <span className="order-code-chip code-with-copy" title="Tracking Number">
+                                    {order.trackingNumber}
+                                    <CopyIcon text={order.trackingNumber} />
+                                  </span>
+                                )}
+                                <button className="print-badge-btn" onClick={() => window.print()}>PRINT</button>
+                              </div>
+                            </div>
+
+                            <div className="contact-details-grid" style={{ marginTop: '14px' }}>
+                              {/* Payment Information */}
+                              <div className="contact-detail-row">
+                                <div className="contact-icon-tile">{SVG.banknote || SVG.phone}</div>
+                                <div className="contact-detail-content">
+                                  <div className="contact-detail-label">PAYMENT DETAILS</div>
+                                  <div className="contact-detail-value" style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '13px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <span style={{ fontWeight: 600, color: order.paymentStatus === 'paid' ? '#059669' : '#d97706' }}>
+                                        {(order.paymentStatus || 'pending').toUpperCase()}
+                                      </span>
+                                      {order.paymentProvider && (
+                                        <span style={{ color: 'var(--text-muted)' }}>via {order.paymentProvider.toUpperCase()}</span>
+                                      )}
+                                    </div>
+                                    {order.paymentReference && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', fontSize: '12px' }}>
+                                        <span>Ref: {order.paymentReference}</span>
+                                        <CopyIcon text={order.paymentReference} />
+                                      </div>
+                                    )}
+                                    {order.orderDate && (
+                                      <div style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+                                        Paid: {new Date(order.orderDate).toLocaleString('en-GH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Customer Contact */}
+                              {(order.customerPhone || order.phone) && (
+                                <div className="contact-detail-row">
+                                  <div className="contact-icon-tile">{SVG.phone}</div>
+                                  <div className="contact-detail-content">
+                                    <div className="contact-detail-label">PHONE</div>
+                                    <div className="contact-detail-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                       <a href={`tel:${order.customerPhone || order.phone}`} className="contact-link">
                                         {order.customerPhone || order.phone}
                                       </a>
                                       <CopyIcon text={order.customerPhone || order.phone} />
-                                    </>
-                                  ) : 'N/A'}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="contact-detail-row">
-                              <div className="contact-icon-tile">{SVG.email}</div>
-                              <div className="contact-detail-content">
-                                <div className="contact-detail-label">EMAIL</div>
-                                <div className="contact-detail-value">
-                                  {order.customerEmail || order.email ? (
-                                    <a href={`mailto:${order.customerEmail || order.email}`} className="contact-link">
-                                      {order.customerEmail || order.email}
-                                    </a>
-                                  ) : 'N/A'}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="contact-detail-row">
-                              <div className="contact-icon-tile">{SVG.location}</div>
-                              <div className="contact-detail-content">
-                                <div className="contact-detail-label">DELIVERY ADDRESS</div>
-                                <div className="contact-detail-value">{order.deliveryAddress || 'N/A'}</div>
-                              </div>
-                            </div>
-
-                            {(order.customerPhone || order.phone) && (
-                              <div className="contact-detail-row">
-                                <div className="contact-icon-tile">
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                                  </svg>
-                                </div>
-                                <div className="contact-detail-content">
-                                  <div className="contact-detail-label">WHATSAPP</div>
-                                  <div className="contact-detail-value">
-                                    {(() => {
-                                      const phone = order.customerPhone || order.phone;
-                                      const digits = phone.replace(/\D/g, '');
-                                      // Normalise to international format for wa.me
-                                      let internationalPhone;
-                                      if (phone.startsWith('+')) {
-                                        // Already international — keep as-is (digits already stripped +)
-                                        internationalPhone = digits;
-                                      } else if (digits.startsWith('0')) {
-                                        // Local Ghana format: 0XXXXXXXXX → 233XXXXXXXXX
-                                        internationalPhone = '233' + digits.slice(1);
-                                      } else if (digits.startsWith('233')) {
-                                        // Already has country code without +
-                                        internationalPhone = digits;
-                                      } else {
-                                        // No country code — assume Ghana
-                                        internationalPhone = '233' + digits;
-                                      }
-                                      const statusLabel = order.fulfillmentStatus || 'Unknown';
-                                      const waMessage = encodeURIComponent(
-                                        `Hello! Your order ${order.orderCode || order.trackingNumber} is currently ${statusLabel}. Tracking: ${order.trackingNumber || 'N/A'}`
-                                      );
-                                      return (
-                                        <a
-                                          href={`https://wa.me/${internationalPhone}?text=${waMessage}`}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="contact-link"
-                                        >
-                                          Message on WhatsApp
-                                        </a>
-                                      );
-                                    })()}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                              )}
+
+                              {(order.customerEmail || order.email) && (
+                                <div className="contact-detail-row">
+                                  <div className="contact-icon-tile">{SVG.email}</div>
+                                  <div className="contact-detail-content">
+                                    <div className="contact-detail-label">EMAIL</div>
+                                    <div className="contact-detail-value">
+                                      <a href={`mailto:${order.customerEmail || order.email}`} className="contact-link">
+                                        {order.customerEmail || order.email}
+                                      </a>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* WhatsApp Direct Action */}
+                              {(order.customerPhone || order.phone) && (
+                                <div className="contact-detail-row">
+                                  <div className="contact-icon-tile">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                                    </svg>
+                                  </div>
+                                  <div className="contact-detail-content">
+                                    <div className="contact-detail-label">WHATSAPP</div>
+                                    <div className="contact-detail-value">
+                                      {(() => {
+                                        const phone = order.customerPhone || order.phone;
+                                        const digits = phone.replace(/\D/g, '');
+                                        let internationalPhone = digits;
+                                        if (digits.startsWith('0')) internationalPhone = '233' + digits.slice(1);
+                                        else if (!digits.startsWith('233') && !phone.startsWith('+')) internationalPhone = '233' + digits;
+                                        const statusLabel = order.fulfillmentStatus || 'Processing';
+                                        const waMessage = encodeURIComponent(
+                                          `Hello! Your order ${order.orderCode || order.trackingNumber} is currently ${statusLabel}. Tracking: ${order.trackingNumber || 'N/A'}`
+                                        );
+                                        return (
+                                          <a
+                                            href={`https://wa.me/${internationalPhone}?text=${waMessage}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="contact-link"
+                                          >
+                                            Message on WhatsApp
+                                          </a>
+                                        );
+                                      })()}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Recipient Name (if present) */}
+                              {order.recipientName && (
+                                <div className="contact-detail-row">
+                                  <div className="contact-icon-tile">{SVG.avatar}</div>
+                                  <div className="contact-detail-content">
+                                    <div className="contact-detail-label">RECIPIENT NAME</div>
+                                    <div className="contact-detail-value">
+                                      <span style={{ fontWeight: 600 }}>{order.recipientName}</span>
+                                      {order.recipientName !== order.customerName && (
+                                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '6px' }}>(Recipient differs from customer)</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Delivery Address Details */}
+                              {order.deliveryAddress && (
+                                <div className="contact-detail-row">
+                                  <div className="contact-icon-tile">{SVG.location}</div>
+                                  <div className="contact-detail-content">
+                                    <div className="contact-detail-label">DELIVERY ADDRESS</div>
+                                    <div className="contact-detail-value" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
+                                      {order.deliveryAddress}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Landmark (omit if empty) */}
+                              {order.landmark && (
+                                <div className="contact-detail-row">
+                                  <div className="contact-icon-tile">{SVG.pin}</div>
+                                  <div className="contact-detail-content">
+                                    <div className="contact-detail-label">LANDMARK</div>
+                                    <div className="contact-detail-value">{order.landmark}</div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Location Link (omit if empty) */}
+                              {order.locationLink && (
+                                <div className="contact-detail-row">
+                                  <div className="contact-icon-tile">{SVG.map}</div>
+                                  <div className="contact-detail-content">
+                                    <div className="contact-detail-label">LOCATION LINK</div>
+                                    <div className="contact-detail-value">
+                                      <a href={order.locationLink} target="_blank" rel="noreferrer" className="contact-link" style={{ wordBreak: 'break-all' }}>
+                                        Open delivery location pin ↗
+                                      </a>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Delivery Type & Requested Date */}
+                              {(order.deliveryType || order.requestedDeliveryDate) && (
+                                <div className="contact-detail-row">
+                                  <div className="contact-icon-tile">{SVG.truck}</div>
+                                  <div className="contact-detail-content">
+                                    <div className="contact-detail-label">DELIVERY PREFERENCES</div>
+                                    <div className="contact-detail-value" style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                      {order.deliveryType && (
+                                        <div>
+                                          <strong>Type:</strong> {order.deliveryType.replace(/_/g, ' ').toUpperCase()}
+                                          {order.deliveryFee ? ` (Fee: GHS ${Number(order.deliveryFee).toLocaleString('en-US')})` : ''}
+                                        </div>
+                                      )}
+                                      {order.requestedDeliveryDate && (
+                                        <div style={{ color: '#2563eb', fontWeight: 600 }}>
+                                          Customer requested date: {accraFormatDateDisplay(order.requestedDeliveryDate)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Customer Note (omit if empty) */}
+                              {order.customerNote && (
+                                <div className="contact-detail-row">
+                                  <div className="contact-icon-tile">{SVG.note}</div>
+                                  <div className="contact-detail-content">
+                                    <div className="contact-detail-label">CUSTOMER NOTE</div>
+                                    <div className="contact-detail-value" style={{ fontStyle: 'italic', background: 'rgba(26,26,26,0.03)', padding: '6px 10px', borderRadius: '4px' }}>
+                                      "{order.customerNote}"
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Gift Card Message (omit if empty) */}
+                              {order.cardMessage && (
+                                <div className="contact-detail-row">
+                                  <div className="contact-icon-tile">{SVG.giftCard}</div>
+                                  <div className="contact-detail-content">
+                                    <div className="contact-detail-label">GIFT CARD MESSAGE</div>
+                                    <div className="contact-detail-value" style={{ fontStyle: 'italic', background: 'rgba(236,72,153,0.06)', borderLeft: '3px solid #ec4899', padding: '6px 10px', borderRadius: '0 4px 4px 0' }}>
+                                      "{order.cardMessage}"
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Card / Lettering Style (omit if empty) */}
+                              {order.cardStyle && (
+                                <div className="contact-detail-row">
+                                  <div className="contact-icon-tile">{SVG.pen}</div>
+                                  <div className="contact-detail-content">
+                                    <div className="contact-detail-label">CARD / LETTERING STYLE</div>
+                                    <div className="contact-detail-value">{order.cardStyle}</div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Customization selections (omit if empty) */}
+                              {order.customizations && (
+                                <div className="contact-detail-row">
+                                  <div className="contact-icon-tile">{SVG.sparkles}</div>
+                                  <div className="contact-detail-content">
+                                    <div className="contact-detail-label">CUSTOMIZATION SELECTIONS</div>
+                                    <div className="contact-detail-value">{typeof order.customizations === 'string' ? order.customizations : JSON.stringify(order.customizations)}</div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right: Items & Price Breakdown */}
+                        <div className="details-column items-column">
+                          <div className="column-header-row">
+                            <span className="column-title">ITEMS ({(order.items || []).length})</span>
+                          </div>
+                          <div className="items-list">
+                            {(order.items || []).map((item, idx) => {
+                              const rawImg = item.image || item.imageUrl || item.image_path || item.metadata?.image || item.metadata?.imageUrl;
+                              const itemImg = getImageUrl(rawImg);
+                              const itemTotal = (item.unitPrice || 0) * (item.qty || 1);
+                              const itemCode = item.sku || item.productId || '—';
+
+                              return (
+                                <div key={idx} className="item-entry" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 0', borderBottom: '1px solid rgba(26,26,26,0.05)' }}>
+                                  <div style={{
+                                    width: '42px', height: '42px', borderRadius: '6px', overflow: 'hidden',
+                                    background: 'rgba(26,26,26,0.04)', border: '1px solid rgba(26,26,26,0.08)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px'
+                                  }}>
+                                    {itemImg ? (
+                                      <img src={itemImg} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                    ) : (
+                                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5">
+                                        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/>
+                                      </svg>
+                                    )}
+                                  </div>
+                                  <div className="item-entry-left" style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                      <span className="item-code" style={{ padding: '1px 5px', borderRadius: '3px', background: 'rgba(26,26,26,0.06)', fontSize: '11px', fontWeight: 600 }}>
+                                        {itemCode}
+                                      </span>
+                                      <span className="item-name" style={{ fontWeight: 600 }}>{item.name}</span>
+                                      <span className="item-qty" style={{ color: 'var(--text-muted)' }}>×{item.qty}</span>
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                      <span>GHS {Number(item.unitPrice).toLocaleString('en-US')} each</span>
+                                      {item.category && (
+                                        <span style={{ padding: '0 5px', background: 'rgba(26,26,26,0.04)', borderRadius: '3px' }}>{item.category}</span>
+                                      )}
+                                      {item.discountPercent > 0 && (
+                                        <span style={{ color: '#059669', fontWeight: 600 }}>{item.discountPercent}% OFF</span>
+                                      )}
+                                    </div>
+                                    {/* Additional item metadata details */}
+                                    {item.metadata && Object.keys(item.metadata).length > 0 && (
+                                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                        {Object.entries(item.metadata)
+                                          .filter(([k]) => !['category', 'discount_percent', 'image', 'imageUrl'].includes(k))
+                                          .map(([k, v]) => (
+                                            <span key={k} style={{ marginRight: '6px' }}>
+                                              {k}: {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                                            </span>
+                                          ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span className="item-entry-price" style={{ fontWeight: 600, whiteSpace: 'nowrap', paddingTop: '2px' }}>
+                                    GHS {itemTotal.toLocaleString('en-US')}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Price Breakdown */}
+                          <div className="items-price-breakdown" style={{ marginTop: '16px', padding: '12px 14px', background: 'rgba(26,26,26,0.02)', borderRadius: '8px', border: '1px solid rgba(26,26,26,0.06)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-muted)', marginBottom: '6px' }}>
+                              <span>Items subtotal:</span>
+                              <span style={{ fontWeight: 500 }}>GHS {Math.round(itemsSubtotal || order.subtotal || 0).toLocaleString('en-US')}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                              <span>Delivery fee {order.deliveryType ? `(${order.deliveryType})` : ''}:</span>
+                              <span style={{ fontWeight: 500 }}>GHS {Math.round(deliveryFee).toLocaleString('en-US')}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', borderTop: '1px dashed rgba(26,26,26,0.12)', paddingTop: '8px' }}>
+                              <span>Total:</span>
+                              <span className="total-amount-pink" style={{ fontSize: '16px', fontWeight: 700 }}>
+                                GHS {Math.round(grandTotal).toLocaleString('en-US')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Delivery & Admin Note Section */}
+                      <div className="admin-delivery-section">
+                        <div className="section-divider"></div>
+
+                        {/* Delivery Confirmation Status Indicator */}
+                        <div className="delivery-status-indicator-row">
+                          <div className="delivery-status-left">
+                            {hasConfirmedDelivery ? (
+                              <span className="delivery-status-pill confirmed">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                <span>Confirmed for {confirmedSummary}</span>
+                              </span>
+                            ) : (
+                              <span className="delivery-status-pill pending">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                                <span>Not confirmed yet</span>
+                              </span>
                             )}
                           </div>
+                          {hasUnsavedChanges && (
+                            <span className="unsaved-changes-pill">
+                              Unsaved changes
+                            </span>
+                          )}
                         </div>
-                      </div>
 
-                      {/* Right: Items */}
-                      <div className="details-column items-column">
-                        <div className="column-header-row">
-                          <span className="column-title">ITEMS</span>
+                        <div className="delivery-section">
+                          <div className="delivery-dropdowns-row">
+                            <div className="form-field-row">
+                              <label className="form-field-label">
+                                DELIVERY DATE
+                                {order.requestedDeliveryDate && (
+                                  <span style={{ color: '#2563eb', fontWeight: 600, marginLeft: '6px', fontSize: '11px' }}>
+                                    (Customer requested: {accraFormatDateDisplay(order.requestedDeliveryDate)})
+                                  </span>
+                                )}
+                              </label>
+                              <CustomDropdown
+                                options={dateOptions}
+                                value={selectedDate}
+                                onChange={(val) => updateDraft(order.id, 'date', val)}
+                              />
+                            </div>
+
+                            <div className="form-field-row">
+                              <label className="form-field-label">TIME WINDOW</label>
+                              <CustomDropdown
+                                options={timeWindows}
+                                value={selectedWindow}
+                                disabled={!selectedDate}
+                                onChange={(val) => updateDraft(order.id, 'window', val)}
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div className="items-list">
-                          {(order.items || []).map((item, idx) => {
-                            const rawImg = item.image || item.imageUrl || item.image_path || item.metadata?.image || item.metadata?.imageUrl;
-                            const itemImg = getImageUrl(rawImg);
-                            return (
-                              <div key={idx} className="item-entry" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <div style={{
-                                  width: '36px', height: '36px', borderRadius: '6px', overflow: 'hidden',
-                                  background: 'rgba(26,26,26,0.04)', border: '1px solid rgba(26,26,26,0.08)',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-                                }}>
-                                  {itemImg ? (
-                                    <img src={itemImg} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                                  ) : (
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5">
-                                      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/>
-                                    </svg>
+
+                        <div className="admin-note-section">
+                          <div className="form-field-row">
+                            <label className="form-field-label">ADMIN NOTE (VISIBLE TO CUSTOMER ON TRACK ORDER)</label>
+                            <textarea
+                              className="form-field-input admin-note-field"
+                              value={draftNote}
+                              placeholder="e.g. Call customer 10 mins before arrival"
+                              rows={2}
+                              onChange={(e) => updateDraft(order.id, 'note', e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        {(() => {
+                          const orderSaveState = saveStates[order.id] || 'idle';
+                          const lastSavedTime = lastSavedTimes[order.id];
+
+                          return (
+                            <div className="admin-note-actions">
+                              <div className="save-note-action-container" aria-live="polite">
+                                <button
+                                  className={`save-note-capsule-btn ${orderSaveState}`}
+                                  disabled={orderSaveState === 'saving'}
+                                  onClick={() => handleSaveNote(order)}
+                                >
+                                  {orderSaveState === 'saving' && (
+                                    <>
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}>
+                                        <line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/>
+                                        <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/>
+                                        <line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/>
+                                        <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>
+                                      </svg>
+                                      SAVING…
+                                    </>
                                   )}
-                                </div>
-                                <span className="item-entry-left" style={{ flex: 1 }}>
-                                  <span className="item-code">{item.sku || 'w01'}</span>
-                                  <span className="item-name">{item.name}</span>
-                                  <span className="item-qty">×{item.qty}</span>
-                                </span>
-                                <span className="item-entry-price">GHS {(item.unitPrice * item.qty).toFixed(0)}</span>
+                                  {orderSaveState === 'saved' && 'SAVED'}
+                                  {orderSaveState === 'failed' && 'FAILED · TRY AGAIN'}
+                                  {orderSaveState === 'idle' && 'Save note & delivery'}
+                                </button>
+                                {lastSavedTime && (
+                                  <span className="last-saved-hint">Last saved at {lastSavedTime} GMT</span>
+                                )}
                               </div>
-                            );
-                          })}
-                        </div>
-                        <div className="items-total-row">
-                          <span className="total-label">Total:</span>
-                          <span className="total-amount-pink">GHS {Math.round(amount).toLocaleString('en-US')}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Delivery & Admin Note Section */}
-                    <div className="admin-delivery-section">
-                      <div className="section-divider"></div>
-                      <div className="delivery-section">
-                        <div className="delivery-dropdowns-row">
-                          <div className="form-field-row">
-                            <label className="form-field-label">DATE</label>
-                            <CustomDropdown
-                              options={dateOptions}
-                              value={selectedDate}
-                              onChange={(val) => updateDraft(order.id, 'date', val)}
-                            />
-                          </div>
-
-                          <div className="form-field-row">
-                            <label className="form-field-label">TIME</label>
-                            <CustomDropdown
-                              options={timeWindows}
-                              value={selectedWindow}
-                              disabled={!selectedDate}
-                              onChange={(val) => updateDraft(order.id, 'window', val)}
-                            />
-                          </div>
-                        </div>
+                            </div>
+                          );
+                        })()}
                       </div>
 
-                      <div className="admin-note-section">
-                        <div className="form-field-row">
-                          <label className="form-field-label">ADMIN NOTE (VISIBLE TO CUSTOMER)</label>
-                          <textarea
-                            className="form-field-input admin-note-field"
-                            value={draftNote}
-                            placeholder="e.g. Call when nearby"
-                            rows={2}
-                            onChange={(e) => updateDraft(order.id, 'note', e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="admin-note-actions">
-                        <button className="save-note-capsule-btn" onClick={() => handleSaveNote(order)}>
-                          Save note
+                      {/* Bottom Action Row */}
+                      <div className="details-action-row">
+                        <button
+                          className="stage-action-grey-btn"
+                          disabled={isNextStageDisabled || !nextStageAction}
+                          onClick={() => {
+                            if (nextStageAction) handleStepperClick(order.id, nextStageAction);
+                          }}
+                        >
+                          {nextStageLabel}
                         </button>
-                      </div>
-                    </div>
 
-                    {/* Bottom Action Row */}
-                    <div className="details-action-row">
-                      <button
-                        className="stage-action-grey-btn"
-                        disabled={order.fulfillmentStatus !== 'ready'}
-                        onClick={() => handleStepperClick(order.id, order.paymentStatus === 'pending' ? 'paid' : order.fulfillmentStatus === 'preparing' ? 'packed' : order.fulfillmentStatus === 'ready' ? 'dispatched' : 'delivered')}
-                      >
-                        {nextStageLabel}
-                      </button>
-
-                      {confirmingDeleteId === order.id ? (
-                        <span className="delete-confirm-group">
-                          <span className="island-confirm-text" style={{ fontSize: '12px', color: '#b9645c', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                            Delete order permanently?
+                        {confirmingDeleteId === order.id ? (
+                          <span className="delete-confirm-group">
+                            <span className="island-confirm-text" style={{ fontSize: '12px', color: '#b9645c', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                              Delete order permanently?
+                            </span>
+                            <button
+                              className="delete-order-pink-btn"
+                              style={{ padding: '6px 14px', fontSize: '12px' }}
+                              onClick={() => handleConfirmDeleteOrder(order.id)}
+                            >
+                              Yes
+                            </button>
+                            <button
+                              className="stage-action-grey-btn"
+                              onClick={() => setConfirmingDeleteId(null)}
+                            >
+                              No
+                            </button>
                           </span>
+                        ) : (
                           <button
                             className="delete-order-pink-btn"
-                            style={{ padding: '6px 14px', fontSize: '12px' }}
-                            onClick={() => handleConfirmDeleteOrder(order.id)}
+                            onClick={() => setConfirmingDeleteId(order.id)}
                           >
-                            Yes
+                            Delete order
                           </button>
-                          <button
-                            className="stage-action-grey-btn"
-                            onClick={() => setConfirmingDeleteId(null)}
-                          >
-                            No
-                          </button>
-                        </span>
-                      ) : (
-                        <button
-                          className="delete-order-pink-btn"
-                          onClick={() => setConfirmingDeleteId(order.id)}
-                        >
-                          Delete order
-                        </button>
-                      )}
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             );
           })
