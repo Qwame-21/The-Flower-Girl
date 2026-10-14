@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Upload, Check } from 'lucide-react';
+import OutlineActionButton from '../components/OutlineActionButton';
 import { submitInquiry } from '../api/submissions';
 import { formIsoDate } from '../utils/date';
 import DateField from '../components/DateField';
@@ -16,6 +17,7 @@ export default function CareersPage({ onNavigate }) {
   const [loading, setLoading] = useState(false);
   const [selectedCareer, setSelectedCareer] = useState(null);
   const [resumeName, setResumeName] = useState('');
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     setLoading(true);
@@ -101,27 +103,35 @@ export default function CareersPage({ onNavigate }) {
             <label>Link to portfolio or work samples<input name="portfolio" type="url" placeholder="https://..." /></label>
             <div className="resume-upload-capsule-wrap">
               <span className="field-label">Resume / CV (PDF)</span>
-              <label className="resume-upload-capsule">
-                <Upload size={15} />
-                <span>{resumeName || 'CHOOSE FILE'}</span>
+              <div className="resume-upload-row">
                 <input
+                  ref={fileInputRef}
                   name="resume"
                   type="file"
                   accept=".pdf"
                   required
+                  className="visually-hidden-file-input"
                   onChange={(e) => setResumeName(e.target.files?.[0]?.name || '')}
                 />
-              </label>
-              {resumeName && (
-                <small className="resume-upload-feedback">
-                  <Check size={13} /> {resumeName}
-                </small>
-              )}
+                <OutlineActionButton
+                  type="button"
+                  icon={<Upload size={16} strokeWidth={1.6} />}
+                  label={resumeName ? 'CHANGE FILE' : 'CHOOSE FILE'}
+                  className="resume-upload-button"
+                  onClick={() => fileInputRef.current?.click()}
+                />
+                {resumeName && (
+                  <div className="resume-filename-tag" title={resumeName}>
+                    <Check size={14} strokeWidth={2} />
+                    <span className="resume-filename-text">{resumeName}</span>
+                  </div>
+                )}
+              </div>
             </div>
             <label className="career-cover"><span>Cover letter (optional)</span><textarea name="cover" rows="4" placeholder="Tell us why you're interested in this role..." /></label>
           </div>
           <button type="submit" className="primary-action" disabled={submitting || applicationSent}>
-            {submitting ? 'Submitting...' : applicationSent ? 'Application sent!' : 'Submit application'}
+            {submitting ? 'SUBMITTING…' : applicationSent ? 'APPLICATION SENT!' : 'SUBMIT APPLICATION'}
           </button>
           {error && <p className="shop-error" style={{ marginTop: '1rem' }}>{error}</p>}
         </form>

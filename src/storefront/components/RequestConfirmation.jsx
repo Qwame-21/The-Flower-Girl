@@ -195,7 +195,7 @@ export default function RequestConfirmation({ request, onNavigate }) {
             cursor: 'pointer'
           }}
         >
-          Track this request
+          TRACK THIS REQUEST
         </button>
 
         <button
@@ -209,11 +209,13 @@ export default function RequestConfirmation({ request, onNavigate }) {
             color: '#747471',
             fontSize: '13px',
             fontWeight: 500,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
             cursor: 'pointer',
             textDecoration: 'underline'
           }}
         >
-          Continue shopping
+          CONTINUE SHOPPING
         </button>
       </div>
     </div>

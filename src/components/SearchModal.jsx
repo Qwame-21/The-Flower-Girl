@@ -14,7 +14,7 @@ const SITE_PATHS = [
   { id: 'policy', title: 'Order policy', label: 'POLICY', detail: 'Payment, custom-order changes and product availability', image: '/assets/wrapping-editorial-v2.png', keywords: 'policy payment cancellation changes replacement availability terms' }
 ];
 
-export default function SearchModal({ isOpen, onClose, onSelectSlide, onNavigate }) {
+export default function SearchModal({ isOpen, onClose, onSelectSlide, onNavigate, onSelectProduct }) {
   const [query, setQuery] = useState('');
   const [products, setProducts] = useState(() => getCachedProducts() || []);
 
@@ -88,7 +88,7 @@ export default function SearchModal({ isOpen, onClose, onSelectSlide, onNavigate
             <span style={styles.sectionHeader}>PRODUCTS ({filteredProducts.length})</span>
             <div style={styles.list}>
               {filteredProducts.map((item) => (
-                <div key={item.id} style={styles.itemRow} onClick={() => { onClose(); onNavigate('shop'); }} className="hover-lift">
+                <div key={item.id} style={styles.itemRow} onClick={() => { onClose(); if (onSelectProduct) { onSelectProduct(item); } else { onNavigate('shop'); } }} className="hover-lift">
                   <img src={item.image} alt="" style={styles.thumb} />
                   <div style={styles.itemMeta}>
                     <span style={styles.code}>{item.tag}</span>

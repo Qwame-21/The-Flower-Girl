@@ -11,6 +11,7 @@ import PhoneInput, { combinePhone } from '../components/PhoneInput';
 import ModalHeader from '../components/ModalHeader';
 import DeliveryAddressFields from '../components/DeliveryAddressFields';
 import CustomSelect from '../components/CustomSelect';
+import OutlineActionButton from '../components/OutlineActionButton';
 import { formatDeliveryAddress } from '../utils/address';
 
 export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate }) {
@@ -23,6 +24,7 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
   const [submitError, setSubmitError] = useState('');
   const [locationLink, setLocationLink] = useState('');
   const [locationStatus, setLocationStatus] = useState('');
+  const [locating, setLocating] = useState(false);
   const [scrollState, setScrollState] = useState({ progress: 0, visible: false });
   const [siteSettings, setSiteSettings] = useState(null);
   const [selectedDeliveryType, setSelectedDeliveryType] = useState('');
@@ -264,12 +266,17 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
   };
   const useCurrentLocation = () => {
     if (!navigator.geolocation) { setLocationStatus('Location is not available in this browser.'); return; }
+    setLocating(true);
     setLocationStatus('Finding your location…');
     navigator.geolocation.getCurrentPosition(position => {
       const { latitude, longitude } = position.coords;
       setLocationLink(`https://www.google.com/maps?q=${latitude.toFixed(6)},${longitude.toFixed(6)}`);
       setLocationStatus('Current location added. You can still edit the link.');
-    }, () => setLocationStatus('Location permission was not granted. Paste a Maps link instead.'), { enableHighAccuracy: true, timeout: 10000 });
+      setLocating(false);
+    }, () => {
+      setLocationStatus('Location permission was not granted. Paste a Maps link instead.');
+      setLocating(false);
+    }, { enableHighAccuracy: true, timeout: 10000 });
   };
   return (
       <section className="flow-modal checkout-modal fixed-heading-modal" onScrollCapture={event => { const node = event.target; const available = node.scrollHeight - node.clientHeight; setScrollState({ progress: available > 0 ? node.scrollTop / available : 0, visible: available > 8 }); }} aria-label="Your order">
@@ -285,9 +292,9 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
             {complete.status === 'pending' && retryAttempts === 0 && (
               <div className="receipt-actions">
                 <button className="primary-action" onClick={handleRetryVerification} disabled={retrying}>
-                  {retrying ? <><LoaderCircle size={16} className="spin-icon" /> RETRYING…</> : 'Retry verification'}
+                  {retrying ? <><LoaderCircle size={16} className="spin-icon" /> RETRYING…</> : 'RETRY VERIFICATION'}
                 </button>
-                <button className="soft-action" onClick={() => { window.sessionStorage.setItem('gifting-factory-track-prefill', JSON.stringify({ reference: complete.trackingNumber, credential: complete.customerEmail })); window.sessionStorage.removeItem('gifting-factory-payment-return'); onClose(); onNavigate?.('track'); }}>View tracking status</button>
+                <button className="soft-action" onClick={() => { window.sessionStorage.setItem('gifting-factory-track-prefill', JSON.stringify({ reference: complete.trackingNumber, credential: complete.customerEmail })); window.sessionStorage.removeItem('gifting-factory-payment-return'); onClose(); onNavigate?.('track'); }}>VIEW TRACKING STATUS</button>
               </div>
             )}
             {complete.status !== 'pending' && (
@@ -298,13 +305,15 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
           <div className="flow-success empty-order"><p>Add a ready-made gift or begin with the custom gift builder.</p><button className="primary-action" onClick={onClose}>BROWSE THE SHOP</button></div>
         ) : (
           <form onSubmit={submit}>
-            <div className="checkout-summary">{cart.map(item => <div className="checkout-line" key={item.id}>
-              <img className="checkout-product-image" src={item.image || '/assets/gifting-factory-logo-transparent-v2.png'} alt={item.name} />
-              <div className="checkout-product-name"><span>{item.name}</span><small>GHS {item.price.toLocaleString()} each</small></div>
-              <QuantityControl value={item.quantity} label={item.name} onDecrease={() => onQuantity(item.id, item.quantity - 1)} onIncrease={() => onQuantity(item.id, item.quantity + 1)} />
-              <strong>GHS {(item.price * item.quantity).toLocaleString()}</strong>
-              <button className="checkout-remove" type="button" onClick={() => onQuantity(item.id, 0)} aria-label={`Remove ${item.name} from order`}><Trash2 size={17} strokeWidth={1.6} /></button>
-            </div>)}</div>
+            <div className="checkout-summary">{cart.map(item => (
+              <div className="checkout-line" key={item.id}>
+                <img className="checkout-product-image" src={item.image || '/assets/gifting-factory-logo-transparent-v2.png'} alt={item.name} />
+                <div className="checkout-product-name"><span>{item.name}</span><small>GHS {item.price.toLocaleString()} each</small></div>
+                <QuantityControl value={item.quantity} label={item.name} onDecrease={() => onQuantity(item.id, item.quantity - 1)} onIncrease={() => onQuantity(item.id, item.quantity + 1)} />
+                <strong>GHS {(item.price * item.quantity).toLocaleString()}</strong>
+                <button className="checkout-remove" type="button" onClick={() => onQuantity(item.id, 0)} aria-label={`Remove ${item.name} from order`}><Trash2 size={17} strokeWidth={1.6} /></button>
+              </div>
+            ))}</div>
             <div className="checkout-total"><span>Items subtotal</span><strong>GHS {subtotal.toLocaleString()}</strong></div>
             {siteSettings?.delivery_selector_enabled && (
               <>
@@ -363,10 +372,10 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
                 <a href="/delivery" target="_blank" rel="noopener noreferrer" className="small-link">How delivery works</a>
               </>
             )}
-            <div className="checkout-total"><span>Total</span><strong>GHS {total.toLocaleString()}</strong></div>
+            <div className="checkout-total checkout-total-grand"><span>Total</span><strong>GHS {total.toLocaleString()}</strong></div>
             <div className="checkout-contact-grid"><label>Customer name<input name="customer" required disabled={submitting} /></label><label>Email for receipt<input name="email" required type="email" disabled={submitting} /></label><PhoneInput required disabled={submitting} /><label><span className="field-label">Recipient name <small>optional</small></span><input name="recipient-name" placeholder="Leave blank if you are receiving it" disabled={submitting} /></label></div>
             <DeliveryAddressFields disabled={submitting} isCollection={selectedDeliveryType === 'collection'} /><label>Nearest landmark<input name="landmark" disabled={submitting} /></label>
-            <div className="location-field"><label>Google Maps or location link<input type="url" value={locationLink} onChange={event => setLocationLink(event.target.value)} placeholder="https://maps.google.com/..." disabled={submitting} /></label><button type="button" onClick={useCurrentLocation} disabled={submitting}><LocateFixed size={15} /> USE MY LOCATION</button>{locationStatus && <small><MapPin size={13} />{locationStatus}</small>}</div>
+            <div className="location-field"><label>Google Maps or location link<input type="url" value={locationLink} onChange={event => setLocationLink(event.target.value)} placeholder="https://maps.google.com/..." disabled={submitting} /></label><OutlineActionButton icon={<LocateFixed size={16} strokeWidth={1.6} />} label="USE MY LOCATION" onClick={useCurrentLocation} disabled={submitting} loading={locating} loadingLabel="LOCATING…" />{locationStatus && <small><MapPin size={13} />{locationStatus}</small>}</div>
             <label>Delivery instructions<textarea name="instructions" rows="2" placeholder="Gate, floor, preferred call time or surprise-delivery note" disabled={submitting} /></label><DateField label="Delivery date" prefix="checkout" />
             <fieldset className="checkout-card-message"><legend>Gift card message <small>(optional)</small></legend><label>Message for the card<textarea name="cardMessage" rows="3" placeholder="Write the message exactly as it should appear" disabled={submitting} /></label><CardStylePicker disabled={submitting} /></fieldset>
             {submitError && <small className="checkout-error">{submitError}</small>}

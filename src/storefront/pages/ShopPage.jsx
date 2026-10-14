@@ -7,13 +7,21 @@ import CheckoutModal from '../modals/CheckoutModal';
 import ProductDetail from '../modals/ProductDetail';
 import RequestModal from '../modals/RequestModal';
 import WishlistModal from '../modals/WishlistModal';
+import { ProductGridSkeleton, useDelayedLoading } from '../components/Skeleton';
 
-export default function ShopPage({ onNavigate, cart, setCart, wishlist, setWishlist, openCheckout, onCheckoutHandled, openWishlist, onWishlistHandled }) {
+export default function ShopPage({ onNavigate, cart, setCart, wishlist, setWishlist, openCheckout, onCheckoutHandled, openWishlist, onWishlistHandled, initialProduct, onClearInitialProduct }) {
   const [requestProduct, setRequestProduct] = useState(null);
   const [detailProduct, setDetailProduct] = useState(null);
   const [addedProduct, setAddedProduct] = useState('');
   const [promotions, setPromotions] = useState(() => readAdminData().promotions || []);
   useEffect(() => subscribeAdminData(data => setPromotions(data.promotions || [])), []);
+
+  useEffect(() => {
+    if (initialProduct) {
+      setDetailProduct(initialProduct);
+      if (onClearInitialProduct) onClearInitialProduct();
+    }
+  }, [initialProduct, onClearInitialProduct]);
   
   // Refetch promotions on focus
   useEffect(() => {
@@ -25,6 +33,7 @@ export default function ShopPage({ onNavigate, cart, setCart, wishlist, setWishl
   }, []);
   
   const { products: liveProducts, loading, error, source } = useLiveProducts();
+  const showSkeleton = useDelayedLoading(loading && liveProducts.length === 0, { delay: 150, minDuration: 300 });
   
   const shopProducts = useMemo(() => liveProducts.map(product => { 
     const promotion = promotions.find(item => item.productId === product.id && item.status === 'active' && Number(item.percent) > 0); 
@@ -91,7 +100,12 @@ export default function ShopPage({ onNavigate, cart, setCart, wishlist, setWishl
   return (
     <main className="content-page shop-page">
       <header className="content-page-heading shop-heading"><div><span>ORDERS & BOOKINGS</span><h1>Shop</h1></div></header>
-      <div className="shop-custom-banner"><div><span>BUILD YOUR OWN</span><h2>Choose every detail.</h2><p>Start with flowers or a box, then add perfume, chocolate, fashion, jewelry, engraving and delivery.</p></div><button className="primary-action" onClick={() => onNavigate?.('customize')}>OPEN GIFT BUILDER</button></div><div className="product-grid">{shopProducts.map(product => <ProductCard key={product.id} product={product} saved={wishlist.includes(product.id)} added={addedProduct === product.id} onSave={() => toggleWishlist(product.id)} onView={() => setDetailProduct(product)} onAdd={() => addWithFeedback(product)} />)}</div>
+      <div className="shop-custom-banner"><div><span>BUILD YOUR OWN</span><h2>Choose every detail.</h2><p>Start with flowers or a box, then add perfume, chocolate, fashion, jewelry, engraving and delivery.</p></div><button className="primary-action" onClick={() => onNavigate?.('customize')}>OPEN GIFT BUILDER</button></div>
+      {showSkeleton ? (
+        <ProductGridSkeleton count={6} />
+      ) : (
+        <div className="product-grid content-fade-in">{shopProducts.map(product => <ProductCard key={product.id} product={product} saved={wishlist.includes(product.id)} added={addedProduct === product.id} onSave={() => toggleWishlist(product.id)} onView={() => setDetailProduct(product)} onAdd={() => addWithFeedback(product)} />)}</div>
+      )}
       {productOverlays}
       <SiteFooter onNavigate={onNavigate} />
     </main>

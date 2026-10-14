@@ -5,6 +5,7 @@ import { hasTrackingApi, trackRecord } from '../api/trackingApi';
 import { getSiteSettings, refreshSiteSettings } from '../api/siteFeatures';
 import SiteFooter from '../components/SiteFooter';
 import { parseDateString, formatDateISO, formatDateDisplay as accraFormatDate, todayAccra, formatTimestampDisplay } from '../../shared/dateUtils';
+import { TrackOrderSkeleton, useDelayedLoading } from '../components/Skeleton';
 
 function TrackingIcon({ stage }) {
   if (stage === 'paid') return <CircleDollarSign />;
@@ -21,6 +22,7 @@ export default function TrackOrderPage({ onNavigate }) {
   const [result, setResult] = useState(null);
   const [searched, setSearched] = useState(false);
   const [searching, setSearching] = useState(false);
+  const showSkeleton = useDelayedLoading(searching, { delay: 150, minDuration: 300 });
   const [trackingData, setTrackingData] = useState(readAdminData);
   const [siteSettings, setSiteSettings] = useState(null);
   const [isRateLimited, setIsRateLimited] = useState(false);
@@ -249,7 +251,8 @@ export default function TrackOrderPage({ onNavigate }) {
         <label>Phone number or email<input value={credential} onChange={event => setCredential(event.target.value)} required placeholder="024 000 0000 or you@example.com" /></label>
         <button className="primary-action" disabled={searching}>{searching ? 'CHECKING…' : 'TRACK'}</button>
       </form>
-      {order && <article ref={resultRef} className="tracking-result">
+      {showSkeleton && <TrackOrderSkeleton />}
+      {!showSkeleton && order && <article ref={resultRef} className="tracking-result content-fade-in">
         <span>{order.tracking}</span>
         <h2>{order.customer}</h2>
         <p>Your order is currently <strong>{labels[order.status] || order.status}</strong>.</p>
