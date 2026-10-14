@@ -11102,3 +11102,181 @@ a {
 .site-breadcrumbs { display:flex; gap:10px; font-size:12px; margin-bottom:18px; }.site-breadcrumbs a { color:inherit; }
 
 .footer-pages a,.footer-guides a { display:flex; flex-direction:column; gap:6px; color:inherit; text-decoration:none; font:inherit; }.site-footer>.site-breadcrumbs { grid-column:1/-1; }
+
+/* ─── Home Page: 01, 02, 03 About Path (matches About Page) ────────── */
+.home-information .home-about-path {
+  width: 100%;
+  margin-left: 0;
+  margin-top: clamp(2rem, 4vw, 3.5rem);
+}
+
+@media (min-width: 901px) {
+  .home-information .home-about-path {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(2rem, 4.5vw, 5.5rem);
+  }
+}
+
+@media (max-width: 900px) {
+  .home-information .home-about-path {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    margin-left: 0;
+  }
+}
+
+/* ─── Careers Page: Custom Upload Button (matches USE MY LOCATION) ─── */
+.resume-upload-capsule-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.resume-upload-capsule-wrap .field-label {
+  color: #666;
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  text-transform: none;
+}
+
+.resume-upload-capsule {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 42px;
+  padding: 0.65rem 1rem;
+  border: 1px solid rgba(17, 17, 17, 0.24);
+  border-radius: 9px;
+  background: transparent;
+  color: #111;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 180ms ease;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.resume-upload-capsule:hover {
+  border-color: #111;
+  background: rgba(17, 17, 17, 0.04);
+}
+
+.resume-upload-capsule input[type="file"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.resume-upload-feedback {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #2e7d32;
+  font-size: 0.68rem;
+  font-weight: 500;
+  padding-left: 2px;
+}
+
+/* ─── Track Order: Mobile-Optimized Timeline Timestamps ────────────── */
+.tracking-step-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tracking-step-info .tracking-stage-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #111;
+  letter-spacing: 0.02em;
+}
+
+.tracking-step-info time {
+  display: block;
+  font-size: 0.62rem;
+  color: #777;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+@media (max-width: 760px) {
+  .track-workspace article .tracking-timeline {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1.25rem !important;
+    margin-top: 24px !important;
+  }
+
+  .track-workspace article .tracking-timeline i {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 14px !important;
+    text-align: left !important;
+    position: relative !important;
+  }
+
+  .track-workspace article .tracking-timeline i > b {
+    flex: 0 0 36px !important;
+    width: 36px !important;
+    height: 36px !important;
+    margin: 0 !important;
+    display: grid !important;
+    place-items: center !important;
+    z-index: 1 !important;
+  }
+
+  .track-workspace article .tracking-timeline i .tracking-step-info {
+    flex: 1 1 auto !important;
+    text-align: left !important;
+    min-width: 0 !important;
+  }
+
+  .track-workspace article .tracking-timeline i .tracking-step-info .tracking-stage-label {
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+    color: #111 !important;
+    line-height: 1.2 !important;
+  }
+
+  .track-workspace article .tracking-timeline i .tracking-step-info time {
+    font-size: 0.72rem !important;
+    color: #666 !important;
+    margin-top: 2px !important;
+    line-height: 1.35 !important;
+    word-break: break-word !important;
+  }
+
+  .track-workspace article .tracking-timeline i:before {
+    top: 36px !important;
+    left: 17px !important;
+    width: 2px !important;
+    height: calc(100% + 1.25rem - 36px) !important;
+    background: #dcdcd8 !important;
+  }
+
+  .track-workspace article .tracking-timeline i.done:before {
+    background: #637ca6 !important;
+  }
+
+  .track-workspace article .tracking-timeline i:last-child:before {
+    display: none !important;
+  }
+}
+

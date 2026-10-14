@@ -262,17 +262,9 @@ export default function TrackOrderPage({ onNavigate }) {
             // Format reached time or provide sensible fallback if order reached this stage
             let timeDisplay = 'Update pending';
             if (order[`${stage}At`]) {
-              try {
-                timeDisplay = new Date(order[`${stage}At`]).toLocaleString('en-GH', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-              } catch (e) {
-                timeDisplay = String(order[`${stage}At`]);
-              }
+              timeDisplay = formatTimestampDisplay(order[`${stage}At`]);
             } else if (stage === 'packaging' && done && (order.paidAt || order.createdAt)) {
-              try {
-                timeDisplay = new Date(order.paidAt || order.createdAt).toLocaleString('en-GH', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-              } catch (e) {
-                timeDisplay = 'Processing';
-              }
+              timeDisplay = formatTimestampDisplay(order.paidAt || order.createdAt);
             } else if (done && !order[`${stage}At`]) {
               timeDisplay = 'Completed';
             }
@@ -280,8 +272,10 @@ export default function TrackOrderPage({ onNavigate }) {
             return (
               <i key={stage} className={`${done ? 'done' : ''} ${current ? 'is-current' : ''}`}>
                 <b><TrackingIcon stage={stage} /></b>
-                <span className="tracking-stage-label">{stage === 'paid' && order.paymentStatus !== 'paid' ? 'Awaiting payment' : labels[stage]}</span>
-                <time>{timeDisplay}</time>
+                <div className="tracking-step-info">
+                  <span className="tracking-stage-label">{stage === 'paid' && order.paymentStatus !== 'paid' ? 'Awaiting payment' : labels[stage]}</span>
+                  <time>{timeDisplay}</time>
+                </div>
               </i>
             );
           })}
@@ -385,8 +379,10 @@ export default function TrackOrderPage({ onNavigate }) {
             return (
               <i key={st.key} className={`${st.done ? 'done' : ''} ${isCurrent ? 'is-current' : ''}`}>
                 <b>{st.icon}</b>
-                <span className="tracking-stage-label">{st.label}</span>
-                <time>{st.done ? (timeDisplay || 'Completed') : 'Pending'}</time>
+                <div className="tracking-step-info">
+                  <span className="tracking-stage-label">{st.label}</span>
+                  <time>{st.done ? (timeDisplay || 'Completed') : 'Pending'}</time>
+                </div>
               </i>
             );
           })}

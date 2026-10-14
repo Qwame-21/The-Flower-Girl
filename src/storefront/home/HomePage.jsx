@@ -125,7 +125,29 @@ export default function HomePage({
       <section className="home-information">
         <div className="home-about-label"><span>ABOUT THE GIFTING FACTORY</span><button className="soft-action" onClick={() => setActiveTab('about')}>READ OUR STORY</button></div>
         <h2>We turn thoughtful ideas<br />into gifts worth keeping.</h2>
-        <div className="home-facts"><p>Luxury hampers built around the person, the occasion and your budget.</p><p>Fresh flowers, wrapping, engagement presentation and personalized finishing.</p><p>Collection and same-day delivery options confirmed with every order.</p></div>
+        <div className="about-path home-about-path">
+          <article>
+            <span>01</span>
+            <p>
+              <strong>Curated for the person.</strong>
+              Luxury hampers built around the person, the occasion and your budget.
+            </p>
+          </article>
+          <article>
+            <span>02</span>
+            <p>
+              <strong>Finished by hand.</strong>
+              Fresh flowers, wrapping, engagement presentation and personalized finishing.
+            </p>
+          </article>
+          <article>
+            <span>03</span>
+            <p>
+              <strong>Arranged around the order.</strong>
+              Collection and same-day delivery options confirmed with every order.
+            </p>
+          </article>
+        </div>
       </section>
       <section className="home-service-links">
         <div className="service-links-intro"><span aria-live="polite" aria-atomic="true">{String(serviceNumber).padStart(2, '0')} / {String(HOME_SERVICE_LINKS.length).padStart(2, '0')}</span><h2>What we make<br />meaningful.</h2></div>

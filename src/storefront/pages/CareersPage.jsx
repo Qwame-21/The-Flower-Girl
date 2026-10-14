@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Upload, Check } from 'lucide-react';
 import { submitInquiry } from '../api/submissions';
 import { formIsoDate } from '../utils/date';
 import DateField from '../components/DateField';
@@ -14,6 +15,7 @@ export default function CareersPage({ onNavigate }) {
   const [careers, setCareers] = useState(() => getCachedCareers() || []);
   const [loading, setLoading] = useState(false);
   const [selectedCareer, setSelectedCareer] = useState(null);
+  const [resumeName, setResumeName] = useState('');
 
   useEffect(() => {
     setLoading(true);
@@ -97,7 +99,25 @@ export default function CareersPage({ onNavigate }) {
             <PhoneInput label="Phone / WhatsApp" required />
             <label>Preferred start date<DateField name="career" /></label>
             <label>Link to portfolio or work samples<input name="portfolio" type="url" placeholder="https://..." /></label>
-            <label className="resume-upload"><span>Resume / CV (PDF)</span><input name="resume" type="file" accept=".pdf" required /></label>
+            <div className="resume-upload-capsule-wrap">
+              <span className="field-label">Resume / CV (PDF)</span>
+              <label className="resume-upload-capsule">
+                <Upload size={15} />
+                <span>{resumeName || 'CHOOSE FILE'}</span>
+                <input
+                  name="resume"
+                  type="file"
+                  accept=".pdf"
+                  required
+                  onChange={(e) => setResumeName(e.target.files?.[0]?.name || '')}
+                />
+              </label>
+              {resumeName && (
+                <small className="resume-upload-feedback">
+                  <Check size={13} /> {resumeName}
+                </small>
+              )}
+            </div>
             <label className="career-cover"><span>Cover letter (optional)</span><textarea name="cover" rows="4" placeholder="Tell us why you're interested in this role..." /></label>
           </div>
           <button type="submit" className="primary-action" disabled={submitting || applicationSent}>
