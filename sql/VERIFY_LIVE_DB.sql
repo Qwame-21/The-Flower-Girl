@@ -56,14 +56,20 @@ columns_check AS (
     ('orders',              'delivery_type'),
     ('orders',              'recipient_name'),
     ('orders',              'delivery_address'),
-    ('orders',              'payment_method'),
+    ('orders',              'payment_provider'),
     ('orders',              'payment_status'),
-    ('order_events',        'event_type'),
-    ('order_events',        'actor'),
-    ('order_events',        'note'),
-    ('staff_profiles',      'is_active'),
+    ('orders',              'fulfillment_status'),
+    ('order_events',        'stage'),
+    ('order_events',        'customer_note'),
+    ('order_events',        'created_by'),
+    ('staff_profiles',      'active'),
+    ('staff_profiles',      'role'),
+    ('staff_profiles',      'display_name'),
     ('site_settings',       'support_phone'),
-    ('admin_notifications', 'is_read')
+    ('site_settings',       'support_email'),
+    ('admin_notifications', 'read_at'),
+    ('admin_notifications', 'type'),
+    ('admin_notifications', 'title')
   ) AS required(tbl, col)
   LEFT JOIN information_schema.columns c
     ON c.table_schema = 'public' AND c.table_name = required.tbl AND c.column_name = required.col
@@ -78,9 +84,9 @@ rpcs_check AS (
     'supabase/schema.sql'      AS fix_in_file
   FROM (VALUES
     ('is_staff'),
-    ('submit_customer_request'),
-    ('track_order'),
-    ('get_order_for_tracking')
+    ('normalize_phone'),
+    ('notify_new_customer_request'),
+    ('notify_new_career_application')
   ) AS required(fn_name)
   LEFT JOIN pg_proc p
     ON p.proname = required.fn_name AND p.pronamespace = 'public'::regnamespace
@@ -126,7 +132,8 @@ bucket_check AS (
     'Supabase dashboard > Storage'                                     AS fix_in_file
   FROM (VALUES
     ('storefront-media'),
-    ('resume-uploads')
+    ('career-files'),
+    ('request-uploads')
   ) AS required(bucket_name)
   LEFT JOIN storage.buckets b ON b.name = required.bucket_name
 ),
@@ -140,8 +147,8 @@ triggers_check AS (
     'supabase/schema.sql'                                              AS fix_in_file
   FROM (VALUES
     ('set_updated_at'),
-    ('notify_new_request'),
-    ('notify_new_order')
+    ('on_new_customer_request'),
+    ('on_new_career_application')
   ) AS required(trig_name)
   LEFT JOIN information_schema.triggers tg
     ON tg.trigger_schema = 'public' AND tg.trigger_name = required.trig_name
