@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+/** Duration between automatic card advances, in milliseconds. Change once here. */
+const SHUFFLE_INTERVAL = 4500;
+
+/** How long to wait before resuming auto-advance after the user stops interacting. */
+const RESUME_DELAY = 1500;
+
 export const SHUFFLE_CARDS = [
   {
     id: 'hamper',
@@ -38,11 +44,14 @@ export default function ShuffleCardStack({ activeGroupHint }) {
   const [isTabHidden, setIsTabHidden] = useState(false);
   const [isIntersecting, setIsIntersecting] = useState(true);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  // paused is true while hover/focus/tab-hidden, false after RESUME_DELAY expires
+  const [paused, setPaused] = useState(false);
 
   const containerRef = useRef(null);
   const pointerRef = useRef({ isDown: false, startX: 0, startY: 0, startTime: 0 });
   const isAnimatingRef = useRef(false);
   const animTimerRef = useRef(null);
+  const resumeTimerRef = useRef(null);
 
   // Check prefers-reduced-motion
   useEffect(() => {
@@ -102,7 +111,7 @@ export default function ShuffleCardStack({ activeGroupHint }) {
     animTimerRef.current = setTimeout(() => {
       setDisplay(prev => ({ ...prev, exiting: null }));
       isAnimatingRef.current = false;
-    }, 600);
+    }, 320);
   }, [display.current, prefersReducedMotion]);
 
   const nextCard = useCallback(() => {
@@ -124,22 +133,36 @@ export default function ShuffleCardStack({ activeGroupHint }) {
     }
   }, [activeGroupHint, display.current, changeTo]);
 
-  // Auto-shuffle timer: every 3 seconds
+  // Manage the "paused" state with a resume delay so the timer doesn't
+  // immediately restart the moment the user stops hovering.
   useEffect(() => {
-    if (prefersReducedMotion || isHovered || isFocused || isTabHidden || !isIntersecting) {
-      return;
+    const shouldPause = isHovered || isFocused || isTabHidden;
+    if (shouldPause) {
+      // Cancel any pending resume
+      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+      setPaused(true);
+    } else {
+      // Wait RESUME_DELAY before un-pausing
+      resumeTimerRef.current = setTimeout(() => setPaused(false), RESUME_DELAY);
     }
+    return () => { if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current); };
+  }, [isHovered, isFocused, isTabHidden]);
+
+  // Auto-shuffle timer: advances every SHUFFLE_INTERVAL ms
+  useEffect(() => {
+    if (paused || !isIntersecting) return;
+    // Under reduced-motion: advance with simple instant swap (no slide animation)
     const timer = setInterval(() => {
       nextCard();
-    }, 3000);
-
+    }, SHUFFLE_INTERVAL);
     return () => clearInterval(timer);
-  }, [prefersReducedMotion, isHovered, isFocused, isTabHidden, isIntersecting, nextCard]);
+  }, [paused, isIntersecting, nextCard]);
 
-  // Cleanup timeout on unmount
+  // Cleanup all timers on unmount
   useEffect(() => {
     return () => {
       if (animTimerRef.current) clearTimeout(animTimerRef.current);
+      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
     };
   }, []);
 

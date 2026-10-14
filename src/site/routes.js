@@ -9,6 +9,8 @@ export const pages = {
  track: ['/track', 'Track your order', 'Check the progress of your gift using your order tracking details.'],
  delivery: ['/delivery', 'Delivery & frequently asked questions', 'Find information about gift delivery, preparation and ordering in Accra.'],
  policy: ['/policy', 'Order policy', 'Read our ordering, approval and payment policies before placing your gift order.'],
+ checkout: ['/checkout', 'Checkout · Your order', 'Complete your order securely with The Gifting Factory.'],
+ wishlist: ['/wishlist', 'Saved gifts', 'View your saved items at The Gifting Factory.'],
 };
 export const pageForPath = path => Object.keys(pages).find(key => pages[key][0] === (path.replace(/\/$/, '') || '/')) || 'not-found';
 export const brand = 'The Gifting Factory by Flower Girl';

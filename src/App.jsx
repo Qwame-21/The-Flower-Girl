@@ -46,6 +46,7 @@ function SiteApp() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [checkoutRequested, setCheckoutRequested] = useState(returningFromPayment);
   const [wishlistRequested, setWishlistRequested] = useState(false);
+  const [selectedProductForDetail, setSelectedProductForDetail] = useState(null);
   const [homeServiceOpen, setHomeServiceOpen] = useState(null);
   const [preferredService, setPreferredService] = useState(null);
   const [scrollIndicator, setScrollIndicator] = useState({ progress: 0, visible: false });
@@ -169,7 +170,7 @@ function SiteApp() {
 
   return (
     <div style={styles.appContainer} className="portfolio-page">
-      <PageMetadata page={activeTab} />
+      <PageMetadata page={checkoutRequested ? 'checkout' : wishlistRequested ? 'wishlist' : activeTab} />
       {/* Top Header Navigation */}
       <Navigation
         activeTab={activeTab}
@@ -204,7 +205,21 @@ function SiteApp() {
       {activeTab === 'about' && <AboutPage onNavigate={navigateStorefront} />}
       {activeTab === 'services' && <ServicesPage key={`services-${preferredService || 'all'}`} initialService={preferredService} onNavigate={navigateStorefront} />}
       {activeTab === 'gallery' && <GalleryPage onNavigate={navigateStorefront} />}
-      {activeTab === 'shop' && <ShopPage onNavigate={navigateStorefront} cart={cart} setCart={setCart} wishlist={wishlist} setWishlist={setWishlist} openCheckout={checkoutRequested} onCheckoutHandled={() => setCheckoutRequested(false)} openWishlist={wishlistRequested} onWishlistHandled={() => setWishlistRequested(false)} />}
+      {activeTab === 'shop' && (
+        <ShopPage
+          onNavigate={navigateStorefront}
+          cart={cart}
+          setCart={setCart}
+          wishlist={wishlist}
+          setWishlist={setWishlist}
+          openCheckout={checkoutRequested}
+          onCheckoutHandled={() => setCheckoutRequested(false)}
+          openWishlist={wishlistRequested}
+          onWishlistHandled={() => setWishlistRequested(false)}
+          initialProduct={selectedProductForDetail}
+          onClearInitialProduct={() => setSelectedProductForDetail(null)}
+        />
+      )}
       {activeTab === 'customize' && <CustomizePage onNavigate={navigateStorefront} />}
       {activeTab === 'careers' && <CareersPage onNavigate={navigateStorefront} />}
       {activeTab === 'track' && <TrackOrderPage onNavigate={navigateStorefront} />}
@@ -225,6 +240,10 @@ function SiteApp() {
         onClose={() => setSearchOpen(false)}
         onSelectSlide={(idx) => { setSearchOpen(false); setCurrentSlideIndex(idx); setActiveTab('home'); }}
         onNavigate={navigateStorefront}
+        onSelectProduct={(product) => {
+          setSelectedProductForDetail(product);
+          navigateStorefront('shop');
+        }}
       />
 
     </div>

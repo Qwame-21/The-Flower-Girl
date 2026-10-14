@@ -711,6 +711,7 @@ a {
   font-size: .64rem;
   font-weight: 600;
   letter-spacing: .12em;
+  text-transform: uppercase;
   transition: color 220ms ease, background 220ms ease, transform 220ms ease;
 }
 
@@ -1634,6 +1635,9 @@ a {
   border-radius: 24px;
   overflow: hidden;
   pointer-events: none;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .shuffle-slide img {
@@ -1648,7 +1652,7 @@ a {
   pointer-events: none;
 }
 
-/* Slide animation states (600ms eased) */
+/* Slide animation states (320ms ease-out) */
 .shuffle-slide.is-active {
   opacity: 1;
   transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
@@ -1656,22 +1660,22 @@ a {
 }
 
 .shuffle-slide.is-exiting.dir-next {
-  animation: shuffleSlideExitNext 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  animation: shuffleSlideExitNext 0.32s cubic-bezier(0.2, 0.8, 0.25, 1) forwards;
   z-index: 3;
 }
 
 .shuffle-slide.is-exiting.dir-prev {
-  animation: shuffleSlideExitPrev 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  animation: shuffleSlideExitPrev 0.32s cubic-bezier(0.2, 0.8, 0.25, 1) forwards;
   z-index: 3;
 }
 
 .shuffle-slide.is-entering.dir-next {
-  animation: shuffleSlideEnterNext 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  animation: shuffleSlideEnterNext 0.32s cubic-bezier(0.2, 0.8, 0.25, 1) forwards;
   z-index: 2;
 }
 
 .shuffle-slide.is-entering.dir-prev {
-  animation: shuffleSlideEnterPrev 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  animation: shuffleSlideEnterPrev 0.32s cubic-bezier(0.2, 0.8, 0.25, 1) forwards;
   z-index: 2;
 }
 
@@ -1723,7 +1727,7 @@ a {
   .shuffle-slide.is-exiting,
   .shuffle-slide.is-entering {
     animation: none !important;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.2s ease !important;
   }
 }
 
@@ -2528,25 +2532,90 @@ a {
   opacity: .55;
 }
 
+/* ==========================================================================
+   QUANTITY CAPSULE — single source of truth. Identical on mobile & desktop.
+   background: transparent so ANY page background (grey, white) shows through.
+   appearance: none prevents iOS/Chrome from painting their own chrome.
+   ========================================================================== */
 .quantity-control {
   display: inline-grid;
-  grid-template-columns: 34px 38px 34px;
+  grid-template-columns: repeat(3, 1fr);
+  place-items: center;
   align-items: center;
+  justify-items: center;
+  width: 84px;
+  min-width: 84px;
+  max-width: 84px;
+  height: 36px;
   min-height: 36px;
+  max-height: 36px;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
   border: 1px solid rgba(17, 17, 17, .22);
   border-radius: 999px;
+  background: transparent;                  /* NEVER white – inherit page bg */
+  -webkit-appearance: none;
+  appearance: none;
+  overflow: visible;
 }
 
+.qty-btn,
 .quantity-control button {
   display: grid;
   place-items: center;
-  height: 34px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  line-height: 1;
 }
+/* Extend tap hit area to 44px without changing visible size */
+.qty-btn::after,
+.quantity-control button::after {
+  content: '';
+  position: absolute;
+  inset: calc((44px - 36px) / -2) -4px;
+  min-width: 36px;
+  min-height: 44px;
+}
+.qty-btn:hover,
+.quantity-control button:hover { background: rgba(17, 17, 17, .06); }
+.qty-btn:active,
+.quantity-control button:active { background: rgba(17, 17, 17, .12); }
+.qty-btn:focus-visible,
+.quantity-control button:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
+.qty-btn:disabled,
+.quantity-control button:disabled { opacity: .35; cursor: not-allowed; }
 
+.qty-value,
 .quantity-control span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
   text-align: center;
-  font-size: .76rem;
+  font-size: .8rem;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
+  user-select: none;
+  -webkit-user-select: none;
+  line-height: 1;
 }
 
 .checkout-line {
@@ -5723,14 +5792,6 @@ a {
   .detail-order-row .quantity-control {
     flex: none;
     align-self: flex-start;
-    width: 96px;
-    height: 34px;
-    min-height: 34px;
-    grid-template-columns: 30px 34px 30px
-  }
-
-  .detail-order-row .quantity-control button {
-    height: 32px
   }
 }
 
@@ -6035,18 +6096,6 @@ a {
 
   .checkout-line .quantity-control {
     justify-self: start;
-    width: 92px;
-    min-width: 92px;
-    grid-template-columns: 28px 34px 28px
-  }
-
-  .checkout-line .quantity-control button {
-    width: 28px;
-    padding: 0
-  }
-
-  .checkout-line .quantity-control span {
-    width: 34px
   }
 }
 
@@ -11125,70 +11174,7 @@ a {
   }
 }
 
-/* ─── Careers Page: Custom Upload Button (matches USE MY LOCATION) ─── */
-.resume-upload-capsule-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  min-width: 0;
-  width: 100%;
-}
 
-.resume-upload-capsule-wrap .field-label {
-  color: #666;
-  font-size: 0.65rem;
-  letter-spacing: 0.06em;
-  text-transform: none;
-}
-
-.resume-upload-capsule {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  width: 100%;
-  min-height: 42px;
-  padding: 0.65rem 1rem;
-  border: 1px solid rgba(17, 17, 17, 0.24);
-  border-radius: 9px;
-  background: transparent;
-  color: #111;
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: all 180ms ease;
-  position: relative;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
-.resume-upload-capsule:hover {
-  border-color: #111;
-  background: rgba(17, 17, 17, 0.04);
-}
-
-.resume-upload-capsule input[type="file"] {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  z-index: 2;
-}
-
-.resume-upload-feedback {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  color: #2e7d32;
-  font-size: 0.68rem;
-  font-weight: 500;
-  padding-left: 2px;
-}
 
 /* ─── Track Order: Mobile-Optimized Timeline Timestamps ────────────── */
 .tracking-step-info {
@@ -11280,3 +11266,490 @@ a {
   }
 }
 
+/* ================================================================
+   DESIGN TOKENS – Shared Outline Action Button
+   Used by: "USE MY LOCATION" (checkout, customize, request) and
+            "CHOOSE FILE" / "CHANGE FILE" (careers page).
+   ONE shared height, padding, font and icon weight.
+   ================================================================ */
+:root {
+  --oab-height: 32px;
+  --oab-padding-block: 0;
+  --oab-padding-inline: 0.75rem;
+  --oab-border-radius: 8px;
+  --oab-border-color: rgba(17, 17, 17, 0.24);
+  --oab-font-size: 0.688rem;        /* ≈ 11px */
+  --oab-font-weight: 600;
+  --oab-letter-spacing: 0.08em;
+  --oab-icon-size: 16px;
+  --oab-icon-stroke: 1.6;
+  --oab-gap: 0.4rem;
+  --oab-min-width: 116px;
+}
+
+/* Base button */
+.outline-action-button,
+label.outline-action-button,
+.application-section label.outline-action-button,
+.application-section .outline-action-button {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  flex-shrink: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: var(--oab-gap) !important;
+  width: auto !important;
+  min-width: var(--oab-min-width) !important;
+  max-width: max-content !important;
+  height: var(--oab-height) !important;
+  min-height: var(--oab-height) !important;
+  max-height: var(--oab-height) !important;
+  padding: var(--oab-padding-block) var(--oab-padding-inline) !important;
+  box-sizing: border-box !important;
+  border: 1px solid var(--oab-border-color) !important;
+  border-radius: var(--oab-border-radius) !important;
+  background: transparent !important;
+  color: #111 !important;
+  font-family: var(--font-main) !important;
+  font-size: var(--oab-font-size) !important;
+  font-weight: var(--oab-font-weight) !important;
+  letter-spacing: var(--oab-letter-spacing) !important;
+  line-height: var(--oab-height) !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+  position: relative !important;
+  /* Invisible tap-target extension for touch devices */
+}
+.outline-action-button::after {
+  content: '';
+  position: absolute;
+  inset: calc((44px - var(--oab-height)) / -2) -6px;
+}
+
+.outline-action-button:hover:not(:disabled):not(.is-disabled) {
+  border-color: #111;
+  background: rgba(17, 17, 17, 0.05);
+}
+
+.outline-action-button:focus-visible {
+  outline: 2px solid #111;
+  outline-offset: 3px;
+}
+
+.outline-action-button:disabled,
+.outline-action-button.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Icon slot */
+.outline-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 var(--oab-icon-size);
+  width: var(--oab-icon-size);
+  height: var(--oab-icon-size);
+}
+
+/* Keep width stable while loading */
+.outline-action-button.is-loading {
+  min-width: var(--oab-min-width);
+}
+
+/* Spinner for loading state */
+.outline-btn-spinner {
+  animation: outlineBtnSpin 1s linear infinite;
+}
+@keyframes outlineBtnSpin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .outline-btn-spinner { animation: none; }
+}
+
+/* Label slot */
+.outline-btn-label {
+  line-height: 1;
+}
+
+/* ================================================================
+   CAREERS PAGE – File upload row layout & filename feedback
+   ================================================================ */
+.resume-upload-capsule-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  width: auto;
+  align-items: flex-start;
+}
+
+.resume-upload-capsule-wrap .field-label {
+  color: #555;
+  font-size: 0.68rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/* Horizontal row: button + filename tag side by side */
+.resume-upload-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+/* Visually hidden real file input inside the label-button */
+.visually-hidden-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Filename tag: check icon + truncated name, never changes button size */
+.resume-filename-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 200px;
+  color: #2e7d32;
+  font-size: 0.68rem;
+  font-weight: 500;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.resume-filename-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* ================================================================
+   SKELETON SHIMMER SYSTEM
+   ================================================================ */
+@keyframes skeletonShimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+
+.skeleton-shimmer {
+  background-color: rgba(17, 17, 17, 0.09);
+  background-image: linear-gradient(
+    90deg,
+    rgba(17, 17, 17, 0.09) 0%,
+    rgba(255, 255, 255, 0.22) 40%,
+    rgba(17, 17, 17, 0.09) 80%
+  );
+  background-size: 800px 100%;
+  background-repeat: no-repeat;
+  animation: skeletonShimmer 1.4s linear infinite;
+  border-radius: 8px;
+  display: block;
+}
+
+.skeleton-text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.skeleton-text-line {
+  border-radius: 4px;
+}
+
+/* Skeleton product card mimics .product-card layout */
+.skeleton-product-card {
+  pointer-events: none;
+}
+
+.skeleton-product-card .product-visual {
+  width: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+/* Cart line skeleton */
+.skeleton-cart-line {
+  border-bottom: 1px solid rgba(17, 17, 17, 0.1);
+}
+
+/* Gallery skeleton figure */
+.gallery-skeleton-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Track order skeleton container */
+.track-result-skeleton {
+  margin-top: 2rem;
+}
+
+/* Screen-reader only text */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Disable shimmer animation for prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+    background-image: none;
+    opacity: 0.65;
+  }
+}
+
+/* ================================================================
+   CONTENT FADE-IN – applied when skeleton transitions to real content
+   ================================================================ */
+.content-fade-in {
+  animation: contentFadeIn 0.28s ease-out both;
+}
+@keyframes contentFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .content-fade-in { animation: none; }
+}
+
+/* ================================================================
+   CART BADGE – no text selection, clean dark circle
+   ================================================================ */
+.nav-order span {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ================================================================
+   MOBILE CHECKOUT FIXES (<640px)
+   Compact field heights, consistent spacing, no oversized gaps
+   ================================================================ */
+@media (max-width: 640px) {
+  /* Checkout contact grid: single column on mobile */
+  .checkout-contact-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  /* Every label in the checkout form must be a flex column so
+     font-size + gap actually take effect (default display is inline). */
+  .checkout-modal label,
+  .checkout-modal legend {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 0.65rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #555;
+  }
+
+  /* Override: fieldset legend stays inline-ish */
+  .checkout-modal legend {
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Inputs: compact but touch-safe */
+  .checkout-modal input:not([type='file']):not([type='checkbox']),
+  .checkout-modal select,
+  .checkout-modal textarea {
+    font-size: 1rem;            /* prevents iOS zoom-on-focus */
+    line-height: 1.25;
+    min-height: 44px;
+    padding: 0.5rem 0;
+  }
+
+  /* Textarea should not balloon */
+  .checkout-modal textarea {
+    min-height: unset;
+    height: auto;
+    resize: none;
+  }
+
+  /* Totals: consistent text scale, not oversized */
+  .checkout-total {
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    padding: 0.55rem 0 0.1rem;
+  }
+
+  .checkout-total strong {
+    font-size: 0.9rem;
+  }
+
+  .checkout-total.checkout-total-grand strong {
+    font-size: 1rem;
+  }
+
+  /* Location field: stack label above button row */
+  .location-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .location-field > label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  /* OutlineActionButton stays compact – never stretches full width */
+  .location-field .outline-action-button {
+    align-self: flex-start;
+    width: auto;
+  }
+
+  /* Delivery address grid: single column */
+  .delivery-address-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Checkout form vertical rhythm: 16px between fields, 24px between sections */
+  .checkout-modal form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* Subsections */
+  .checkout-modal .checkout-summary { margin-bottom: 0; }
+  .checkout-modal fieldset.checkout-card-message { margin-top: 0.25rem; }
+
+  /* Date field: keep 3 selects on one row even at 360px */
+  .checkout-modal .date-field > div {
+    grid-template-columns: 0.8fr 1.12fr 0.95fr;
+    gap: 0.35rem;
+  }
+
+  /* Phone: match input height */
+  .checkout-modal .phone-input-control {
+    min-height: 44px;
+  }
+  .checkout-modal .phone-country-select .custom-select-button {
+    min-height: 44px;
+  }
+}
+
+/* ================================================================
+   MOBILE CHECKOUT LINE ITEM (<640px)
+   Compact: thumbnail left, name+price beside, qty+price below
+   ================================================================ */
+@media (max-width: 640px) {
+  /* checkout-modal overrides already in responsive-overlays.css at 600px;
+     these @640 rules provide smoother breakpoint coverage */
+
+  /* Page-level background consistency */
+  .checkout-modal,
+  .checkout-modal .modal-body {
+    background: var(--bg-color);
+  }
+}
+
+/* Small-link below delivery selector */
+.small-link {
+  display: inline-block;
+  margin-top: 0.2rem;
+  color: #555;
+  font-size: 0.68rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Grand total row slightly more prominent */
+.checkout-total.checkout-total-grand {
+  border-top: 1px solid rgba(17, 17, 17, 0.14);
+  padding-top: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.checkout-total.checkout-total-grand strong {
+  font-size: 1.05rem;
+}
+
+/* ================================================================
+   CAREERS PAGE MOBILE (<640px)
+   ================================================================ */
+@media (max-width: 640px) {
+  .application-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .career-cover {
+    grid-column: 1;
+  }
+
+  .application-section form > button[type="submit"] {
+    width: 100%;
+  }
+
+  /* File upload row: wrap to next line on very small screens */
+  .resume-upload-row {
+    flex-wrap: wrap;
+  }
+
+  .resume-upload-capsule-wrap .outline-action-button,
+  .resume-upload-button {
+    align-self: flex-start;
+    width: auto !important;
+    min-width: 116px !important;
+    max-width: max-content !important;
+  }
+
+  .resume-filename-tag {
+    max-width: 100%;
+  }
+}
+
+/* ================================================================
+   SKELETON CONTAINER – grid/flex layouts that match real components
+   ================================================================ */
+.checkout-summary-skeleton .checkout-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.checkout-summary-skeleton .checkout-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0;
+}
+
+/* Gallery skeleton matches real gallery-grid */
+.skeleton-container.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1.5rem;
+}
+
+/* Product grid skeleton matches real product-grid */
+.skeleton-container.product-grid {
+  display: grid;
+}
