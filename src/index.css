@@ -2190,7 +2190,7 @@ a {
     overflow: visible !important;
     overscroll-behavior-y: auto;
     -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
+    /* scroll-behavior: smooth removed — programmatic scrollTo on tab change must be instant */
   }
 
   html:has(.portfolio-page .flow-backdrop),
