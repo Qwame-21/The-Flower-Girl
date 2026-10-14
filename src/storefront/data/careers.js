@@ -3,7 +3,7 @@ import { supabase } from '../../config/supabase';
 const CACHE_KEY = 'flowergirl-careers-v1';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-const DEFAULT_CAREER = {
+export const DEFAULT_CAREER = {
   title: 'Content Creator & Social Media Manager',
   location: 'Accra',
   employment_type: 'Full-time',

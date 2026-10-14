@@ -49,13 +49,22 @@ export default function CustomSelect({
     if (!open) return;
 
     const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target) && !buttonRef.current.contains(event.target)) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target)
+      ) {
         setOpen(false);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, [open]);
 
   const handleKeyDown = (event) => {
@@ -112,6 +121,7 @@ export default function CustomSelect({
       case 'Tab':
         event.preventDefault();
         handleOptionSelect(optionValue);
+        setOpen(false);
         break;
     }
   };
@@ -128,8 +138,16 @@ export default function CustomSelect({
   };
 
   return (
-    <label className="custom-select-field" htmlFor={`${id}-button`}>
-      {label}
+    <div className="custom-select-field">
+      {label && (
+        <span
+          id={`${id}-label`}
+          className="field-label"
+          onClick={() => !disabled && buttonRef.current?.focus()}
+        >
+          {label}
+        </span>
+      )}
       <div className={`custom-select-wrapper ${modifierClass} ${open ? 'open' : ''}`}>
         <input
           ref={hiddenRef}
@@ -147,9 +165,14 @@ export default function CustomSelect({
           className="custom-select-button"
           aria-haspopup="listbox"
           aria-expanded={open}
-          aria-label={label || placeholder}
+          aria-labelledby={label ? `${id}-label` : undefined}
+          aria-label={!label ? placeholder : undefined}
           disabled={disabled}
-          onClick={() => !disabled && setOpen(current => !current)}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!disabled) setOpen(current => !current);
+          }}
           onKeyDown={handleKeyDown}
         >
           <span className="custom-select-value">{displayValue || placeholder}</span>
@@ -167,7 +190,8 @@ export default function CustomSelect({
             ref={menuRef}
             className={`custom-select-menu custom-select-menu--${position}`}
             role="listbox"
-            aria-label={label || placeholder}
+            aria-labelledby={label ? `${id}-label` : undefined}
+            aria-label={!label ? placeholder : undefined}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 e.preventDefault();
@@ -187,7 +211,9 @@ export default function CustomSelect({
                   role="option"
                   aria-selected={isSelected}
                   className={`custom-select-option ${isSelected ? 'selected' : ''}`}
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     handleOptionSelect(optionValue);
                     setOpen(false);
                     buttonRef.current?.focus();
@@ -204,6 +230,6 @@ export default function CustomSelect({
           </div>
         )}
       </div>
-    </label>
+    </div>
   );
 }

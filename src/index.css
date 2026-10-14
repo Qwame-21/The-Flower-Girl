@@ -2190,7 +2190,7 @@ a {
     overflow: visible !important;
     overscroll-behavior-y: auto;
     -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
+    /* scroll-behavior: smooth removed — programmatic scrollTo on tab change must be instant */
   }
 
   html:has(.portfolio-page .flow-backdrop),
@@ -11770,4 +11770,63 @@ label.outline-action-button,
 /* Product grid skeleton matches real product-grid */
 .skeleton-container.product-grid {
   display: grid;
+}
+
+/* ================================================================
+   STOREFRONT FORM LABELS – UPPERCASE, MOBILE + DESKTOP
+   Single source of truth. Applied to every storefront form context.
+   Does NOT touch input/textarea/select values or placeholders.
+   ================================================================ */
+
+/* All plain <label> and <legend> inside every storefront form context */
+.portfolio-page :is(.application-section, .custom-builder, .flow-modal, .track-workspace, .search-modal, .checkout-modal) label:not(.card-style-picker label),
+.portfolio-page :is(.application-section, .custom-builder, .flow-modal, .track-workspace, .search-modal, .checkout-modal) legend,
+/* .field-label spans (used inside checkout-contact-grid and CustomSelect) */
+.portfolio-page .checkout-contact-grid .field-label,
+.portfolio-page .custom-select-field .field-label,
+/* PhoneInput outer label */
+.portfolio-page .phone-input-field,
+/* DeliveryAddressFields and DateField legends outside checkout-modal */
+.portfolio-page .delivery-address-fields legend,
+.portfolio-page .date-field legend {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+  line-height: 1.2;
+  color: #555;
+}
+
+/* Section headings (fieldset legends) are slightly bolder */
+.portfolio-page :is(.application-section, .custom-builder, .flow-modal, .track-workspace, .search-modal, .checkout-modal) legend,
+.portfolio-page .delivery-address-fields legend,
+.portfolio-page .date-field legend {
+  font-weight: 600;
+}
+
+/* Inputs, textareas, selects: always sentence case regardless of parent */
+.portfolio-page :is(.application-section, .custom-builder, .flow-modal, .track-workspace, .search-modal, .checkout-modal) input,
+.portfolio-page :is(.application-section, .custom-builder, .flow-modal, .track-workspace, .search-modal, .checkout-modal) textarea,
+.portfolio-page :is(.application-section, .custom-builder, .flow-modal, .track-workspace, .search-modal, .checkout-modal) select,
+.portfolio-page .phone-input-field input,
+.portfolio-page .phone-input-field select,
+.portfolio-page .custom-select-button,
+.portfolio-page .custom-select-value {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* Placeholders: always sentence case */
+.portfolio-page :is(.application-section, .custom-builder, .flow-modal, .track-workspace, .search-modal, .checkout-modal) input::placeholder,
+.portfolio-page :is(.application-section, .custom-builder, .flow-modal, .track-workspace, .search-modal, .checkout-modal) textarea::placeholder,
+.portfolio-page .phone-input-field input::placeholder {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* "optional" small tags inside labels stay readable (no extra size bump needed) */
+.portfolio-page :is(.application-section, .custom-builder, .flow-modal, .track-workspace, .search-modal, .checkout-modal) label small,
+.portfolio-page .checkout-contact-grid .field-label small {
+  text-transform: uppercase;
+  font-weight: 400;
+  letter-spacing: 0.04em;
 }

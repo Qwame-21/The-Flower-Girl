@@ -90,10 +90,14 @@ function SiteApp() {
   }, []);
 
   useEffect(() => {
-    window.requestAnimationFrame(() => {
-      if (window.matchMedia('(max-width: 760px)').matches) window.scrollTo({ top: 0, behavior: 'instant' });
-      else document.querySelector('.home-scroll, .content-page')?.scrollTo({ top: 0, behavior: 'instant' });
-    });
+    // Reset scroll immediately (no rAF — rAF defers by one frame, causing a visible flash at old position).
+    if (window.matchMedia('(max-width: 760px)').matches) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    } else {
+      const el = document.querySelector('.home-scroll, .content-page');
+      if (el) el.scrollTo({ top: 0, behavior: 'instant' });
+      else document.documentElement.scrollTop = 0;
+    }
   }, [activeTab, checkoutRequested, wishlistRequested]);
 
   useEffect(() => {
