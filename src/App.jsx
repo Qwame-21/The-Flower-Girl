@@ -38,7 +38,7 @@ function SiteApp() {
   }, []);
 
   const returningFromPayment = new URLSearchParams(window.location.search).get('payment') === 'return';
-  const [adminMode, setAdminMode] = useState(() => /^\/admin(?:\/login)?\/?$/.test(window.location.pathname));
+  const [adminMode, setAdminMode] = useState(() => /^\/admin/.test(window.location.pathname));
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [activeTab, updateActiveTab] = useState(() => returningFromPayment ? 'shop' : pageForPath(window.location.pathname));
   const setActiveTab = tab => { startTransition(() => updateActiveTab(tab)); if (pages[tab] && window.location.pathname !== pages[tab][0]) window.history.pushState({}, '', pages[tab][0]); };
@@ -135,7 +135,7 @@ function SiteApp() {
   }, [returningFromPayment]);
 
   useEffect(() => {
-    const syncRoute = () => { setAdminMode(/^\/admin(?:\/login)?\/?$/.test(window.location.pathname)); startTransition(() => updateActiveTab(pageForPath(window.location.pathname))); };
+    const syncRoute = () => { setAdminMode(/^\/admin/.test(window.location.pathname)); startTransition(() => updateActiveTab(pageForPath(window.location.pathname))); };
     window.addEventListener('popstate', syncRoute);
     return () => window.removeEventListener('popstate', syncRoute);
   }, []);

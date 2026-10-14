@@ -11,8 +11,12 @@ function DateSelect({ name, placeholder, options, value, onChange, error }) {
   </div>;
 }
 
-export default function DateField({ label, prefix }) {
-  const [values, setValues] = useState({ day: '', month: '', year: '' });
+export default function DateField({ label, prefix, defaultValue }) {
+  const [values, setValues] = useState(() => ({
+    day: defaultValue?.day || '',
+    month: defaultValue?.month || '',
+    year: defaultValue?.year || '',
+  }));
   const now = new Date();
   const year = Number(values.year) || now.getFullYear();
   const month = MONTHS.indexOf(values.month) + 1;

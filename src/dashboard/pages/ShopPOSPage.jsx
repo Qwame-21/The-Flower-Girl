@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { loadPosProducts, placeStaffOrder } from '../data/shopPos';
-import { fetchProducts, getCachedData, isDataLoading } from '../data/dataCache';
+import { fetchProducts, fetchPromotions, getCachedData, isDataLoading } from '../data/dataCache';
 import CustomDropdown from '../components/shared/CustomDropdown';
 import CopyIcon from '../components/shared/CopyIcon';
 import DatePickerDropdowns from '../components/shared/DatePickerDropdowns';
@@ -182,17 +182,9 @@ const INITIAL_FORM_DATA = {
 export default function ShopPOSPage() {
   const [products, setProducts] = useState(() => {
     const cached = getCachedData('products');
-    return cached ? cached.map(p => ({
-      id: p.id,
-      name: p.name,
-      price: p.price,
-      stock: p.stock,
-      category: p.category,
-      image: p.image_path,
-      code: p.sku || '',
-      description: p.description
-    })) : [];
+    return cached ? cached.map((p, idx) => normalizeProduct(p, idx)) : [];
   });
+  const [promotions, setPromotions] = useState(() => getCachedData('promotions') || []);
   const [loading, setLoading] = useState(!getCachedData('products'));
   const [shopCart, setShopCart] = useState([]);
   const [shopSearchQuery, setShopSearchQuery] = useState('');
@@ -214,16 +206,7 @@ export default function ShopPOSPage() {
       try {
         const cached = await fetchProducts();
         if (cached) {
-          const mapped = cached.map(p => ({
-            id: p.id,
-            name: p.name,
-            price: p.price,
-            stock: p.stock,
-            category: p.category,
-            image: p.image_path,
-            code: p.sku || '',
-            description: p.description
-          }));
+          const mapped = cached.map((p, idx) => normalizeProduct(p, idx));
           setProducts(mapped);
         }
       } catch (err) {
@@ -234,6 +217,13 @@ export default function ShopPOSPage() {
       }
     }
     loadProducts();
+  }, []);
+
+  // Load promotions from cache/Supabase on mount
+  useEffect(() => {
+    fetchPromotions().then(data => {
+      if (data) setPromotions(data);
+    }).catch(() => {});
   }, []);
 
   // Sync cart helper (session-only, no localStorage)
@@ -265,7 +255,20 @@ export default function ShopPOSPage() {
     return matchSearch && matchCategory;
   });
 
+  // Apply active promotions to the product list
+  function applyPromotions(prods, promos) {
+    if (!promos || promos.length === 0) return prods;
+    return prods.map(p => {
+      const promo = promos.find(pr => pr.productId === p.id && pr.status === 'active' && Number(pr.percent) > 0);
+      if (!promo) return p;
+      const pct = Math.min(90, Number(promo.percent));
+      const discountedPrice = Math.round(p.price * (100 - pct) / 100);
+      return { ...p, discountPercent: pct, discountedPrice };
+    });
+  }
+
   const cartSubtotal = shopCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+  const displayProducts = applyPromotions(filteredProducts, promotions);
   const cartItemCount = shopCart.reduce((sum, item) => sum + item.qty, 0);
 
   const cartItemsWithStock = shopCart.map(item => {
@@ -282,6 +285,8 @@ export default function ShopPOSPage() {
     if (!product || product.stock <= 0) return;
     const existing = shopCart.find(item => item.id === product.id);
     let newCart;
+    const finalPrice = product.discountedPrice !== undefined ? product.discountedPrice : product.price;
+    const discountPct = product.discountPercent || 0;
     if (existing) {
       if (existing.qty < product.stock) {
         newCart = shopCart.map(item =>
@@ -296,9 +301,11 @@ export default function ShopPOSPage() {
         {
           id: product.id,
           name: product.name,
-          price: product.price,
+          price: finalPrice,
+          originalPrice: product.price,
+          discountPercent: discountPct,
           category: product.category,
-          image: product.imageUrl,
+          image: product.imageUrl || product.image,
           qty: 1
         }
       ];
@@ -362,8 +369,12 @@ export default function ShopPOSPage() {
     }
 
     // Reload products to get updated stock
-    const updatedProducts = await loadPosProducts();
-    setProducts(updatedProducts);
+    try {
+      const refreshed = await fetchProducts(true);
+      if (refreshed) {
+        setProducts(refreshed.map((p, idx) => normalizeProduct(p, idx)));
+      }
+    } catch {}
 
     setShopLastOrderCode(result.order.order_code);
     setShopSuccessMessage(`Order ${result.order.order_code} placed successfully!`);
@@ -438,7 +449,7 @@ export default function ShopPOSPage() {
 
         {/* Product Grid */}
         <div className="shop-product-grid">
-          {filteredProducts.length > 0 ? filteredProducts.map(p => {
+          {displayProducts.length > 0 ? displayProducts.map(p => {
             const cartItem = shopCart.find(item => item.id === p.id);
             const cartQty = cartItem ? cartItem.qty : 0;
             const lowThreshold = p.low_stock_threshold !== undefined ? p.low_stock_threshold : (p.threshold !== undefined ? p.threshold : 3);
@@ -464,6 +475,11 @@ export default function ShopPOSPage() {
                 </div>
 
                 <div className="shop-card-badges">
+                  {p.discountPercent > 0 && (
+                    <span className="shop-badge shop-discount-badge" style={{ background: '#0284c7', color: '#fff' }}>
+                      {p.discountPercent}% OFF
+                    </span>
+                  )}
                   {isOutOfStock ? (
                     <span className="shop-badge shop-out-badge">Out of stock</span>
                   ) : isLowStock ? (
@@ -476,8 +492,15 @@ export default function ShopPOSPage() {
                 <div className="shop-card-body">
                   <div className="shop-card-bottom">
                     <span className="shop-card-name" title={p.name}>{p.name}</span>
-                    <div className="shop-card-price">
-                      <span>GHS {Math.round(p.price).toLocaleString('en-US')}</span>
+                    <div className="shop-card-price" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {p.discountPercent > 0 ? (
+                        <>
+                          <del style={{ color: 'var(--text-muted, #888)', fontSize: '0.85em' }}>GHS {Math.round(p.price).toLocaleString('en-US')}</del>
+                          <span style={{ color: '#0284c7', fontWeight: 600 }}>GHS {Math.round(p.discountedPrice).toLocaleString('en-US')}</span>
+                        </>
+                      ) : (
+                        <span>GHS {Math.round(p.price).toLocaleString('en-US')}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -600,8 +623,16 @@ export default function ShopPOSPage() {
                     </div>
                     <div className="shop-item-details">
                       <span className="shop-item-name">{item.name}</span>
-                      {code && <span className="shop-item-code">{code}</span>}
-                      <span className="shop-item-price">GHS {Math.round(item.price)} each</span>
+                      <div className="shop-item-price" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        {item.discountPercent > 0 && item.originalPrice ? (
+                          <>
+                            <del style={{ color: 'var(--text-muted, #888)', fontSize: '0.85em' }}>GHS {Math.round(item.originalPrice)}</del>
+                            <span style={{ color: '#0284c7', fontWeight: 600 }}>GHS {Math.round(item.price)} each ({item.discountPercent}% OFF)</span>
+                          </>
+                        ) : (
+                          <span>GHS {Math.round(item.price)} each</span>
+                        )}
+                      </div>
                     </div>
                     <div className="shop-item-qty">
                       <button

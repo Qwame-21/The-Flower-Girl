@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
 
 export default function PasswordConfirmModal({ isOpen, onClose, onConfirm, title = 'Confirm Action' }) {
   const [password, setPassword] = useState('');
@@ -10,6 +9,8 @@ export default function PasswordConfirmModal({ isOpen, onClose, onConfirm, title
 
   const MAX_ATTEMPTS = 5;
   const LOCKOUT_SECONDS = 60;
+
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,56 +24,23 @@ export default function PasswordConfirmModal({ isOpen, onClose, onConfirm, title
       return;
     }
 
-    // Create temporary Supabase client
-    const tempClient = createClient(
-      import.meta.env.VITE_SUPABASE_URL,
-      import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false,
-        },
-      }
-    );
+    setSubmitting(true);
+    setError('');
 
     try {
-      // Get current user's email from main session
-      const { data: { user } } = await tempClient.auth.getUser();
-      if (!user?.email) {
-        setError('Could not verify your identity');
-        return;
-      }
-
-      // Verify password by signing in with temp client
-      const { error: signInError } = await tempClient.auth.signInWithPassword({
-        email: user.email,
-        password: password,
-      });
-
-      if (signInError) {
-        setAttempts(prev => {
-          const newAttempts = prev + 1;
-          if (newAttempts >= MAX_ATTEMPTS) {
-            setIsLocked(true);
-            setError('Too many failed attempts. Locked for 60 seconds.');
-            startLockout();
-          } else {
-            setError(`Incorrect password. ${MAX_ATTEMPTS - newAttempts} attempts remaining.`);
-          }
-          return newAttempts;
-        });
-        setPassword('');
-        return;
-      }
-
-      // Password verified - execute action
-      await onConfirm();
-      // Sign out from temp client
-      await tempClient.auth.signOut();
+      // Pass the password to onConfirm callback (calls confirmDestructive in parent)
+      await onConfirm(password);
       handleClose();
     } catch (err) {
-      setError('Verification failed. Please try again.');
+      const msg = err?.message || 'Verification failed. Please try again.';
+      setError(msg);
+      if (msg.includes('Locked') || msg.includes('Too many failed')) {
+        setIsLocked(true);
+        startLockout();
+      }
+      setPassword('');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -171,18 +139,18 @@ export default function PasswordConfirmModal({ isOpen, onClose, onConfirm, title
             </button>
             <button
               type="submit"
-              disabled={isLocked || !password.trim()}
+              disabled={isLocked || submitting || !password.trim()}
               style={{
                 padding: '8px 16px',
                 border: 'none',
                 borderRadius: '8px',
-                background: isLocked || !password.trim() ? '#ccc' : '#e11d48',
+                background: isLocked || submitting || !password.trim() ? '#ccc' : '#e11d48',
                 color: '#fff',
-                cursor: isLocked || !password.trim() ? 'not-allowed' : 'pointer',
+                cursor: isLocked || submitting || !password.trim() ? 'not-allowed' : 'pointer',
                 fontSize: '13px'
               }}
             >
-              Confirm
+              {submitting ? 'Verifying…' : 'Confirm'}
             </button>
           </div>
         </form>

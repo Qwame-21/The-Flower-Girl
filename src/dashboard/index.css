@@ -475,7 +475,9 @@ html, body {
   line-height: 1;
 }
 
-#ordersStatusBadge {
+#ordersStatusBadge,
+#requestsStatusBadge,
+.notif-accent-badge {
   background-color: #2563eb !important;
 }
 
@@ -10719,6 +10721,11 @@ button[data-trend-mode].active {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* Dashboard Notification Toast Popups */
 .dashboard-toast-stack {
   position: fixed;
@@ -12203,9 +12210,24 @@ button[data-trend-mode].active {
   }
 
   .drawer-panel,
-  .customer-drawer {
+  .customer-drawer,
+  .drawer {
     width: 100vw !important;
     max-width: 100vw !important;
+  }
+
+  .drawer {
+    height: 100% !important;
+    height: 100dvh !important;
+  }
+
+  .dfoot {
+    position: sticky !important;
+    bottom: 0 !important;
+    background: var(--card, #f3f2ef) !important;
+    border-top: 1px solid var(--line, rgba(28,28,27,.13)) !important;
+    padding: 14px 20px !important;
+    z-index: 10 !important;
   }
 }
 

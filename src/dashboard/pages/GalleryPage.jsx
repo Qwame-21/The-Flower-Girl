@@ -24,16 +24,65 @@ const CATEGORY_OPTIONS = [
   { value: 'Other', label: 'Other' }
 ];
 
-// Add Photo modal with file upload
+// ---- Blend auto-detection helpers ----
+// Sample the four corners of an image drawn on an off-screen canvas.
+// Returns { blendBackground: bool, note: string }
+function detectBlendBackground(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const W = img.naturalWidth;
+      const H = img.naturalHeight;
+      const canvas = document.createElement('canvas');
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const inset = Math.max(2, Math.round(Math.min(W, H) * 0.015));
+      const corners = [
+        ctx.getImageData(inset, inset, 1, 1).data,
+        ctx.getImageData(W - inset - 1, inset, 1, 1).data,
+        ctx.getImageData(inset, H - inset - 1, 1, 1).data,
+        ctx.getImageData(W - inset - 1, H - inset - 1, 1, 1).data,
+      ];
+      // Check if every corner is transparent
+      const allTransparent = corners.every(d => d[3] === 0);
+      if (allTransparent) {
+        resolve({ blendBackground: false, note: 'Transparent background detected — blend not needed' });
+        return;
+      }
+      // Check if every corner is a light/near-white colour
+      const threshold = 200;
+      const delta = 30;
+      const allLight = corners.every(d => d[3] > 200 && d[0] > threshold && d[1] > threshold && d[2] > threshold);
+      const channelRange = Math.max(
+        ...corners.map(d => Math.max(d[0], d[1], d[2]) - Math.min(d[0], d[1], d[2])),
+      );
+      if (allLight && channelRange < delta) {
+        resolve({ blendBackground: true, note: 'Light background detected — blend recommended' });
+      } else {
+        resolve({ blendBackground: false, note: 'Dark or varied background — blend not recommended' });
+      }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve({ blendBackground: false, note: '' }); };
+    img.src = url;
+  });
+}
+
+// Add Photo modal with file upload and blend toggle
 function AddPhotoModal({ onCancel, onSubmit }) {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [blendBackground, setBlendBackground] = useState(false);
+  const [blendNote, setBlendNote] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  function handleFileChange(e) {
+  async function handleFileChange(e) {
     const selected = e.target.files[0];
     if (!selected) return;
 
@@ -58,13 +107,20 @@ function AddPhotoModal({ onCancel, onSubmit }) {
 
     // Create preview
     const reader = new FileReader();
-    reader.onload = (e) => setPreview(e.target.result);
+    reader.onload = (ev) => setPreview(ev.target.result);
     reader.readAsDataURL(selected);
+
+    // Auto-detect blend background
+    const detected = await detectBlendBackground(selected);
+    setBlendBackground(detected.blendBackground);
+    setBlendNote(detected.note);
   }
 
   function handleClearFile() {
     setFile(null);
     setPreview(null);
+    setBlendBackground(false);
+    setBlendNote('');
     setError('');
   }
 
@@ -89,11 +145,13 @@ function AddPhotoModal({ onCancel, onSubmit }) {
     setError('');
 
     try {
-      await onSubmit({ title: title.trim(), category, file });
+      await onSubmit({ title: title.trim(), category, file, blend_background: blendBackground });
       setTitle('');
       setCategory('');
       setFile(null);
       setPreview(null);
+      setBlendBackground(false);
+      setBlendNote('');
       onCancel();
     } catch (err) {
       setError(err.message || 'Failed to upload photo');
@@ -190,6 +248,61 @@ function AddPhotoModal({ onCancel, onSubmit }) {
             />
           </div>
 
+          {/* Blend background toggle with auto-detected suggestion */}
+          <div style={{ marginBottom: '14px' }}>
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: '12px',
+              padding: '10px 12px', border: '1px solid rgba(26,26,26,0.14)',
+              borderRadius: '10px', background: blendBackground ? '#f0fdf4' : 'rgba(26,26,26,0.02)',
+              transition: 'background 0.25s'
+            }}>
+              {/* Pill toggle */}
+              <button
+                type="button"
+                aria-checked={blendBackground}
+                role="switch"
+                onClick={() => setBlendBackground(v => !v)}
+                style={{
+                  flexShrink: 0, width: '40px', height: '22px',
+                  borderRadius: '999px', border: 'none', cursor: 'pointer',
+                  background: blendBackground ? '#059669' : 'rgba(26,26,26,0.18)',
+                  position: 'relative', transition: 'background 0.2s', marginTop: '1px'
+                }}
+              >
+                <span style={{
+                  position: 'absolute', top: '3px',
+                  left: blendBackground ? '21px' : '3px',
+                  width: '16px', height: '16px', borderRadius: '50%',
+                  background: '#fff', transition: 'left 0.18s',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.25)'
+                }} />
+              </button>
+              <div style={{ cursor: 'pointer' }} onClick={() => setBlendBackground(v => !v)}>
+                <div style={{ fontSize: '12px', fontWeight: 600 }}>Blend into page background</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  {blendNote || 'On: image blends into the sand-coloured page background. Use for product shots with light or white backgrounds.'}
+                </div>
+              </div>
+            </div>
+            {/* Live preview tile */}
+            {preview && (
+              <div style={{ marginTop: '8px', padding: '10px', borderRadius: '8px',
+                background: '#e2e2e0', textAlign: 'center' }}>
+                <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase',
+                  letterSpacing: '0.1em', color: '#666', marginBottom: '6px' }}>Preview on page background</div>
+                <img
+                  src={preview}
+                  alt="Blend preview"
+                  style={{
+                    maxWidth: '100%', maxHeight: '120px', objectFit: 'contain',
+                    mixBlendMode: blendBackground ? 'multiply' : 'normal',
+                    borderRadius: '4px'
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
           {error && (
             <div style={{ fontSize: '12px', color: '#dc2626', marginBottom: '14px' }}>
               {error}
@@ -202,8 +315,8 @@ function AddPhotoModal({ onCancel, onSubmit }) {
               onClick={onCancel}
               disabled={loading}
               style={{
-                padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(26,26,26,0.14)',
-                background: 'transparent', cursor: 'pointer', fontSize: '13px'
+                padding: '8px 22px', borderRadius: '999px', border: '1px solid rgba(26,26,26,0.14)',
+                background: 'transparent', cursor: 'pointer', fontSize: '13px', fontWeight: 500
               }}
             >
               Cancel
@@ -212,15 +325,120 @@ function AddPhotoModal({ onCancel, onSubmit }) {
               type="submit"
               disabled={loading}
               style={{
-                padding: '8px 16px', borderRadius: '8px', border: 'none',
+                padding: '8px 22px', borderRadius: '999px', border: 'none',
                 background: '#1a1a1a', color: '#fff', cursor: 'pointer', fontSize: '13px',
-                opacity: loading ? 0.6 : 1
+                fontWeight: 600, opacity: loading ? 0.6 : 1
               }}
             >
               {loading ? 'Uploading...' : 'Save'}
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+// Edit Photo modal — toggle blend_background on an existing uploaded photo
+function EditPhotoModal({ item, onCancel, onSave }) {
+  const [blend, setBlend] = useState(Boolean(item.blend_background));
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await onSave(item.id, { blend_background: blend });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const previewUrl = item.image_path ? item._previewUrl : null;
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000
+    }}>
+      <div style={{
+        background: '#ffffff', borderRadius: '16px', padding: '24px',
+        maxWidth: '440px', width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+      }}>
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ fontSize: '18px', fontWeight: 700 }}>Edit Photo</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+            {item.label || 'Untitled'}
+          </div>
+        </div>
+
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: '12px',
+          padding: '10px 12px', border: '1px solid rgba(26,26,26,0.14)',
+          borderRadius: '10px', background: blend ? '#f0fdf4' : 'rgba(26,26,26,0.02)',
+          transition: 'background 0.25s', marginBottom: '12px'
+        }}>
+          {/* Pill toggle */}
+          <button
+            type="button"
+            aria-checked={blend}
+            role="switch"
+            onClick={() => setBlend(v => !v)}
+            style={{
+              flexShrink: 0, width: '40px', height: '22px',
+              borderRadius: '999px', border: 'none', cursor: 'pointer',
+              background: blend ? '#059669' : 'rgba(26,26,26,0.18)',
+              position: 'relative', transition: 'background 0.2s', marginTop: '1px'
+            }}
+          >
+            <span style={{
+              position: 'absolute', top: '3px',
+              left: blend ? '21px' : '3px',
+              width: '16px', height: '16px', borderRadius: '50%',
+              background: '#fff', transition: 'left 0.18s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.25)'
+            }} />
+          </button>
+          <div style={{ cursor: 'pointer' }} onClick={() => setBlend(v => !v)}>
+            <div style={{ fontSize: '12px', fontWeight: 600 }}>Blend into page background</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+              On: renders with mix-blend-mode: multiply over #e2e2e0. Use for product shots with white/light backgrounds.
+            </div>
+          </div>
+        </div>
+
+        {/* Preview pane */}
+        <div style={{ padding: '10px', borderRadius: '8px', background: '#e2e2e0',
+          textAlign: 'center', marginBottom: '16px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase',
+            letterSpacing: '0.1em', color: '#666', marginBottom: '6px' }}>Preview on page background</div>
+          <img
+            src={item._previewUrl}
+            alt="Blend preview"
+            style={{
+              maxWidth: '100%', maxHeight: '110px', objectFit: 'contain',
+              mixBlendMode: blend ? 'multiply' : 'normal', borderRadius: '4px'
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            style={{ padding: '8px 22px', borderRadius: '999px', border: '1px solid rgba(26,26,26,0.14)', background: 'transparent', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            style={{ padding: '8px 22px', borderRadius: '999px', border: 'none', background: '#1a1a1a', color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600, opacity: saving ? 0.6 : 1 }}
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -256,6 +474,7 @@ export default function GalleryPage() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importMessage, setImportMessage] = useState('');
   const [settings, setSettings] = useState(() => getAppSettings());
@@ -342,7 +561,8 @@ export default function GalleryPage() {
         label: title,
         category,
         visible: true,
-        sort_order: maxSort + 1
+        sort_order: maxSort + 1,
+        blend_background: Boolean(blend_background)
       });
 
     if (insertError) {
@@ -357,6 +577,24 @@ export default function GalleryPage() {
 
     setUploadedPhotos(data || []);
     showToast('Photo added to gallery!');
+  }
+
+  // Handle edit (blend_background toggle) on an uploaded photo
+  async function handleEditSave(id, updates) {
+    if (!supabase) return;
+    const { error } = await supabase
+      .from('gallery_items')
+      .update({ blend_background: Boolean(updates.blend_background) })
+      .eq('id', id);
+    if (error) {
+      showToast('Failed to update photo.');
+    } else {
+      setUploadedPhotos(prev =>
+        prev.map(p => p.id === id ? { ...p, blend_background: Boolean(updates.blend_background) } : p)
+      );
+      setEditTarget(null);
+      showToast('Photo updated.');
+    }
   }
 
   // Handle delete photo
@@ -638,33 +876,66 @@ export default function GalleryPage() {
         <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>Uploaded photos</h3>
         {uploadedPhotos.length > 0 ? (
           <div className="gallery-showcase">
-            {uploadedPhotos.map((item) => (
-              <div key={item.id} className="gallery-item" data-id={item.id}>
-                <img
-                  src={getImageUrl(item.image_path)}
-                  className="gallery-image"
-                  alt={item.label || ''}
-                />
-                <div className="gallery-caption">— {(item.label || 'UNTITLED').toUpperCase()}</div>
-                <hr className="gallery-divider" />
-                <div className="gallery-actions">
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: 'auto' }}>
-                    {item.category || 'Uncategorized'}
-                  </span>
-                  <button
-                    className="btn-icon-action gal-del-btn"
-                    title="Delete photo"
-                    type="button"
-                    onClick={() => setDeleteTarget(item)}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6"/>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
-                  </button>
+            {uploadedPhotos.map((item) => {
+              const imgUrl = getImageUrl(item.image_path);
+              return (
+                <div key={item.id} className="gallery-item" data-id={item.id}>
+                  <img
+                    src={imgUrl}
+                    className="gallery-image"
+                    alt={item.label || ''}
+                  />
+                  <div className="gallery-caption">— {(item.label || 'UNTITLED').toUpperCase()}</div>
+                  <hr className="gallery-divider" />
+                  <div className="gallery-actions">
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: 'auto' }}>
+                      {item.category || 'Uncategorized'}
+                    </span>
+                    {/* Blend badge */}
+                    {item.blend_background && (
+                      <span
+                        title="Background blend enabled"
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '3px',
+                          fontSize: '10px', fontWeight: 600, color: '#059669',
+                          background: '#ecfdf5', padding: '2px 7px', borderRadius: '10px',
+                          marginRight: '4px'
+                        }}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20"/>
+                        </svg>
+                        blend
+                      </span>
+                    )}
+                    {/* Edit button */}
+                    <button
+                      className="btn-icon-action"
+                      title="Edit photo settings"
+                      type="button"
+                      onClick={() => setEditTarget({ ...item, _previewUrl: imgUrl })}
+                      style={{ marginRight: '2px' }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </button>
+                    <button
+                      className="btn-icon-action gal-del-btn"
+                      title="Delete photo"
+                      type="button"
+                      onClick={() => setDeleteTarget(item)}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div style={{
@@ -695,6 +966,15 @@ export default function GalleryPage() {
           item={deleteTarget}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleDeleteConfirmed}
+        />
+      )}
+
+      {/* Edit photo modal (blend toggle) */}
+      {editTarget && (
+        <EditPhotoModal
+          item={editTarget}
+          onCancel={() => setEditTarget(null)}
+          onSave={handleEditSave}
         />
       )}
 

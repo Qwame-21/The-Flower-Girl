@@ -124,6 +124,37 @@ export function timestampToAccraDate(isoTimestamp) {
 }
 
 /**
+ * Format a full ISO timestamp (e.g. from created_at / approved_at columns)
+ * into a human-readable string in Africa/Accra timezone.
+ * Output: "13 Oct 2026, 08:06 am"
+ *
+ * This is the right function for timeline step timestamps.
+ * For plain YYYY-MM-DD date strings use formatDateDisplay() instead.
+ */
+export function formatTimestampDisplay(isoOrDate) {
+  if (!isoOrDate) return '';
+  try {
+    const d = new Date(isoOrDate);
+    if (isNaN(d.getTime())) return String(isoOrDate);
+    const datePart = d.toLocaleDateString('en-GB', {
+      timeZone: 'Africa/Accra',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+    const timePart = d.toLocaleTimeString('en-US', {
+      timeZone: 'Africa/Accra',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }).toLowerCase();
+    return `${datePart}, ${timePart}`;
+  } catch {
+    return String(isoOrDate);
+  }
+}
+
+/**
  * Compare two "YYYY-MM-DD" strings lexicographically.
  * Returns negative if a < b, 0 if equal, positive if a > b.
  */

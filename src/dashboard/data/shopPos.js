@@ -93,7 +93,11 @@ export async function placeStaffOrder(formData, cart, userId) {
       name: item.name,
       qty: item.qty,
       unitPrice: item.price,
-      metadata: { category: item.category }
+      metadata: {
+        category: item.category,
+        ...(item.discountPercent ? { discount_percent: item.discountPercent } : {}),
+        ...(item.originalPrice ? { original_price: item.originalPrice } : {})
+      }
     })),
     createdBy: userId
   };

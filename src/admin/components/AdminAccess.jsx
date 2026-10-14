@@ -363,7 +363,6 @@ export default function AdminAccess({ children }) {
   }, [access.status]);
 
   useEffect(() => {
-    if (window.location.pathname !== '/admin') window.history.replaceState({}, '', '/admin');
     if (!supabase) return;
 
     let active = true;

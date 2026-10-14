@@ -57,7 +57,23 @@ export async function trackRecord(reference, credential) {
   const contact = credential.trim().toLowerCase();
   const digits = contact.replace(/\D/g, '');
 
-  // --- First pass: try extended columns ---
+  // If reference looks like a customer request (e.g. RQ-XXXXXX), query track_record RPC first
+  if (ref.startsWith('RQ')) {
+    try {
+      const cleanRef = reference.trim().replace(/\s+/g, '');
+      const rpcRes = await supabase.rpc('track_record', {
+        lookup_reference: cleanRef,
+        lookup_contact: credential.trim(),
+      });
+      if (rpcRes.data) {
+        return { data: rpcRes.data };
+      }
+    } catch (err) {
+      console.warn('[trackRecord] RPC check for request error:', err);
+    }
+  }
+
+  // --- First pass: try extended columns on orders ---
   let orders = null;
   let queryError = null;
   let usingBaseOnly = false;
@@ -98,6 +114,25 @@ export async function trackRecord(reference, credential) {
     }
   } else {
     orders = firstResult.data;
+  }
+
+  if (!orders || orders.length === 0 || !orders.some(o => {
+    const email = (o.customer_email || '').toLowerCase();
+    const phone = (o.customer_phone || '').replace(/\D/g, '');
+    return email === contact || (digits.length >= 8 && phone.length >= 8 && phone.slice(-9) === digits.slice(-9));
+  })) {
+    try {
+      const cleanRef = reference.trim().replace(/\s+/g, '');
+      const rpcRes = await supabase.rpc('track_record', {
+        lookup_reference: cleanRef,
+        lookup_contact: credential.trim(),
+      });
+      if (rpcRes.data) {
+        return { data: rpcRes.data };
+      }
+    } catch (err) {
+      console.warn('[trackRecord] RPC fallback error:', err);
+    }
   }
 
   if (!orders || orders.length === 0) {

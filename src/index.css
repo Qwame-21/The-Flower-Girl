@@ -438,6 +438,7 @@ a {
   font-size: 0.65rem;
   font-weight: 500;
   letter-spacing: 0.2em;
+  text-transform: uppercase;
 }
 
 .content-page-heading h1 {
@@ -1436,51 +1437,44 @@ a {
   line-height: 1.5;
 }
 
-.custom-gallery {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.2rem;
-  width: min(1180px, 100%);
-  margin: clamp(4rem, 7vw, 6rem) auto;
-}
-
-.custom-gallery img {
-  width: 100%;
-  height: clamp(230px, 28vw, 400px);
-  object-fit: contain;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, .3);
-}
-
-.custom-gallery figcaption {
-  margin-top: .6rem;
-  color: #666;
-  font-size: .65rem;
-  letter-spacing: .1em;
-}
-
 .custom-builder {
   display: grid;
-  grid-template-columns: 1.2fr .8fr;
-  gap: clamp(4rem, 9vw, 9rem);
+  grid-template-columns: 1fr clamp(280px, 30vw, 340px);
+  gap: clamp(2.5rem, 5vw, 4.5rem);
   width: min(1180px, 100%);
-  margin: 0 auto clamp(8rem, 12vw, 12rem);
+  margin: 0 auto clamp(6rem, 10vw, 9rem);
+  align-items: start;
+}
+
+.custom-builder .builder-header {
+  margin-bottom: 1.25rem;
+}
+
+.custom-builder .builder-heading {
+  font-size: clamp(2.2rem, 4vw, 3.2rem);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: #111111;
+  margin: 0;
 }
 
 .custom-builder form {
   display: flex;
   flex-direction: column;
-  gap: 2.5rem;
+  gap: 2.25rem;
 }
 
 .custom-builder fieldset,
 .date-field {
   border: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .custom-builder legend,
 .date-field legend {
-  margin-bottom: 1rem;
+  margin-bottom: 0.9rem;
   font-size: .74rem;
   font-weight: 600;
   letter-spacing: .08em;
@@ -1500,22 +1494,43 @@ a {
 .custom-builder .custom-option-group>div {
   display: flex;
   flex-wrap: wrap;
-  gap: .55rem;
+  align-items: center;
+  gap: 10px;
 }
 
+.custom-builder .custom-option-group label.custom-chip,
 .custom-builder .custom-option-group label {
   position: relative;
-  display: block;
-  padding: .65rem .9rem;
-  border: 1px solid rgba(17, 17, 17, .25);
-  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  min-width: 90px;
+  padding: 8px 18px;
+  box-sizing: border-box;
+  border: 1px solid rgba(17, 17, 17, 0.22);
+  border-radius: 9999px;
+  background: transparent;
+  color: #171717;
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: center;
   cursor: pointer;
-  transition: .2s ease;
+  user-select: none;
+  margin: 0;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.custom-builder .custom-option-group label:hover {
+  border-color: rgba(17, 17, 17, 0.5);
 }
 
 .custom-builder .custom-option-group label.selected {
-  background: #1d1d1d;
-  color: #fff;
+  background: #171717;
+  color: #ffffff;
+  border-color: #171717;
 }
 
 .custom-builder .custom-option-group input {
@@ -1524,24 +1539,34 @@ a {
   width: 100%;
   height: 100%;
   margin: 0;
+  padding: 0;
   opacity: 0;
   cursor: pointer;
+  z-index: 1;
 }
 
 .custom-builder .custom-option-group label:has(input:focus-visible) {
-  outline: 2px solid rgba(17, 17, 17, .28);
-  outline-offset: 3px;
+  outline: 2px solid #171717;
+  outline-offset: 2px;
+}
+
+.custom-builder .custom-option-group .chip-label {
+  display: inline-block;
+  text-align: center;
+  pointer-events: none;
+  white-space: normal;
+  max-width: 100%;
 }
 
 .custom-request-success {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem
+  gap: 1rem;
 }
 
 .custom-request-success p {
-  margin: 0
+  margin: 0;
 }
 
 .custom-request-success button {
@@ -1550,42 +1575,236 @@ a {
   padding: .25rem 0;
   font-size: .65rem;
   font-weight: 600;
-  letter-spacing: .08em
+  letter-spacing: .08em;
 }
 
-.custom-builder aside {
+.custom-builder aside,
+.custom-builder .custom-aside {
   position: sticky;
-  top: 1rem;
+  top: 1.2rem;
   height: fit-content;
-}
-
-.custom-builder aside>img {
   width: 100%;
-  height: 410px;
-  object-fit: contain;
-  border-radius: 26px;
-  background: rgba(255, 255, 255, .34);
+  box-sizing: border-box;
 }
 
-.custom-builder aside>span {
+/* Clean shuffle preview container */
+.shuffle-card-container.clean-shuffle {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 0 1rem 0;
+  outline: none;
+  background: var(--bg-color, #e2e2e0);
+  border: none;
+  box-shadow: none;
+  border-radius: 24px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.shuffle-card-container.clean-shuffle:focus-visible {
+  outline: 2px solid #171717;
+  outline-offset: 4px;
+}
+
+.shuffle-view-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  max-height: clamp(260px, 36vh, 320px);
+  margin: 0 auto;
+  background: var(--bg-color, #e2e2e0);
+  overflow: hidden;
+  border-radius: 24px;
+  border: none;
+  box-shadow: none;
+}
+
+.shuffle-slide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 24px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.shuffle-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   display: block;
-  margin-top: 1.3rem;
+  border: none;
+  background: transparent;
+  mix-blend-mode: multiply;
+  border-radius: 24px;
+  pointer-events: none;
+}
+
+/* Slide animation states (600ms eased) */
+.shuffle-slide.is-active {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  z-index: 2;
+}
+
+.shuffle-slide.is-exiting.dir-next {
+  animation: shuffleSlideExitNext 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  z-index: 3;
+}
+
+.shuffle-slide.is-exiting.dir-prev {
+  animation: shuffleSlideExitPrev 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  z-index: 3;
+}
+
+.shuffle-slide.is-entering.dir-next {
+  animation: shuffleSlideEnterNext 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  z-index: 2;
+}
+
+.shuffle-slide.is-entering.dir-prev {
+  animation: shuffleSlideEnterPrev 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  z-index: 2;
+}
+
+@keyframes shuffleSlideExitNext {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(26px, -4px, 0) rotate(3deg);
+  }
+}
+
+@keyframes shuffleSlideExitPrev {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-26px, -4px, 0) rotate(-3deg);
+  }
+}
+
+@keyframes shuffleSlideEnterNext {
+  0% {
+    opacity: 0;
+    transform: translate3d(-14px, 6px, 0) scale(0.94) rotate(-1.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes shuffleSlideEnterPrev {
+  0% {
+    opacity: 0;
+    transform: translate3d(14px, 6px, 0) scale(0.94) rotate(1.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shuffle-slide.is-exiting,
+  .shuffle-slide.is-entering {
+    animation: none !important;
+    transition: opacity 0.3s ease;
+  }
+}
+
+/* Dots navigation with >= 44px tap target */
+.shuffle-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 0.5rem;
+}
+
+.shuffle-dot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  outline: none;
+  border-radius: 9999px;
+  touch-action: manipulation;
+}
+
+.shuffle-dot-btn:focus-visible {
+  outline: 2px solid #171717;
+  outline-offset: 2px;
+}
+
+.shuffle-dot-indicator {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: rgba(17, 17, 17, 0.22);
+  transition: width 0.25s ease, background-color 0.25s ease;
+}
+
+.shuffle-dot-btn:hover .shuffle-dot-indicator {
+  background: rgba(17, 17, 17, 0.5);
+}
+
+.shuffle-dot-btn.active .shuffle-dot-indicator {
+  width: 22px;
+  background: #171717;
+}
+
+.mobile-shuffle-wrapper {
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto 2rem auto;
+}
+
+.custom-builder aside>span,
+.custom-builder .custom-aside>span {
+  display: block;
+  margin-top: 1rem;
   color: #666;
   font-size: .62rem;
   letter-spacing: .12em;
 }
 
-.custom-builder aside h2 {
-  margin-top: .7rem;
-  font-size: 2.7rem;
+.custom-builder aside h2,
+.custom-builder .custom-aside h2 {
+  margin-top: .5rem;
+  font-size: 2.3rem;
   font-weight: 400;
+  line-height: 1.1;
 }
 
-.custom-builder aside>p {
-  margin-top: .8rem;
+.custom-builder aside>p,
+.custom-builder .custom-aside>p {
+  margin-top: .65rem;
   color: #555;
-  line-height: 1.6;
+  line-height: 1.55;
+  font-size: 0.85rem;
 }
+
 
 .information-list {
   display: grid;
@@ -1904,6 +2123,13 @@ a {
     grid-template-columns: 1fr;
   }
 
+  .mobile-shuffle-wrapper {
+    display: block;
+    width: 100%;
+    max-width: 280px;
+    margin: 0 auto 1.5rem auto;
+  }
+
   .service-story {
     position: static;
   }
@@ -1920,8 +2146,11 @@ a {
     grid-column: 1 / -1;
   }
 
-  .custom-builder aside {
+  .custom-builder aside,
+  .custom-builder .custom-aside {
     position: static;
+    max-width: 440px;
+    margin: 2rem auto 0;
   }
 }
 
@@ -2001,7 +2230,6 @@ a {
   .home-facts,
   .about-path,
   .career-details,
-  .custom-gallery,
   .information-list {
     grid-template-columns: 1fr;
   }
@@ -3200,6 +3428,21 @@ a {
 
 .gallery-page .instagram-action {
   margin-top: clamp(3rem, 5vw, 5rem);
+}
+
+/* Gallery blend — applies mix-blend-mode on images with light backgrounds.
+   The figure must establish a stacking context with the page background colour
+   so multiply blending blends into #e2e2e0 rather than the document root. */
+.gallery-grid figure.is-blended {
+  background: var(--bg-color, #e2e2e0);
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.gallery-grid figure.is-blended img {
+  mix-blend-mode: multiply;
+  background: transparent;
 }
 
 .application-section textarea,

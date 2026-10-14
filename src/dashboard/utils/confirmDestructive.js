@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../../config/supabase';
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 60;
@@ -16,7 +17,43 @@ export async function confirmDestructive(password) {
     throw new Error('Password is required');
   }
 
-  // Create temporary Supabase client
+  // 1. Get current user's email from active main session
+  let email = null;
+  if (supabase) {
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user?.email) {
+        email = userData.user.email;
+      } else {
+        const { data: sessionData } = await supabase.auth.getSession();
+        email = sessionData?.session?.user?.email;
+      }
+    } catch (e) {
+      console.warn('Error reading active user session:', e);
+    }
+  }
+
+  // Fallback to localStorage if session key is stored directly
+  if (!email && typeof localStorage !== 'undefined') {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('supabase.auth.token') || key.includes('-auth-token'))) {
+          const stored = JSON.parse(localStorage.getItem(key) || '{}');
+          if (stored?.user?.email) {
+            email = stored.user.email;
+            break;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  if (!email) {
+    throw new Error('Could not verify your identity. Please ensure you are logged in.');
+  }
+
+  // 2. Create isolated temporary client to verify password without disturbing main session
   const tempClient = createClient(
     import.meta.env.VITE_SUPABASE_URL,
     import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
@@ -30,16 +67,10 @@ export async function confirmDestructive(password) {
   );
 
   try {
-    // Get current user's email from main session
-    const { data: { user } } = await tempClient.auth.getUser();
-    if (!user?.email) {
-      throw new Error('Could not verify your identity');
-    }
-
     // Verify password by signing in with temp client
     const { error: signInError } = await tempClient.auth.signInWithPassword({
-      email: user.email,
-      password: password,
+      email,
+      password: password.trim(),
     });
 
     if (signInError) {
@@ -58,7 +89,7 @@ export async function confirmDestructive(password) {
     return true;
   } catch (err) {
     // Re-throw our custom errors
-    if (err.message.includes('Password') || err.message.includes('attempts') || err.message.includes('locked')) {
+    if (err.message.includes('Password') || err.message.includes('password') || err.message.includes('attempts') || err.message.includes('locked') || err.message.includes('identity')) {
       throw err;
     }
     throw new Error('Verification failed. Please try again.');

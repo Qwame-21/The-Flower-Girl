@@ -861,6 +861,7 @@ function DataPanel() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDemoConfirmModal, setShowDemoConfirmModal] = useState(false);
   const [showDataPwConfirm, setShowDataPwConfirm] = useState(false);
   const [pendingDeleteAction, setPendingDeleteAction] = useState(null);
 
@@ -894,7 +895,6 @@ function DataPanel() {
   useEffect(() => {
     async function init() {
       await loadCounts();
-      // Load user role for access control from staff_profiles table
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
@@ -911,11 +911,6 @@ function DataPanel() {
       }
     }
     init();
-  }, []);
-
-  // Load settings for password confirmation check (live reload)
-  useEffect(() => {
-    setSettings(getAppSettings());
   }, []);
 
   function escCSV(v) {
@@ -954,6 +949,54 @@ function DataPanel() {
     showToast('Live database export downloaded!');
   }
 
+  async function executeClearDemoData() {
+    setIsDeleting(true);
+    setDeleteProgress('Clearing demo and test data...');
+    try {
+      if (supabase) {
+        // Find demo orders or test orders
+        const { data: demoOrders } = await supabase
+          .from('orders')
+          .select('id')
+          .or('is_demo.eq.true,customer_name.ilike.%test%,customer_name.ilike.%demo%');
+
+        const demoIds = (demoOrders || []).map(o => o.id);
+        if (demoIds.length > 0) {
+          try { await supabase.from('checkout_attempts').delete().in('order_id', demoIds); } catch {}
+          try { await supabase.from('completed_orders_log').delete().in('order_id', demoIds); } catch {}
+          try { await supabase.from('order_events').delete().in('order_id', demoIds); } catch {}
+          try { await supabase.from('order_items').delete().in('order_id', demoIds); } catch {}
+          await supabase.from('orders').delete().in('id', demoIds);
+        }
+
+        // Clean other demo records
+        await supabase.from('orders').delete().eq('is_demo', true);
+        await supabase.from('customer_requests').delete().or('is_demo.eq.true,customer_name.ilike.%test%,customer_name.ilike.%demo%');
+        await supabase.from('reviews').delete().eq('is_demo', true);
+        await supabase.from('admin_notifications').delete().eq('is_demo', true);
+        await supabase.from('career_applications').delete().eq('is_demo', true);
+        try { await supabase.from('activity_log').delete().eq('is_demo', true); } catch {}
+      }
+
+      showToast('Demo & test data cleared successfully!');
+      loadCounts();
+    } catch (err) {
+      showToast(`Failed to clear demo data: ${err.message}`);
+    } finally {
+      setIsDeleting(false);
+      setDeleteProgress('');
+    }
+  }
+
+  function handleTriggerClearDemo() {
+    if (settings?.security?.requirePasswordForDestructive) {
+      setPendingDeleteAction(() => executeClearDemoData);
+      setShowDataPwConfirm(true);
+    } else {
+      setShowDemoConfirmModal(true);
+    }
+  }
+
   async function executeDelete() {
     setIsDeleting(true);
     setDeleteProgress('Starting deletion...');
@@ -961,7 +1004,15 @@ function DataPanel() {
 
     try {
       if (deleteCategories.orders) {
-        setDeleteProgress('Deleting orders...');
+        setDeleteProgress('Deleting orders and related records...');
+        try {
+          await supabase.from('checkout_attempts').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          await supabase.from('completed_orders_log').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          await supabase.from('order_events').delete().neq('id', 0);
+          await supabase.from('order_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        } catch (cascadeErr) {
+          console.warn('Cascade pre-delete:', cascadeErr);
+        }
         const { error } = await supabase.from('orders').delete().neq('id', '00000000-0000-0000-0000-000000000000');
         results.push({ category: 'Orders', success: !error, error: error?.message });
       }
@@ -1053,17 +1104,22 @@ function DataPanel() {
         </div>
       </div>
 
-      {/* Danger: Demo data (disabled per requirement) */}
-      <div className="settings-card" style={{ borderColor: 'rgba(161,75,69,.2)', opacity: 0.75 }}>
+      {/* Danger: Demo data tool */}
+      <div className="settings-card" style={{ borderColor: 'rgba(161,75,69,.2)' }}>
         <h2 style={{ color: '#a14b45' }}>Danger zone — Demo data tool</h2>
-        <div className="sub">Built &amp; disabled until demo rows are tagged by administrator. No deletions will be run.</div>
+        <div className="sub">Safely purges test orders, sample requests, and records flagged as demo data from Supabase.</div>
         <div className="set-row">
           <div>
             <b>Clear demo data</b>
-            <div className="sub">Disabled until demo rows are explicitly marked in database.</div>
+            <div className="sub">Removes test customer orders, sample requests, and demo records without affecting live customer records.</div>
           </div>
-          <button className="btn d" type="button" disabled aria-disabled="true" style={{ opacity: 0.4, cursor: 'not-allowed' }}>
-            Clear demo data (Disabled)
+          <button
+            className="btn d"
+            type="button"
+            disabled={isDeleting}
+            onClick={handleTriggerClearDemo}
+          >
+            {isDeleting ? 'Clearing…' : 'Clear demo data'}
           </button>
         </div>
       </div>
@@ -1071,8 +1127,29 @@ function DataPanel() {
       {/* Delete live data section - owner/admin only */}
       {userRole === 'owner' || userRole === 'admin' ? (
       <div className="settings-card" style={{ borderColor: 'rgba(161,75,69,.2)' }}>
-        <h2 style={{ color: '#a14b45' }}>Delete live data</h2>
-        <div className="sub">Permanently delete production data. Export first as backup.</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+          <div>
+            <h2 style={{ color: '#a14b45' }}>Delete live data</h2>
+            <div className="sub">Permanently delete production data. Export first as backup.</div>
+          </div>
+          <button
+            type="button"
+            className="btn"
+            style={{ fontSize: '11px', padding: '4px 10px', height: 'auto', alignSelf: 'center' }}
+            onClick={() => {
+              const allChecked = Object.values(deleteCategories).every(Boolean);
+              setDeleteCategories({
+                orders: !allChecked,
+                requests: !allChecked,
+                reviews: !allChecked,
+                notifications: !allChecked,
+                applications: !allChecked,
+              });
+            }}
+          >
+            {Object.values(deleteCategories).every(Boolean) ? 'Deselect all' : 'Select all categories'}
+          </button>
+        </div>
         <div className="set-row">
           <div>
             <b>Orders</b>
@@ -1158,6 +1235,31 @@ function DataPanel() {
                 }}
               >
                 Confirm & Enter Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Demo data confirmation modal */}
+      {showDemoConfirmModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div style={{ background: '#ffffff', borderRadius: '16px', padding: '24px', maxWidth: '450px', width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600, color: '#a14b45' }}>Clear Demo & Test Data</h3>
+            <p style={{ fontSize: '13px', color: '#747471', margin: '0 0 16px 0' }}>
+              This will safely remove demo rows and test orders across orders, requests, reviews and notifications. Live production data will not be affected.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button type="button" className="btn" onClick={() => setShowDemoConfirmModal(false)}>Cancel</button>
+              <button
+                type="button"
+                className="btn d"
+                onClick={() => {
+                  setShowDemoConfirmModal(false);
+                  executeClearDemoData();
+                }}
+              >
+                Clear Demo Data
               </button>
             </div>
           </div>

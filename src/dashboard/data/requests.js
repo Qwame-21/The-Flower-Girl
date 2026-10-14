@@ -52,6 +52,7 @@ export async function updateRequestStatus(id, status, adminNote = null) {
   if (adminNote !== null) updateData.admin_note = adminNote;
   if (status === 'approved') updateData.approved_at = new Date().toISOString();
   if (status === 'converted') updateData.converted_at = new Date().toISOString();
+  if (status === 'closed') updateData.closed_at = new Date().toISOString();
 
   const { data, error } = await supabase
     .from('customer_requests')
@@ -68,16 +69,34 @@ export async function updateRequestStatus(id, status, adminNote = null) {
   return { success: true, data };
 }
 
-// Update request quote
+// Update request quote — also advances status to quote_needed and stamps quoted_at
 export async function updateRequestQuote(id, confirmedQuote) {
   if (!supabase) {
     console.warn('Supabase not configured');
     return { success: false, error: 'Supabase not configured' };
   }
 
+  // Fetch current status first so we only advance forward, never regress
+  const { data: current } = await supabase
+    .from('customer_requests')
+    .select('status, quoted_at')
+    .eq('id', id)
+    .single();
+
+  const updateData = { confirmed_quote: confirmedQuote };
+
+  // Only move to quote_needed if currently at 'new' (don't regress from approved/converted)
+  if (!current || current.status === 'new') {
+    updateData.status = 'quote_needed';
+  }
+  // Stamp quoted_at if not already set
+  if (!current?.quoted_at) {
+    updateData.quoted_at = new Date().toISOString();
+  }
+
   const { data, error } = await supabase
     .from('customer_requests')
-    .update({ confirmed_quote: confirmedQuote })
+    .update(updateData)
     .eq('id', id)
     .select()
     .single();

@@ -2,11 +2,13 @@
 // Ported 1-for-1 verbatim from admin-monolith.html renderRequestsView() (lines 23569–24236)
 // Storage key: 'xa12_custom_requests'
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CopyIcon from '../components/shared/CopyIcon';
 import { loadRequestsData, saveRequestsData, syncRequestsWithSupabase, convertRequestToOrder, updateRequestStatusSync, updateRequestQuoteSync, deleteRequestSync } from '../data/requestsAdapter';
-import { fetchRequests, getCachedData, isDataLoading } from '../data/dataCache';
+import { fetchRequests, getCachedData, isDataLoading, subscribeToCache } from '../data/dataCache';
+import { supabase } from '../../config/supabase';
+import { parseDateString, formatDateDisplay, formatTimestampDisplay } from '../../shared/dateUtils';
 
 const REQUESTS_KEY = 'xa12_custom_requests';
 
@@ -132,21 +134,92 @@ const SEED_REQUESTS = [
   }
 ];
 
-// Motifs SVG helpers — Monolith lines 23550–23567
-const bespokeMotifs = [
-  <svg key="b0" viewBox="0 0 100 100"><path d="M50 8 L88 30 L88 70 L50 92 L12 70 L12 30 Z"/><path d="M50 8 L50 50 L88 30 M50 50 L12 30 M50 50 L50 92"/></svg>,
-  <svg key="b1" viewBox="0 0 100 100"><path d="M50 8 L90 50 L50 92 L10 50 Z"/><path d="M50 8 L50 92 M10 50 L90 50"/></svg>,
-  <svg key="b2" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" rx="4"/><rect x="35" y="35" width="30" height="30" rx="2"/></svg>
-];
-const serviceMotifs = [
-  <svg key="s0" viewBox="0 0 100 100"><circle cx="50" cy="50" r="10"/><circle cx="50" cy="50" r="20"/><circle cx="50" cy="50" r="30"/><circle cx="50" cy="50" r="40"/></svg>,
-  <svg key="s1" viewBox="0 0 100 100"><path d="M50 4 L50 96 M4 50 L96 50 M18 18 L82 82 M82 18 L18 82"/></svg>,
-  <svg key="s2" viewBox="0 0 100 100"><circle cx="50" cy="30" r="20"/><circle cx="50" cy="70" r="20"/><circle cx="30" cy="50" r="20"/><circle cx="70" cy="50" r="20"/></svg>
-];
+// Gift-box icon — thin line style matching sidebar, no cubes or shades
+function GiftBoxMotifSvg({ size = 24, className = '' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect x="3" y="8" width="18" height="13" rx="1" />
+      <path d="M12 8V21" />
+      <path d="M3 13h18" />
+      <path d="M8 8c0-2 1.5-4 4-4s4 2 4 4" />
+      <path d="M8 8c-2 0-4-1-4-3 0-1.5 1.5-2 3-1L12 8" />
+      <path d="M16 8c2 0 4-1 4-3 0-1.5-1.5-2-3-1L12 8" />
+    </svg>
+  );
+}
 
-function getRequestMotifSvg(req, index) {
-  const idx = Math.abs(index || 0) % 3;
-  return req.request_type === 'service' ? serviceMotifs[idx] : bespokeMotifs[idx];
+function CollapsibleText({ text, maxLines = 3 }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!text) return null;
+  const isLong = text.length > 120 || text.split('\n').length > 3;
+  return (
+    <div>
+      <div
+        style={expanded ? { whiteSpace: 'pre-line', lineHeight: 1.5 } : {
+          display: '-webkit-box',
+          WebkitLineClamp: maxLines,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'pre-line',
+          lineHeight: 1.5
+        }}
+      >
+        {text}
+      </div>
+      {isLong && (
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); setExpanded(!expanded); }}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '4px 0 0',
+            fontSize: '11px',
+            fontWeight: 600,
+            color: 'var(--ink, #1c1c1b)',
+            cursor: 'pointer',
+            textDecoration: 'underline'
+          }}
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function formatNeededByDate(val) {
+  if (!val) return '';
+  // YYYY-MM-DD strings: use parseDateString to avoid UTC-shift off-by-one
+  if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)) {
+    const d = parseDateString(val);
+    if (d) return formatDateDisplay(d);
+  }
+  // Already a human-readable string (from seed data) — return as-is
+  try {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    }
+  } catch {}
+  return String(val);
+}
+
+function formatTimelineDateTime(val) {
+  if (!val) return '';
+  // Full ISO timestamps → formatTimestampDisplay (Africa/Accra wall-clock time)
+  if (typeof val === 'string' && val.includes('T')) {
+    return formatTimestampDisplay(val);
+  }
+  // Fallback for legacy seed strings (e.g. "12 Sep 2026")
+  try {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+  } catch {}
+  return String(val);
 }
 
 
@@ -157,9 +230,13 @@ function showToast(msg) {
 
 export default function RequestsPage() {
   const navigate = useNavigate();
-  const [requests, setRequests] = useState(loadRequestsData);
+  const [requests, setRequests] = useState(() => {
+    const cached = loadRequestsData();
+    return cached.length > 0 ? cached : SEED_REQUESTS;
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all'); // 'all'|'n'|'q'|'a'|'c'|'x'
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Modal / Drawer state
   const [drawerTarget, setDrawerTarget] = useState(null);
@@ -177,23 +254,91 @@ export default function RequestsPage() {
 
   // Reload from cache after Supabase updates
   const reloadFromCache = () => {
-    setRequests(loadRequestsData());
+    const cached = loadRequestsData();
+    setRequests(cached.length > 0 ? cached : SEED_REQUESTS);
   };
+
+  // Manual refresh function with toast feedback
+  const refreshRequests = useCallback(async (showFeedback = false) => {
+    setIsRefreshing(true);
+    try {
+      await fetchRequests(true);
+      const result = await syncRequestsWithSupabase();
+      if (result && result.length > 0) {
+        setRequests(result);
+        if (showFeedback) showToast('Requests updated');
+      } else {
+        const cached = loadRequestsData();
+        setRequests(cached.length > 0 ? cached : SEED_REQUESTS);
+        if (showFeedback) showToast('Requests refreshed');
+      }
+    } catch (err) {
+      console.error('Failed to refresh requests:', err);
+      if (showFeedback) showToast('Failed to refresh requests');
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
 
   // Load requests from cache/Supabase on mount
   useEffect(() => {
-    async function loadRequests() {
-      try {
-        await fetchRequests();
-        const result = await syncRequestsWithSupabase();
-        setRequests(result);
-      } catch (err) {
-        console.error('Failed to load requests:', err);
-        // Keep existing data on error
+    refreshRequests(false);
+  }, [refreshRequests]);
+
+  // Refetch when window regains focus (e.g. user returns from testing storefront)
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshRequests(false);
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [refreshRequests]);
+
+  // Subscribe to dataCache changes
+  useEffect(() => {
+    const unsubscribe = subscribeToCache(() => {
+      const cached = loadRequestsData();
+      if (cached && cached.length > 0) {
+        setRequests(cached);
       }
-    }
-    loadRequests();
+    });
+    return unsubscribe;
   }, []);
+
+  // Realtime subscription for customer_requests and new_request notifications
+  useEffect(() => {
+    if (!supabase) return undefined;
+
+    const channel = supabase
+      .channel('requests-realtime-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'customer_requests' },
+        async (payload) => {
+          await refreshRequests(false);
+          if (payload.eventType === 'INSERT') {
+            const customer = payload.new?.customer_name || 'Customer';
+            const ref = payload.new?.reference || 'New request';
+            showToast(`New custom request: ${ref} from ${customer}`);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'admin_notifications' },
+        async (payload) => {
+          if (payload.new?.type === 'new_request') {
+            await refreshRequests(false);
+            showToast(payload.new?.title || 'New customer request received');
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refreshRequests]);
 
   useEffect(() => {
     if (drawerTarget) {
@@ -228,10 +373,12 @@ export default function RequestsPage() {
 
     if (q) {
       const ref = (r.reference || r.id || '').toLowerCase();
+      const shortCode = (r.short_code || '').toLowerCase();
+      const longRef = (r.long_reference || '').toLowerCase();
       const name = (r.customer_name || r.client || '').toLowerCase();
       const phone = (r.phone || '').toLowerCase();
       const occ = (r.occasion || r.service || '').toLowerCase();
-      if (!ref.includes(q) && !name.includes(q) && !phone.includes(q) && !occ.includes(q)) {
+      if (!ref.includes(q) && !shortCode.includes(q) && !longRef.includes(q) && !name.includes(q) && !phone.includes(q) && !occ.includes(q)) {
         return false;
       }
     }
@@ -256,8 +403,14 @@ export default function RequestsPage() {
 
     const result = await updateRequestQuoteSync(quoteModalReq.id, amount);
     if (result.success) {
-      reloadFromCache();
-      showToast('Quote saved');
+      // Re-sync and update drawer immediately so timeline reflects new status/quote
+      const fresh = await syncRequestsWithSupabase();
+      setRequests(fresh.length > 0 ? fresh : loadRequestsData());
+      if (drawerTarget && drawerTarget.id === quoteModalReq.id) {
+        const updated = (fresh.length > 0 ? fresh : loadRequestsData()).find(r => r.id === quoteModalReq.id);
+        if (updated) setDrawerTarget(updated);
+      }
+      showToast('Quote saved — status moved to Quote needed');
     } else {
       showToast('Failed to save quote');
     }
@@ -354,23 +507,46 @@ export default function RequestsPage() {
       isConversionModal: true,
       defaultRecipient: req.recipient || req.customer_name || '',
       defaultCity: req.city || '',
+      defaultAddress: req.delivery_address || '',
     });
   }
 
-  // Reopen Request Flow — Monolith lines 24045–24061
-  function handleReopenRequest(req) {
+  // Reopen Request Flow
+  async function handleReopenRequest(req) {
     const restoreStatus = req._prevStatus || 'new';
-    const updated = requests.map(r => {
-      if (r.id === req.id) {
-        return { ...r, status: restoreStatus };
-      }
-      return r;
-    });
-    saveAndSetRequests(updated);
-    showToast(`Request reopened to ${restoreStatus.replace('_', ' ')}.`);
+    const result = await updateRequestStatusSync(req.id, restoreStatus);
+    if (result.success) {
+      reloadFromCache();
+      showToast(`Request reopened to ${restoreStatus.replace('_', ' ')}.`);
+    } else {
+      showToast('Failed to reopen request');
+    }
     if (drawerTarget && drawerTarget.id === req.id) {
       setDrawerTarget(null);
     }
+  }
+
+  // Decline / Close Request Flow with confirmation step
+  function handleDeclineOrClose(req) {
+    const code = req.short_code || req.reference || req.id;
+    setConfirmModal({
+      title: 'Decline / Close Request',
+      message: `Are you sure you want to close request ${code} from ${req.customer_name || 'the customer'}? This will mark it closed and update tracking.`,
+      confirmText: 'Yes, close request',
+      onConfirm: async () => {
+        const result = await updateRequestStatusSync(req.id, 'closed', adminNoteDrawerInput || req.admin_note);
+        if (result.success) {
+          reloadFromCache();
+          showToast('Request closed');
+          setConfirmModal(null);
+          if (drawerTarget && drawerTarget.id === req.id) {
+            setDrawerTarget(null);
+          }
+        } else {
+          showToast('Failed to close request');
+        }
+      }
+    });
   }
 
   // Save Drawer Note and Trigger — Monolith lines 23830–23845
@@ -399,6 +575,31 @@ export default function RequestsPage() {
           <h2>Custom Requests</h2>
           <p>Track each request from New to Converted.</p>
         </div>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => refreshRequests(true)}
+          disabled={isRefreshing}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: isRefreshing ? 'wait' : 'pointer' }}
+          title="Refresh requests"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            stroke="currentColor"
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }}
+          >
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+          {isRefreshing ? 'Refreshing...' : 'Refresh'}
+        </button>
       </div>
 
       {/* Filter Bar & Search — Monolith lines 23618–23628 */}
@@ -460,23 +661,30 @@ export default function RequestsPage() {
             actionType = 'reopen';
           }
 
-          const motifSvg = getRequestMotifSvg(req, idx);
-          const amountVal = req.confirmed_quote ? req.confirmed_quote.toLocaleString() : (req.budget || (req.estimate_low ? `${req.estimate_low} - ${req.estimate_high}` : '2,000'));
-          const amountLabel = req.confirmed_quote ? 'Quote' : 'Budget';
+          const motifSvg = <GiftBoxMotifSvg size={52} />;
+          const hasSentQuote = Boolean(req.confirmed_quote && req.status !== 'new');
+          const amountLabel = hasSentQuote ? 'Quote' : 'Budget';
+          const amountVal = hasSentQuote
+            ? req.confirmed_quote.toLocaleString()
+            : (req.budget || (req.estimate_low ? `${req.estimate_low} – ${req.estimate_high}` : '—'));
           const metaCategory = req.occasion || req.service || (req.request_type === 'service' ? 'Service' : 'Bespoke gift');
-          const whenText = req.created_at || '2 days ago';
+          const whenText = req.created_at || 'Recently';
+          const displayRef = req.short_code || req.reference || req.id;
 
           return (
             <article
               key={req.id}
               className={`card req-card-v3 ${matches ? '' : 'hide'}`}
               data-id={req.id}
-              onClick={() => setDrawerTarget(req)}
+              onClick={() => {
+                setDrawerTarget(req);
+                setAdminNoteDrawerInput(req.admin_note || '');
+              }}
             >
               <div className="top">
-                <span className="ref code-with-copy">
-                  {req.reference || req.id}
-                  <CopyIcon text={req.reference || req.id} />
+                <span className="ref code-with-copy" style={{ fontFamily: 'monospace', letterSpacing: '0.04em' }}>
+                  {displayRef}
+                  <CopyIcon text={displayRef} />
                 </span>
                 <span className="st">{stText}</span>
               </div>
@@ -484,6 +692,33 @@ export default function RequestsPage() {
               <div>
                 <div className="name">{req.customer_name || req.client || 'Client'}</div>
                 <div className="meta">{metaCategory} · {amountLabel} <b>GHS {String(amountVal)}</b></div>
+                {req.selections && req.selections.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                    {req.selections.slice(0, 3).map((item, sIdx) => (
+                      <span
+                        key={sIdx}
+                        style={{
+                          fontSize: '11px',
+                          background: 'rgba(26,26,26,0.05)',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          color: '#374151',
+                          maxWidth: '140px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {item}
+                      </span>
+                    ))}
+                    {req.selections.length > 3 && (
+                      <span style={{ fontSize: '10px', color: '#888', alignSelf: 'center' }}>
+                        +{req.selections.length - 3} more
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="foot">
                 <span className="when"><i></i>{whenText}</span>
@@ -507,133 +742,403 @@ export default function RequestsPage() {
         })}
       </div>
 
-      {/* Request Timeline Drawer Overlay — Monolith lines 23684–23828 */}
+      {/* Request Timeline Drawer Overlay */}
       <div
         className={`ov ${drawerTarget ? 'on' : ''}`}
         id="reqDrawerOverlay"
         onClick={e => { if (e.target.id === 'reqDrawerOverlay') setDrawerTarget(null); }}
       >
-        {drawerTarget && (
-          <div className="drawer" id="reqDrawerContainer">
-            {/* Drawer Header */}
-            <div className="dhead">
-              <div style={{ display: 'flex', gap: '14px' }}>
-                <div className="dmotif">
-                  {getRequestMotifSvg(drawerTarget, requests.findIndex(r => r.id === drawerTarget.id))}
-                </div>
-                <div className="dtitle">
-                  <h2 className="code-with-copy">
-                    {drawerTarget.reference || drawerTarget.id}
-                    <CopyIcon text={drawerTarget.reference || drawerTarget.id} />
-                  </h2>
-                  <div className="sub">
-                    {drawerTarget.customer_name || drawerTarget.client || 'Client'} · {drawerTarget.occasion || drawerTarget.service || 'Request'}
+        {drawerTarget && (() => {
+          const drawerRef = drawerTarget.short_code || drawerTarget.reference || drawerTarget.id;
+          return (
+            <div className="drawer" id="reqDrawerContainer">
+              {/* Drawer Header */}
+              <div className="dhead">
+                <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+                  <div className="dmotif">
+                    <GiftBoxMotifSvg size={36} />
+                  </div>
+                  <div className="dtitle">
+                    <h2 className="code-with-copy" style={{ fontFamily: 'monospace' }}>
+                      {drawerRef}
+                      <CopyIcon text={drawerRef} />
+                    </h2>
+                    <div className="sub">
+                      {drawerTarget.customer_name || drawerTarget.client || 'Client'} · {drawerTarget.occasion || drawerTarget.service || 'Request'}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <button type="button" className="dclose" onClick={() => setDrawerTarget(null)}>✕</button>
-            </div>
-
-            {/* Drawer Body */}
-            <div className="dbody">
-              {/* Timeline */}
-              <div>
-                <div className="sec-lbl">Timeline</div>
-                <div className="timeline">
-                  <div className="tstep">
-                    <div className="tdot"><i className="done" /><b className={drawerTarget.status !== 'new' ? 'done' : ''} /></div>
-                    <div className="tinfo"><div className="tn">Received</div><div className="td">{drawerTarget.created_at || '22 Sep 2026'}</div></div>
-                  </div>
-                  <div className="tstep">
-                    <div className="tdot"><i className={drawerTarget.status !== 'new' ? 'done' : ''} /><b className={drawerTarget.status === 'approved' || drawerTarget.status === 'converted' ? 'done' : ''} /></div>
-                    <div className="tinfo"><div className="tn">Quoted</div><div className="td">{drawerTarget.quote_date || (drawerTarget.confirmed_quote ? 'Quoted' : 'Not yet')}</div></div>
-                  </div>
-                  <div className="tstep">
-                    <div className="tdot"><i className={drawerTarget.status === 'approved' || drawerTarget.status === 'converted' ? 'done' : ''} /><b className={drawerTarget.status === 'converted' ? 'done' : ''} /></div>
-                    <div className="tinfo"><div className="tn">Approved</div><div className="td">{drawerTarget.approved_at || (drawerTarget.status === 'approved' || drawerTarget.status === 'converted' ? 'Approved' : 'Not yet')}</div></div>
-                  </div>
-                  <div className="tstep">
-                    <div className="tdot"><i className={drawerTarget.status === 'converted' ? 'done' : ''} /></div>
-                    <div className="tinfo"><div className="tn">Converted</div><div className="td">{drawerTarget.converted_at || (drawerTarget.status === 'converted' ? 'Converted' : 'Not yet')}</div></div>
-                  </div>
-                </div>
+                <button type="button" className="dclose" onClick={() => setDrawerTarget(null)} aria-label="Close drawer">✕</button>
               </div>
 
-              {/* Contact Grid */}
-              <div>
-                <div className="sec-lbl">Contact</div>
-                <div className="grid2">
-                  {drawerTarget.phone && <div className="drow"><div className="k">Phone</div><div className="v">{drawerTarget.phone}</div></div>}
-                  {drawerTarget.email && <div className="drow"><div className="k">Email</div><div className="v">{drawerTarget.email}</div></div>}
-                  {drawerTarget.preferred_date && <div className="drow"><div className="k">Needed by</div><div className="v">{drawerTarget.preferred_date}</div></div>}
-                  {(drawerTarget.city || drawerTarget.fulfilment) && <div className="drow"><div className="k">Delivery</div><div className="v">{drawerTarget.city || drawerTarget.fulfilment}</div></div>}
-                </div>
-              </div>
-
-              {/* Selections */}
-              {drawerTarget.selections && drawerTarget.selections.length > 0 && (
+              {/* Drawer Body */}
+              <div className="dbody">
+                {/* 1. Timeline */}
                 <div>
-                  <div className="sec-lbl">Selected items</div>
-                  <div className="chips">
-                    {drawerTarget.selections.map((s, idx) => (
-                      <span key={idx} className="chip">{s}</span>
-                    ))}
+                  <div className="sec-lbl">Timeline</div>
+                  <div className="timeline">
+                    <div className="tstep">
+                      <div className="tdot"><i className="done" /><b className={drawerTarget.status !== 'new' ? 'done' : ''} /></div>
+                      <div className="tinfo">
+                        <div className="tn">Received</div>
+                        <div className="td">{formatTimelineDateTime(drawerTarget.received_at || drawerTarget.created_at_iso || drawerTarget.created_at) || 'Received'}</div>
+                      </div>
+                    </div>
+                    <div className="tstep">
+                      <div className="tdot">
+                        <i className={drawerTarget.status !== 'new' ? 'done' : ''} />
+                        <b className={drawerTarget.status === 'approved' || drawerTarget.status === 'converted' ? 'done' : ''} />
+                      </div>
+                      <div className="tinfo">
+                        <div className="tn">Quoted</div>
+                        <div className="td">
+                          {drawerTarget.quoted_at
+                            ? formatTimelineDateTime(drawerTarget.quoted_at)
+                            : (drawerTarget.confirmed_quote && drawerTarget.status === 'new'
+                              ? 'Draft — not sent yet'
+                              : (['quote_needed', 'approved', 'converted'].includes(drawerTarget.status) && drawerTarget.confirmed_quote
+                                ? formatTimelineDateTime(drawerTarget.created_at_iso || drawerTarget.created_at)
+                                : 'Not yet'))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="tstep">
+                      <div className="tdot">
+                        <i className={drawerTarget.status === 'approved' || drawerTarget.status === 'converted' ? 'done' : ''} />
+                        <b className={drawerTarget.status === 'converted' ? 'done' : ''} />
+                      </div>
+                      <div className="tinfo">
+                        <div className="tn">Approved</div>
+                        <div className="td">
+                          {drawerTarget.approved_at
+                            ? formatTimelineDateTime(drawerTarget.approved_at)
+                            : (['approved', 'converted'].includes(drawerTarget.status) ? 'Approved' : 'Not yet')}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="tstep">
+                      <div className="tdot">
+                        <i className={drawerTarget.status === 'converted' || drawerTarget.status === 'closed' ? 'done' : ''} />
+                      </div>
+                      <div className="tinfo">
+                        <div className="tn">{drawerTarget.status === 'closed' ? 'Closed' : 'Converted'}</div>
+                        <div className="td">
+                          {drawerTarget.status === 'closed'
+                            ? (drawerTarget.closed_at ? formatTimelineDateTime(drawerTarget.closed_at) : 'Closed')
+                            : (drawerTarget.converted_at ? formatTimelineDateTime(drawerTarget.converted_at) : (drawerTarget.status === 'converted' ? 'Converted' : 'Not yet'))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
 
-              {/* Notes */}
-              {drawerTarget.notes && (
+                {/* 2. Customer */}
                 <div>
-                  <div className="sec-lbl">Notes</div>
-                  <div className="note">{drawerTarget.notes}</div>
+                  <div className="sec-lbl">Customer</div>
+                  <div className="grid2">
+                    <div className="drow">
+                      <div className="k">Name</div>
+                      <div className="v">{drawerTarget.customer_name || 'Client'}</div>
+                    </div>
+                    {drawerTarget.phone && (
+                      <div className="drow">
+                        <div className="k">Phone</div>
+                        <div className="v">
+                          <a href={`tel:${drawerTarget.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>
+                            {drawerTarget.phone}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                    {drawerTarget.email && (
+                      <div className="drow">
+                        <div className="k">Email</div>
+                        <div className="v">
+                          <a href={`mailto:${drawerTarget.email}`} style={{ color: 'inherit', textDecoration: 'underline' }}>
+                            {drawerTarget.email}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                    {drawerTarget.phone && (
+                      <div className="drow">
+                        <div className="k">WhatsApp</div>
+                        <div className="v">
+                          <a
+                            href={`https://wa.me/${drawerTarget.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hello ${drawerTarget.customer_name || 'Customer'}, regarding your request ${drawerRef}`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#15803d', fontWeight: 600, textDecoration: 'none' }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                            </svg>
+                            Send WhatsApp
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
 
-              {/* Quote */}
-              <div>
-                <div className="sec-lbl">Quote</div>
-                <div className="qty">
-                  <span>{drawerTarget.confirmed_quote ? 'Confirmed Quote' : 'Budget mentioned'}</span>
-                  <span className="amt">{drawerTarget.confirmed_quote ? `GHS ${drawerTarget.confirmed_quote.toLocaleString()}` : (drawerTarget.budget || 'GHS 2,000')}</span>
+                {/* 3. Gift request */}
+                <div>
+                  <div className="sec-lbl">Gift Request</div>
+                  <div className="grid2">
+                    <div className="drow">
+                      <div className="k">Occasion</div>
+                      <div className="v">{drawerTarget.occasion || drawerTarget.service || 'Bespoke gift'}</div>
+                    </div>
+                    {drawerTarget.preferred_date && (
+                      <div className="drow">
+                        <div className="k">Needed by</div>
+                        <div className="v">{formatNeededByDate(drawerTarget.preferred_date)}</div>
+                      </div>
+                    )}
+                    <div className="drow">
+                      <div className="k">Quantity</div>
+                      <div className="v">{drawerTarget.quantity || 1} identical gift{Number(drawerTarget.quantity) > 1 ? 's' : ''}</div>
+                    </div>
+                    {drawerTarget.budget && (
+                      <div className="drow">
+                        <div className="k">Customer Budget</div>
+                        <div className="v">{drawerTarget.budget.startsWith?.('GHS') ? drawerTarget.budget : `GHS ${drawerTarget.budget}`}</div>
+                      </div>
+                    )}
+                  </div>
+                  {drawerTarget.selections && drawerTarget.selections.length > 0 && (
+                    <div style={{ marginTop: '12px' }}>
+                      <div className="k" style={{ marginBottom: '6px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--mute, #747471)' }}>
+                        Selected items ({drawerTarget.selections.length})
+                      </div>
+                      <div className="chips">
+                        {drawerTarget.selections.map((s, idx) => (
+                          <span key={idx} className="chip">{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Card */}
+                {(drawerTarget.card_message || drawerTarget.card_style) && (
+                  <div>
+                    <div className="sec-lbl">Card &amp; Personalization</div>
+                    <div className="grid2">
+                      {drawerTarget.card_style && (
+                        <div className="drow">
+                          <div className="k">Lettering Style</div>
+                          <div className="v">{drawerTarget.card_style}</div>
+                        </div>
+                      )}
+                      {drawerTarget.card_message && (
+                        <div className="drow" style={{ gridColumn: 'span 2' }}>
+                          <div className="k">Card Message</div>
+                          <div className="v" style={{ fontStyle: 'italic', background: 'rgba(26,26,26,0.03)', padding: '10px 14px', borderRadius: '8px' }}>
+                            <CollapsibleText text={`"${drawerTarget.card_message}"`} maxLines={3} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 5. Delivery or collection */}
+                <div>
+                  <div className="sec-lbl">Delivery or Collection</div>
+                  <div className="grid2">
+                    <div className="drow">
+                      <div className="k">Fulfilment Type</div>
+                      <div className="v" style={{ textTransform: 'capitalize' }}>
+                        {drawerTarget.fulfilment === 'collection' ? 'Collection from shop' : 'Delivery'}
+                      </div>
+                    </div>
+                    {drawerTarget.recipient && drawerTarget.recipient !== drawerTarget.customer_name && drawerTarget.recipient !== 'recipient' && (
+                      <div className="drow">
+                        <div className="k">Recipient Name</div>
+                        <div className="v">{drawerTarget.recipient}</div>
+                      </div>
+                    )}
+                    {drawerTarget.recipient_phone && drawerTarget.recipient_phone !== drawerTarget.phone && drawerTarget.recipient_phone !== 'recipientPhone' && (
+                      <div className="drow">
+                        <div className="k">Recipient Phone</div>
+                        <div className="v">
+                          <a href={`tel:${drawerTarget.recipient_phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>
+                            {drawerTarget.recipient_phone}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                    {drawerTarget.city && (
+                      <div className="drow">
+                        <div className="k">City / Area</div>
+                        <div className="v">{drawerTarget.city}</div>
+                      </div>
+                    )}
+                    {drawerTarget.delivery_address && (
+                      <div className="drow" style={{ gridColumn: 'span 2' }}>
+                        <div className="k">Full Address</div>
+                        <div className="v">{drawerTarget.delivery_address}</div>
+                      </div>
+                    )}
+                    {drawerTarget.landmark && (
+                      <div className="drow" style={{ gridColumn: 'span 2' }}>
+                        <div className="k">Nearest Landmark</div>
+                        <div className="v">{drawerTarget.landmark}</div>
+                      </div>
+                    )}
+                    {drawerTarget.location_link && (
+                      <div className="drow" style={{ gridColumn: 'span 2' }}>
+                        <div className="k">Location Link</div>
+                        <div className="v">
+                          <a href={drawerTarget.location_link} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#2563eb', textDecoration: 'underline' }}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                            </svg>
+                            Open Map Link
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                    {drawerTarget.delivery_instructions && (
+                      <div className="drow" style={{ gridColumn: 'span 2' }}>
+                        <div className="k">Instructions</div>
+                        <div className="v"><CollapsibleText text={drawerTarget.delivery_instructions} maxLines={3} /></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 6. Notes */}
+                {drawerTarget.notes && (
+                  <div>
+                    <div className="sec-lbl">Customer Notes</div>
+                    <div className="note">
+                      <CollapsibleText text={drawerTarget.notes} maxLines={3} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Inspiration Image / Attachment (if any) */}
+                {drawerTarget.inspiration_path && (
+                  <div>
+                    <div className="sec-lbl">Inspiration / Attachment</div>
+                    <div style={{ marginTop: '6px' }}>
+                      {drawerTarget.inspiration_path.startsWith('http') ? (
+                        <a href={drawerTarget.inspiration_path} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={drawerTarget.inspiration_path}
+                            alt="Inspiration"
+                            style={{ maxWidth: '100%', maxHeight: '180px', borderRadius: '8px', objectFit: 'cover', border: '1px solid rgba(26,26,26,0.1)' }}
+                          />
+                        </a>
+                      ) : (
+                        <div style={{ fontSize: '13px', color: '#555' }}>
+                          Attachment: <code>{drawerTarget.inspiration_path}</code>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 7. Quote (show only when exists) */}
+                {(drawerTarget.confirmed_quote || (drawerTarget.status !== 'new' && drawerTarget.estimate_high)) && (
+                  <div>
+                    <div className="sec-lbl">Quote</div>
+                    <div className="qty">
+                      <span>
+                        {drawerTarget.status === 'new'
+                          ? 'Quote amount (not sent)'
+                          : ['approved', 'converted'].includes(drawerTarget.status)
+                            ? 'Confirmed quote'
+                            : 'Proposed quote'}
+                      </span>
+                      <span className="amt">
+                        GHS {(drawerTarget.confirmed_quote || drawerTarget.estimate_high || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 8. Admin note visible to the customer on /track */}
+                <div className="field">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label htmlFor="reqDrawerAdminNote" style={{ margin: 0, fontWeight: 600 }}>Note from our team (visible on /track)</label>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const res = await updateRequestStatusSync(drawerTarget.id, drawerTarget.status, adminNoteDrawerInput);
+                        if (res.success) {
+                          showToast('Admin note saved and updated on tracking');
+                          reloadFromCache();
+                        } else {
+                          showToast('Failed to save note');
+                        }
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid #1c1c1b',
+                        borderRadius: '999px',
+                        padding: '3px 14px',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        fontWeight: 600
+                      }}
+                    >
+                      Save Note
+                    </button>
+                  </div>
+                  <textarea
+                    id="reqDrawerAdminNote"
+                    rows={2}
+                    placeholder="Write an update for the customer to see on /track..."
+                    value={adminNoteDrawerInput}
+                    onChange={e => setAdminNoteDrawerInput(e.target.value)}
+                  />
                 </div>
               </div>
 
-              {/* Admin Note Input */}
-              <div className="field">
-                <label>Admin note</label>
-                <textarea
-                  id="reqDrawerAdminNote"
-                  rows={2}
-                  placeholder="Add a note"
-                  value={adminNoteDrawerInput}
-                  onChange={e => setAdminNoteDrawerInput(e.target.value)}
-                />
+              {/* Drawer Footer */}
+              <div className="dfoot" style={{ display: 'flex', gap: '10px', justifyContent: 'space-between', alignItems: 'center' }}>
+                {drawerTarget.status !== 'closed' ? (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => handleDeclineOrClose(drawerTarget)}
+                    style={{ color: '#b91c1c', borderColor: 'rgba(185,28,28,0.3)', borderRadius: '999px', padding: '8px 20px', fontWeight: 600 }}
+                  >
+                    Decline / Close
+                  </button>
+                ) : <div />}
+                <button
+                  type="button"
+                  className="btn p"
+                  onClick={() => {
+                    let actionType = 'compose-quote';
+                    const st = drawerTarget.status;
+                    if (st === 'quote_needed') actionType = 'mark-approved';
+                    else if (st === 'approved') actionType = 'convert-order';
+                    else if (st === 'converted') actionType = 'view-order';
+                    else if (st === 'closed') actionType = 'reopen';
+                    handleSaveDrawerNoteAndTrigger(actionType);
+                  }}
+                  style={{ borderRadius: '999px', padding: '8px 22px', fontWeight: 700, border: 'none', background: '#1a1a1a', color: '#fff' }}
+                >
+                  {drawerTarget.status === 'quote_needed'
+                    ? 'Mark Approved'
+                    : drawerTarget.status === 'approved'
+                      ? 'Convert to Order'
+                      : drawerTarget.status === 'converted'
+                        ? 'View Converted Order'
+                        : drawerTarget.status === 'closed'
+                          ? 'Reopen Request'
+                          : 'Compose Quote'}
+                </button>
               </div>
             </div>
-
-            {/* Drawer Footer */}
-            <div className="dfoot">
-              <button type="button" className="btn d" onClick={() => setDrawerTarget(null)}>Close</button>
-              <button type="button" className="btn" onClick={() => setDrawerTarget(null)}>Cancel</button>
-              <button
-                type="button"
-                className="btn p"
-                onClick={() => {
-                  let actionType = 'compose-quote';
-                  const st = drawerTarget.status;
-                  if (st === 'quote_needed') actionType = 'mark-approved';
-                  else if (st === 'approved') actionType = 'convert-order';
-                  else if (st === 'converted') actionType = 'view-order';
-                  else if (st === 'closed') actionType = 'reopen';
-                  handleSaveDrawerNoteAndTrigger(actionType);
-                }}
-              >
-                {drawerTarget.status === 'quote_needed' ? 'Mark Approved' : drawerTarget.status === 'approved' ? 'Convert to Order' : drawerTarget.status === 'converted' ? 'View Order' : drawerTarget.status === 'closed' ? 'Reopen' : 'Compose Quote'}
-              </button>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Compose Quote Modal — Monolith lines 23874–23938 */}
@@ -662,8 +1167,8 @@ export default function RequestsPage() {
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              <button type="button" className="btn" onClick={() => setQuoteModalReq(null)} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(26,26,26,0.15)', background: '#fff', fontSize: '13px' }}>Cancel</button>
-              <button type="button" className="btn p" onClick={handleSaveQuote} style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: '#1a1a1a', color: '#fff', fontSize: '13px', fontWeight: 600 }}>Save Quote</button>
+              <button type="button" className="btn" onClick={() => setQuoteModalReq(null)} style={{ padding: '8px 22px', borderRadius: '999px', border: '1px solid rgba(26,26,26,0.15)', background: '#fff', fontSize: '13px', fontWeight: 500 }}>Cancel</button>
+              <button type="button" className="btn p" onClick={handleSaveQuote} style={{ padding: '8px 22px', borderRadius: '999px', border: 'none', background: '#1a1a1a', color: '#fff', fontSize: '13px', fontWeight: 700 }}>Save Quote</button>
             </div>
           </div>
         </div>
@@ -685,7 +1190,7 @@ export default function RequestsPage() {
                   window.open(`https://wa.me/${whatsappPrompt.phoneDigits}?text=${encodeURIComponent(whatsappPrompt.waMessage)}`, '_blank');
                   setWhatsappPrompt(null);
                 }}
-                style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(26,26,26,0.15)', background: '#fff', fontSize: '13px' }}
+                style={{ padding: '8px 18px', borderRadius: '999px', border: '1px solid rgba(26,26,26,0.15)', background: '#fff', fontSize: '13px', fontWeight: 500 }}
               >
                 Send on WhatsApp
               </button>
@@ -695,7 +1200,7 @@ export default function RequestsPage() {
                 onClick={() => {
                   navigator.clipboard.writeText(`+${whatsappPrompt.phoneDigits}`);
                 }}
-                style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(26,26,26,0.15)', background: '#fff', fontSize: '13px' }}
+                style={{ padding: '8px 18px', borderRadius: '999px', border: '1px solid rgba(26,26,26,0.15)', background: '#fff', fontSize: '13px', fontWeight: 500 }}
               >
                 Copy number
               </button>
@@ -703,7 +1208,7 @@ export default function RequestsPage() {
                 type="button"
                 className="btn p"
                 onClick={() => setWhatsappPrompt(null)}
-                style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: '#1a1a1a', color: '#fff', fontSize: '13px', fontWeight: 600 }}
+                style={{ padding: '8px 22px', borderRadius: '999px', border: 'none', background: '#1a1a1a', color: '#fff', fontSize: '13px', fontWeight: 700 }}
               >
                 Done
               </button>
@@ -726,6 +1231,7 @@ export default function RequestsPage() {
                   id="convert-delivery-address"
                   type="text"
                   required
+                  defaultValue={confirmModal.defaultAddress || ''}
                   placeholder="Full delivery address"
                   style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(26,26,26,0.15)', fontSize: '13px', marginBottom: '12px' }}
                 />
@@ -766,8 +1272,8 @@ export default function RequestsPage() {
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              <button type="button" className="btn" onClick={() => setConfirmModal(null)} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(26,26,26,0.15)', background: '#fff', fontSize: '13px' }}>Cancel</button>
-              <button type="button" className="btn p" onClick={confirmModal.onConfirm} style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: '#1a1a1a', color: '#fff', fontSize: '13px', fontWeight: 600 }}>{confirmModal.confirmText}</button>
+              <button type="button" className="btn" onClick={() => setConfirmModal(null)} style={{ padding: '8px 22px', borderRadius: '999px', border: '1px solid rgba(26,26,26,0.15)', background: '#fff', fontSize: '13px', fontWeight: 500 }}>Cancel</button>
+              <button type="button" className="btn p" onClick={confirmModal.onConfirm} style={{ padding: '8px 22px', borderRadius: '999px', border: 'none', background: '#1a1a1a', color: '#fff', fontSize: '13px', fontWeight: 700 }}>{confirmModal.confirmText}</button>
             </div>
           </div>
         </div>

@@ -14,7 +14,7 @@ export function useLiveProducts() {
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const result = await fetchLiveProducts();
       setProducts(result.products);
@@ -35,7 +35,7 @@ export function useLiveProducts() {
       setProducts(cached);
       setSource('cache');
     }
-    
+
     // Then refresh in background
     refresh();
   }, [refresh]);

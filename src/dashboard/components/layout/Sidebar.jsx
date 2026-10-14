@@ -18,12 +18,14 @@ export default function Sidebar({
 
   const [activeOrdersCount, setActiveOrdersCount] = useState(0);
   const [stockAlertsCount, setStockAlertsCount] = useState(0);
+  const [newRequestsCount, setNewRequestsCount] = useState(0);
 
   // Compute badge counts from cached data
   useEffect(() => {
     const updateCounts = () => {
       const orders = getCachedData('orders') || [];
       const products = getCachedData('products') || [];
+      const requests = getCachedData('requests') || [];
       const settings = getAppSettings();
 
       // Active orders: pending payment or processing (not delivered/cancelled)
@@ -39,8 +41,12 @@ export default function Sidebar({
         return p.stock <= threshold;
       }).length : 0;
 
+      // New requests: status === 'new'
+      const newRequests = requests.filter(r => r.status === 'new').length;
+
       setActiveOrdersCount(activeOrders);
       setStockAlertsCount(lowStock);
+      setNewRequestsCount(newRequests);
     };
 
     updateCounts();
@@ -287,10 +293,26 @@ export default function Sidebar({
               onClick={onCloseMobile}
             >
               <div className="menu-item-icon-wrapper">
+                {/* Gift-box icon — thin line style matching sidebar */}
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-                  <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+                  <rect x="3" y="8" width="18" height="13" rx="1" />
+                  <path d="M12 8V21" />
+                  <path d="M3 13h18" />
+                  <path d="M8 8c0-2 1.5-4 4-4s4 2 4 4" />
+                  <path d="M8 8c-2 0-4-1-4-3 0-1.5 1.5-2 3-1L12 8" />
+                  <path d="M16 8c2 0 4-1 4-3 0-1.5-1.5-2-3-1L12 8" />
                 </svg>
+                {newRequestsCount > 0 && (
+                  <span
+                    className="nav-status-badge"
+                    id="requestsStatusBadge"
+                    title={`${newRequestsCount} new ${newRequestsCount === 1 ? 'request' : 'requests'}`}
+                    aria-label={`${newRequestsCount} new ${newRequestsCount === 1 ? 'request' : 'requests'}`}
+                    style={{ display: 'flex' }}
+                  >
+                    {newRequestsCount}
+                  </span>
+                )}
               </div>
               <span className="menu-item-label">Requests</span>
             </NavLink>

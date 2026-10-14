@@ -2,16 +2,16 @@ import { useId, useRef, useState } from 'react';
 import CustomSelect from './CustomSelect';
 
 const COUNTRY_CODES = [
-  { code: '+233', label: 'Ghana', short: 'GH', flag: '🇬🇭' },
-  { code: '+234', label: 'Nigeria', short: 'NG', flag: '🇳🇬' },
-  { code: '+225', label: 'Côte d\u2019Ivoire', short: 'CI', flag: '🇨🇮' },
-  { code: '+228', label: 'Togo', short: 'TG', flag: '🇹🇬' },
-  { code: '+226', label: 'Burkina Faso', short: 'BF', flag: '🇧🇫' },
-  { code: '+221', label: 'Senegal', short: 'SN', flag: '🇸🇳' },
-  { code: '+254', label: 'Kenya', short: 'KE', flag: '🇰🇪' },
-  { code: '+27', label: 'South Africa', short: 'ZA', flag: '🇿🇦' },
-  { code: '+44', label: 'United Kingdom', short: 'GB', flag: '🇬🇧' },
-  { code: '+1', label: 'United States / Canada', short: 'US', flag: '🇺🇸' },
+  { code: '+233', label: 'Ghana', short: 'GH' },
+  { code: '+234', label: 'Nigeria', short: 'NG' },
+  { code: '+225', label: 'Côte d’Ivoire', short: 'CI' },
+  { code: '+228', label: 'Togo', short: 'TG' },
+  { code: '+226', label: 'Burkina Faso', short: 'BF' },
+  { code: '+221', label: 'Senegal', short: 'SN' },
+  { code: '+254', label: 'Kenya', short: 'KE' },
+  { code: '+27', label: 'South Africa', short: 'ZA' },
+  { code: '+44', label: 'United Kingdom', short: 'GB' },
+  { code: '+1', label: 'United States / Canada', short: 'US' },
 ];
 
 export function combinePhone(code, number) {
@@ -62,7 +62,7 @@ export default function PhoneInput({
             value={countryCode}
             onChange={handleCountryChange}
             getValue={opt => opt.code}
-            getLabel={opt => `${opt.flag} ${opt.short} ${opt.code}`}
+            getLabel={opt => `${opt.short} ${opt.code}`}
             disabled={disabled}
             placeholder=""
           />

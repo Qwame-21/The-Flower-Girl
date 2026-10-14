@@ -268,18 +268,42 @@ BEGIN
     );
 
     -- Decrement stock safely if product exists
-    UPDATE public.products
-    SET stock = GREATEST(0, stock - item_rec.quantity)
-    WHERE id = item_rec.product_id AND stock IS NOT NULL;
+    BEGIN
+      UPDATE public.products
+      SET stock = GREATEST(0, stock - item_rec.quantity)
+      WHERE id = item_rec.product_id AND stock IS NOT NULL;
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
   END LOOP;
 
-  -- Insert initial order event: packaging stage
-  INSERT INTO public.order_events (order_id, stage, customer_note, created_by)
-  VALUES (created_order_id, 'packaging', 'Payment confirmed via Paystack', 'paystack');
+  -- Insert initial order events (stage 'paid' and stage 'packaging')
+  BEGIN
+    INSERT INTO public.order_events (order_id, stage, customer_note, created_by)
+    VALUES
+      (created_order_id, 'paid', 'Payment confirmed via Paystack', NULL),
+      (created_order_id, 'packaging', 'Order received and processing', NULL);
+  EXCEPTION WHEN OTHERS THEN
+    NULL;
+  END;
+
+  -- Create admin notification for the new paid order
+  BEGIN
+    INSERT INTO public.admin_notifications (type, title, body, route, record_id)
+    VALUES (
+      'new_order',
+      'New paid order',
+      attempt.tracking_number || ' · GHS ' || attempt.total,
+      '/admin',
+      created_order_id::text
+    );
+  EXCEPTION WHEN OTHERS THEN
+    NULL;
+  END;
 
   -- Mark the checkout attempt as paid and link order_id
   UPDATE public.checkout_attempts
-  SET status = 'paid', order_id = created_order_id
+  SET status = 'paid', order_id = created_order_id, updated_at = NOW()
   WHERE payment_reference = verified_reference;
 
   RETURN jsonb_build_object(
@@ -290,3 +314,74 @@ BEGIN
   );
 END;
 $$;
+
+-- Enforce security: service_role execution only
+REVOKE ALL ON FUNCTION public.finalize_paid_checkout(text, numeric, text) FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.finalize_paid_checkout(text, numeric, text) TO service_role;
+
+-- =============================================================================
+-- SECTION 5: Automatically Recover & Finalize Pending Attempts (e.g. GF-087313)
+-- =============================================================================
+
+DO $$
+DECLARE
+  r RECORD;
+  v_res JSONB;
+BEGIN
+  FOR r IN (
+    SELECT payment_reference, total, currency, tracking_number
+    FROM public.checkout_attempts
+    WHERE (tracking_number = 'GF-087313' OR status IN ('initialized', 'failed'))
+      AND order_id IS NULL
+    ORDER BY created_at DESC
+  ) LOOP
+    BEGIN
+      -- Reset status to initialized so finalize_paid_checkout accepts it
+      UPDATE public.checkout_attempts
+      SET status = 'initialized'
+      WHERE payment_reference = r.payment_reference;
+
+      v_res := public.finalize_paid_checkout(r.payment_reference, r.total, r.currency);
+      RAISE NOTICE 'Finalized attempt % (tracking %): %', r.payment_reference, r.tracking_number, v_res;
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'Could not finalize attempt % (tracking %): %', r.payment_reference, r.tracking_number, SQLERRM;
+    END;
+  END LOOP;
+END $$;
+
+-- =============================================================================
+-- SECTION 6: normalize_phone
+-- NOTE: The canonical definition (with 00-prefix stripping and STRICT/PARALLEL
+-- SAFE) lives in FIX_requests_flow.sql which must be run first.
+-- Run FIX_requests_flow.sql → then this file.
+-- =============================================================================
+
+-- Idempotent: only create the function if it does not already exist from
+-- FIX_requests_flow.sql.  If it does exist this block is a no-op.
+DO $do$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = 'normalize_phone'
+  ) THEN
+    EXECUTE $fn$
+      CREATE FUNCTION public.normalize_phone(phone text)
+      RETURNS text LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+      SET search_path = public
+      AS $body$
+      DECLARE digits text;
+      BEGIN
+        digits := regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g');
+        IF digits LIKE '00%' THEN digits := substring(digits FROM 3); END IF;
+        IF digits LIKE '233%' AND length(digits) >= 12 THEN digits := substring(digits FROM 4); END IF;
+        IF digits LIKE '0%' THEN digits := substring(digits FROM 2); END IF;
+        RETURN digits;
+      END $body$;
+    $fn$;
+  END IF;
+END $do$;
+
+GRANT EXECUTE ON FUNCTION public.normalize_phone(text) TO anon, authenticated, service_role;
+
+

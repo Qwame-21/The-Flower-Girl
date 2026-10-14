@@ -64,7 +64,8 @@ export async function fetchSupabaseData() {
       id: g.id,
       src: getImageUrl(g.image_path) || '/assets/gifting-factory-logo-transparent-v2.png',
       label: g.title || g.caption || '',
-      visible: g.visible
+      visible: g.visible,
+      blendBackground: Boolean(g.blend_background ?? g.blendBackground)
     })) : DEFAULT_GALLERY;
 
     return {

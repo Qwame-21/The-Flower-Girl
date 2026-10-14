@@ -5,17 +5,18 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // Hardcoded fallback options (used when Supabase is not configured or fetch fails)
 const DEFAULT_OPTIONS = {
-  'Base': ['Basket', 'Box', 'Bag'],
-  'Contents': ['Perfume', 'Chocolate', 'Wine', 'Skincare', 'Jewelry', 'Socks', 'Tie', 'Scarf'],
-  'Finishing': ['Ribbon', 'Card', 'Wrapping paper', 'Tissue paper', 'Gift tag'],
-  'Delivery': ['Same-day delivery', 'Scheduled delivery', 'Surprise delivery', 'Collection']
+  'Choose a base': ['Luxury box', 'Basket', 'Bag'],
+  'Add gifts': ['Chocolate', 'Perfume', 'Wine', 'Skincare', 'Jewelry', 'Socks', 'Tie', 'Scarf'],
+  'Finish & deliver': ['Same-day Accra delivery', 'Scheduled delivery', 'Surprise delivery', 'Collection', 'Ribbon', 'Card', 'Wrapping paper', 'Tissue paper', 'Gift tag'],
+  'Personalize': ['Engraved name', 'Embroidered detail', 'Custom card message']
 };
 
 const DEFAULT_ESTIMATES = {
-  'Basket': 50, 'Box': 40, 'Bag': 30,
-  'Perfume': 150, 'Chocolate': 80, 'Wine': 120, 'Skincare': 100, 'Jewelry': 200, 'Socks': 50, 'Tie': 60, 'Scarf': 70,
+  'Luxury box': 40, 'Box': 40, 'Basket': 50, 'Bag': 30,
+  'Chocolate': 80, 'Perfume': 150, 'Wine': 120, 'Skincare': 100, 'Jewelry': 200, 'Socks': 50, 'Tie': 60, 'Scarf': 70,
+  'Same-day Accra delivery': 120, 'Same-day delivery': 120, 'Scheduled delivery': 90, 'Surprise delivery': 140, 'Collection': 0,
   'Ribbon': 10, 'Card': 15, 'Wrapping paper': 20, 'Tissue paper': 5, 'Gift tag': 10,
-  'Same-day delivery': 120, 'Scheduled delivery': 90, 'Surprise delivery': 140, 'Collection': 0
+  'Engraved name': 45, 'Embroidered detail': 40, 'Custom card message': 25
 };
 
 export async function fetchStorefrontCustomization() {

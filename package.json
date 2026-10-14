@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:clean": "lsof -ti TCP:5175 | xargs kill -9 2>/dev/null; rm -rf node_modules/.vite; vite",
     "build": "vite build && node scripts/generate-pages.mjs",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:db": "node scripts/check-db-refs.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.115.0",

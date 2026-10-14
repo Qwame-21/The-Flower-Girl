@@ -34,7 +34,8 @@ export async function createGalleryItem(itemData) {
       label: itemData.label,
       category: itemData.category || null,
       visible: itemData.visible !== false,
-      sort_order: itemData.sort_order || 0
+      sort_order: itemData.sort_order || 0,
+      blend_background: Boolean(itemData.blend_background ?? itemData.blendBackground)
     })
     .select()
     .single();
@@ -60,7 +61,8 @@ export async function updateGalleryItem(id, itemData) {
       label: itemData.label,
       category: itemData.category,
       visible: itemData.visible,
-      sort_order: itemData.sort_order
+      sort_order: itemData.sort_order,
+      blend_background: Boolean(itemData.blend_background ?? itemData.blendBackground)
     })
     .eq('id', id)
     .select()

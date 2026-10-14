@@ -48,6 +48,7 @@ export async function listOrders() {
     customerNote: order.customer_note,
     cardMessage: order.card_message,
     cardStyle: order.card_style,
+    customizations: order.customization_selections || order.customizations || null,
     requestedDeliveryDate: order.requested_delivery_date,
     subtotal: order.subtotal,
     total: order.total,
@@ -421,24 +422,55 @@ export async function getOrder(orderId) {
   return order;
 }
 
-// Delete order (for bulk delete)
+// Deep delete a single order and all linked database references
 export async function deleteOrder(orderId) {
+  if (!supabase || !orderId) return false;
+  return deleteOrders([orderId]);
+}
+
+// Deep bulk delete orders and all related records from Supabase
+export async function deleteOrders(orderIds) {
   if (!supabase) {
     console.warn('Supabase not configured');
     return false;
   }
+  if (!orderIds || orderIds.length === 0) return true;
 
-  // Explicit deletion sequence: order_events -> order_items -> orders
-  await supabase.from('order_events').delete().eq('order_id', orderId);
-  await supabase.from('order_items').delete().eq('order_id', orderId);
+  const ids = Array.isArray(orderIds) ? orderIds : [orderIds];
 
+  // 1. Delete linked checkout attempts (to free space and prevent orphaned attempts)
+  try {
+    await supabase.from('checkout_attempts').delete().in('order_id', ids);
+  } catch (e) {
+    console.warn('[deleteOrders] checkout_attempts cleanup:', e);
+  }
+
+  // 2. Delete linked admin notifications
+  try {
+    await supabase.from('admin_notifications').delete().in('record_id', ids.map(String));
+  } catch (e) {}
+
+  // 3. Delete from completed orders log if any
+  try {
+    await supabase.from('completed_orders_log').delete().in('order_id', ids);
+  } catch (e) {}
+
+  // 4. Delete order events and order items
+  try {
+    await supabase.from('order_events').delete().in('order_id', ids);
+    await supabase.from('order_items').delete().in('order_id', ids);
+  } catch (e) {
+    console.warn('[deleteOrders] events/items cleanup:', e);
+  }
+
+  // 5. Delete core order rows
   const { error } = await supabase
     .from('orders')
     .delete()
-    .eq('id', orderId);
+    .in('id', ids);
 
   if (error) {
-    console.error('Error deleting order:', error);
+    console.error('[deleteOrders] Error deleting orders:', error);
     return false;
   }
 

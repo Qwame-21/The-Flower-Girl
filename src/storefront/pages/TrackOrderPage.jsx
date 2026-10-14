@@ -4,7 +4,7 @@ import { readAdminData, subscribeAdminData } from '../../data/adminStore';
 import { hasTrackingApi, trackRecord } from '../api/trackingApi';
 import { getSiteSettings, refreshSiteSettings } from '../api/siteFeatures';
 import SiteFooter from '../components/SiteFooter';
-import { parseDateString, formatDateISO, formatDateDisplay as accraFormatDate, todayAccra } from '../../shared/dateUtils';
+import { parseDateString, formatDateISO, formatDateDisplay as accraFormatDate, todayAccra, formatTimestampDisplay } from '../../shared/dateUtils';
 
 function TrackingIcon({ stage }) {
   if (stage === 'paid') return <CircleDollarSign />;
@@ -101,12 +101,19 @@ export default function TrackOrderPage({ onNavigate }) {
             kind: 'request',
             record: {
               reference: data.reference,
+              shortCode: data.shortCode,
               name: data.customerName,
-              status: data.status,
+              requestType: data.requestType,
               service: data.service,
+              occasion: data.occasion,
+              status: data.status,
               preferredDate: data.preferredDate,
               quoteTotal: data.confirmedQuote,
-              adminNote: data.adminNote
+              adminNote: data.adminNote,
+              fulfilment: data.fulfilment,
+              budget: data.budget,
+              selections: data.selections,
+              updatedAt: data.updatedAt,
             }
           });
         }
@@ -140,15 +147,28 @@ export default function TrackOrderPage({ onNavigate }) {
     event.preventDefault();
     setSearching(true);
     setIsRateLimited(false);
-    const value = reference.trim().toLowerCase();
+    const value = reference.trim().toLowerCase().replace(/\s+/g, '');
     const contact = credential.trim().toLowerCase();
     const digits = contact.replace(/\D/g, '');
+    const normPhone = digits.startsWith('0') ? digits.slice(1) : digits.startsWith('233') ? digits.slice(3) : digits;
     const matchesContact = record => {
-      const recordDigits = record.phone?.replace(/\D/g, '') || '';
-      return record.email?.toLowerCase() === contact || record.customerEmail?.toLowerCase() === contact || (digits.length >= 9 && recordDigits.length >= 9 && recordDigits.slice(-9) === digits.slice(-9));
+      const recordDigits = (record.phone || record.customerPhone || record.customer_phone || '').replace(/\D/g, '');
+      const recNorm = recordDigits.startsWith('0') ? recordDigits.slice(1) : recordDigits.startsWith('233') ? recordDigits.slice(3) : recordDigits;
+      const email = (record.email || record.customerEmail || record.customer_email || '').toLowerCase();
+      const emailMatches = email === contact;
+      const phoneMatches = normPhone.length >= 8 && recNorm.length >= 8 && recNorm.slice(-8) === normPhone.slice(-8);
+      return emailMatches || phoneMatches;
     };
-    const order = trackingData.orders.find(record => (record.tracking?.toLowerCase() === value || record.code?.toLowerCase() === value) && matchesContact(record));
-    const request = trackingData.requests.find(record => (record.reference?.toLowerCase() === value || record.id?.toLowerCase() === value) && matchesContact(record));
+    const order = trackingData.orders.find(record => {
+      const tracking = (record.tracking || record.tracking_number || '').toLowerCase().replace(/\s+/g, '');
+      const code = (record.code || record.order_code || '').toLowerCase().replace(/\s+/g, '');
+      return (tracking === value || code === value) && matchesContact(record);
+    });
+    const request = trackingData.requests.find(record => {
+      const sc = (record.short_code || record.shortCode || '').toLowerCase().replace(/\s+/g, '');
+      const ref = (record.reference || record.id || '').toLowerCase().replace(/\s+/g, '');
+      return (sc === value || ref === value) && matchesContact(record);
+    });
     let matched = order ? { kind: 'order', record: order } : request ? { kind: 'request', record: request } : null;
     if (hasTrackingApi()) {
       const { data } = await trackRecord(reference, credential);
@@ -158,7 +178,7 @@ export default function TrackOrderPage({ onNavigate }) {
       } else if (data?.kind === 'order') {
         const eventFields = Object.fromEntries((data.events || []).flatMap(item => [[`${item.stage}At`, item.createdAt], [`${item.stage}Note`, item.note]]));
         matched = { kind: 'order', record: { tracking: data.trackingNumber, customer: data.customerName, recipient: data.recipientName || data.customerName, status: data.status, paymentStatus: data.paymentStatus, estimatedDelivery: data.estimatedDelivery, deliveryType: data.deliveryType, deliveryWindow: data.deliveryWindow, requestedDeliveryDate: data.requestedDeliveryDate, adminNote: data.adminNote, createdAt: data.createdAt, ...eventFields } };
-      } else if (data?.kind === 'request') matched = { kind: 'request', record: { reference: data.reference, name: data.customerName, status: data.status, service: data.service, preferredDate: data.preferredDate, quoteTotal: data.confirmedQuote, adminNote: data.adminNote } };
+      } else if (data?.kind === 'request') matched = { kind: 'request', record: { reference: data.reference, shortCode: data.shortCode, name: data.customerName, requestType: data.requestType, service: data.service, occasion: data.occasion, status: data.status, preferredDate: data.preferredDate, quoteTotal: data.confirmedQuote, adminNote: data.adminNote, fulfilment: data.fulfilment, budget: data.budget, selections: data.selections, updatedAt: data.updatedAt, createdAt: data.createdAt, receivedAt: data.receivedAt, quotedAt: data.quotedAt, approvedAt: data.approvedAt, convertedAt: data.convertedAt, closedAt: data.closedAt } };
     }
     setResult(matched);
     setSearched(true);
@@ -305,7 +325,115 @@ export default function TrackOrderPage({ onNavigate }) {
           <p><strong>Payment:</strong> {order.paymentStatus === 'paid' ? 'Confirmed' : 'Awaiting confirmation'}</p>
         </section>
       </article>}
-      {request && <article ref={resultRef} className="tracked-request tracking-result"><span>{request.reference || request.id}</span><h2>{request.name || 'Custom request'}</h2><p>Your request is <strong>{request.status === 'converted' ? 'now an order' : request.status === 'approved' ? 'approved' : request.status === 'quote_needed' ? 'being quoted' : 'received'}</strong>.</p><small className="tracking-auto-refresh-note">Updates automatically</small><section className="track-order-details"><p><strong>Service:</strong> {request.service || request.selections?.join(', ') || 'Bespoke gift'}</p><p><strong>Preferred date:</strong> {request.preferredDate || 'To confirm'}</p>{request.quoteTotal && <p><strong>Confirmed quote:</strong> GHS {Number(request.quoteTotal).toLocaleString()}</p>}<p><strong>Latest update:</strong> {request.adminNote || 'The team will contact you as the request progresses.'}</p></section></article>}
+      {request && <article ref={resultRef} className="tracked-request tracking-result">
+        <span style={{ fontFamily: 'monospace', letterSpacing: '0.05em' }}>{request.shortCode || request.reference || request.id}</span>
+        <h2>{request.name || 'Custom request'}</h2>
+        <p>Your request is <strong>
+          {request.status === 'converted' ? 'now an active order' :
+           request.status === 'approved' ? 'approved and ready to be processed' :
+           request.status === 'quote_needed' ? 'being reviewed and quoted' :
+           request.status === 'closed' ? 'closed' :
+           'received and being reviewed'}
+        </strong>.</p>
+        <small className="tracking-auto-refresh-note">Updates automatically</small>
+
+        {/* Visual Request Timeline — matches order tracking stepper */}
+        <div className="tracking-timeline" aria-label="Request progress timeline" style={{ margin: '20px 0' }}>
+          {[
+            {
+              key: 'received', label: 'Received',
+              date: request.createdAt || request.received_at, done: true,
+              icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+            },
+            {
+              key: 'quoted', label: 'Quoted',
+              date: request.quotedAt || request.quoteDate,
+              done: ['quote_needed', 'approved', 'converted'].includes(request.status) || Boolean(request.quoteTotal && request.status !== 'new'),
+              icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            },
+            {
+              key: 'approved', label: 'Approved',
+              date: request.approvedAt,
+              done: ['approved', 'converted'].includes(request.status),
+              icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            },
+            {
+              key: 'converted',
+              label: request.status === 'closed' ? 'Closed' : 'Converted',
+              date: request.convertedAt || request.closedAt,
+              done: request.status === 'converted' || request.status === 'closed',
+              icon: request.status === 'closed'
+                ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12H2l9-9 9 9h-3"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
+            }
+          ].map((st) => {
+            const isCurrent = !st.done && ['new','quote_needed','approved'].includes(request.status) &&
+              (['new'].includes(request.status) && st.key === 'received' ||
+               ['quote_needed'].includes(request.status) && st.key === 'quoted' ||
+               ['approved'].includes(request.status) && st.key === 'approved');
+            let timeDisplay = '';
+            if (st.date) {
+              if (typeof st.date === 'string' && st.date.includes('T')) {
+                timeDisplay = formatTimestampDisplay(st.date);
+              } else {
+                try {
+                  const parsed = parseDateString(st.date);
+                  timeDisplay = parsed ? accraFormatDate(parsed) : '';
+                } catch {}
+              }
+            }
+            return (
+              <i key={st.key} className={`${st.done ? 'done' : ''} ${isCurrent ? 'is-current' : ''}`}>
+                <b>{st.icon}</b>
+                <span className="tracking-stage-label">{st.label}</span>
+                <time>{st.done ? (timeDisplay || 'Completed') : 'Pending'}</time>
+              </i>
+            );
+          })}
+        </div>
+
+        <section className="track-order-details">
+          {(request.occasion || request.service) && (
+            <p><strong>{request.service ? 'Service' : 'Occasion'}:</strong> {request.service || request.occasion}</p>
+          )}
+          {request.preferredDate && (
+            <p><strong>Needed by:</strong> {
+              typeof request.preferredDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(request.preferredDate)
+                ? accraFormatDate(parseDateString(request.preferredDate))
+                : request.preferredDate
+            }</p>
+          )}
+          {request.fulfilment && (
+            <p><strong>Fulfilment:</strong> {request.fulfilment === 'collection' ? 'Collection from shop' : 'Delivery'}</p>
+          )}
+          {request.selections && Array.isArray(request.selections) && request.selections.length > 0 && (
+            <div style={{ marginTop: '4px', marginBottom: '4px' }}>
+              <strong>Selections:</strong>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                {request.selections.map((item, i) => (
+                  <span key={i} style={{ fontSize: '12px', background: 'rgba(26,26,26,0.06)', padding: '3px 10px', borderRadius: '12px' }}>{item}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {(request.quoteTotal && request.status !== 'new') ? (
+            <p><strong>{['approved', 'converted'].includes(request.status) ? 'Confirmed quote' : 'Quote'}:</strong> GHS {Number(request.quoteTotal).toLocaleString()}</p>
+          ) : request.budget ? (
+            <p><strong>Budget:</strong> GHS {request.budget}</p>
+          ) : null}
+          {request.adminNote && (
+            <p><strong>Note from our team:</strong> {request.adminNote}</p>
+          )}
+          {request.status === 'converted' && (
+            <p style={{ color: '#059669', fontWeight: 600, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Your request has been converted to a full order. Track it with your order reference.
+            </p>
+          )}
+        </section>
+      </article>}
       {searched && !result && <div className="track-empty"><p>{isRateLimited ? 'Too many attempts. Please wait a few minutes and try again.' : 'No record matched those details. Check the reference and contact information, then try again.'}</p><a href={`tel:${String(trackingData.settings.supportPhone || '').replace(/[^+\d]/g, '')}`}>Call {trackingData.settings.supportPhone}</a></div>}
     </section>
     <SiteFooter onNavigate={onNavigate} />
