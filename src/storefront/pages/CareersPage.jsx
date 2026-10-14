@@ -6,36 +6,87 @@ import { formIsoDate } from '../utils/date';
 import DateField from '../components/DateField';
 import SiteFooter from '../components/SiteFooter';
 import PhoneInput from '../components/PhoneInput';
-import { fetchCareers, getCachedCareers } from '../data/careers';
+import { fetchCareers, getCachedCareers, DEFAULT_CAREER } from '../data/careers';
+
+// Equality check for career arrays — covers every field that is rendered or used.
+// A change in description, location, employment_type, title, or requirements triggers the update.
+function careersEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((item, i) =>
+    item.id === b[i].id &&
+    item.title === b[i].title &&
+    item.description === b[i].description &&
+    item.location === b[i].location &&
+    item.employment_type === b[i].employment_type &&
+    item.requirements === b[i].requirements
+  );
+}
+
+// In-flight request de-duplication so concurrent calls or StrictMode re-mounts share the same promise.
+let careersInFlight = null;
+function getCareers() {
+  if (!careersInFlight) {
+    careersInFlight = fetchCareers().finally(() => {
+      careersInFlight = null;
+    });
+  }
+  return careersInFlight;
+}
 
 export default function CareersPage({ onNavigate }) {
   const [applicationSent, setApplicationSent] = useState(false);
   const [submissionId] = useState(() => crypto.randomUUID());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  // Seed from cache synchronously so the page renders immediately with no loading flash.
-  // fetchCareers always falls back to DEFAULT_CAREER, so a loading guard is never needed.
-  const initialCareers = getCachedCareers() || [];
-  const [careers, setCareers] = useState(initialCareers);
-  const [selectedCareer, setSelectedCareer] = useState(() => initialCareers[0] || null);
+
+  // --- Synchronous initial state ---
+  // getCachedCareers() is inside the lazy initialiser (runs once, not every render).
+  // If the cache is cold, DEFAULT_CAREER is the fallback, so `career` is ALWAYS
+  // non-null on the very first render — both sections appear in one paint.
+  const [careers, setCareers] = useState(() => getCachedCareers() || [DEFAULT_CAREER]);
+  const [selectedCareer, setSelectedCareer] = useState(() => (getCachedCareers() || [DEFAULT_CAREER])[0]);
+
+  // Controls the 150ms opacity fade if career text updates after fetch.
+  // Initialised to true so the career section is fully visible on the first paint.
+  const [careerVisible, setCareerVisible] = useState(true);
+
   const [resumeName, setResumeName] = useState('');
   const fileInputRef = useRef(null);
-  // Tracks whether the async fetch has settled. Prevents "No open positions"
-  // from flashing on cold-cache first visits before fetchCareers() resolves.
-  const fetchedRef = useRef(initialCareers.length > 0);
+  const isMountedRef = useRef(false);
 
+  // Fetch Supabase data and update in place.
+  // StrictMode-safe: shares the de-duplicated request, and whichever run completes
+  // applies the result as long as the component is mounted.
   useEffect(() => {
-    fetchCareers()
+    isMountedRef.current = true;
+
+    getCareers()
       .then(data => {
-        fetchedRef.current = true;
-        setCareers(data);
-        // Only update selected if user has not yet interacted
-        setSelectedCareer(prev => prev ?? (data.length > 0 ? data[0] : null));
+        if (!isMountedRef.current || !data || data.length === 0) return;
+        setCareers(prev => {
+          if (careersEqual(prev, data)) return prev;
+          // Content differs — fade out, swap, fade back in.
+          setCareerVisible(false);
+          setTimeout(() => {
+            if (!isMountedRef.current) return;
+            setSelectedCareer(cur => {
+              if (!cur) return data[0];
+              const match = data.find(c => c.id === cur.id);
+              return match || data[0];
+            });
+            setCareerVisible(true);
+          }, 150);
+          return data;
+        });
       })
       .catch(err => {
-        fetchedRef.current = true;
-        console.error('Failed to load careers:', err);
+        if (isMountedRef.current) console.error('Failed to load careers:', err);
       });
+
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   const submit = async event => {
@@ -50,16 +101,9 @@ export default function CareersPage({ onNavigate }) {
     finally { setSubmitting(false); }
   };
 
-
-  // Only show "no positions" after fetch confirmed it (not on cold-cache first paint)
-  if (careers.length === 0 && fetchedRef.current) {
-    return <main className="content-page careers-page"><header className="content-page-heading"><span>CAREERS · ACCRA</span><h1>Join our<br />creative team.</h1></header><p style={{ textAlign: 'center', padding: '4rem 2rem', color: '#666' }}>No open positions at this time. Check back soon!</p><SiteFooter onNavigate={onNavigate} /></main>;
-  }
-
-  // career is defined once the cache or fetch has populated it.
-  // On cold-cache first render, career is null until the useEffect resolves —
-  // render the form shell immediately, skip the career-details section.
-  const career = selectedCareer || careers[0] || null;
+  // career is guaranteed non-null because the initial state always falls back
+  // to DEFAULT_CAREER. No skeleton, no loading flag, no conditional section hiding.
+  const career = selectedCareer || careers[0];
   const descriptionLines = career?.description ? career.description.split('\n').filter(line => line.trim()) : [];
 
   return (
@@ -68,31 +112,30 @@ export default function CareersPage({ onNavigate }) {
         <span>CAREERS · {career?.location || 'ACCRA'}</span>
         <h1>Join our<br />creative team.</h1>
       </header>
-      {career && (
-        <section className="career-layout">
-          <div className="career-role">
-            <span>OPEN POSITION</span>
-            <h2>{career.title}</h2>
-            <p>
-              {career.employment_type && <span style={{ fontSize: '0.85rem', color: '#666', marginRight: '1rem' }}>{career.employment_type}</span>}
-              {career.location && <span style={{ fontSize: '0.85rem', color: '#666' }}>{career.location}</span>}
-            </p>
-            <a className="primary-action" href="#application">START APPLICATION</a>
-          </div>
-          <div className="career-details">
-            {descriptionLines.map((line, idx) => {
-              const isHeader = line.startsWith('Key responsibilities:') || line.startsWith('What we are looking for:') || line.startsWith('What we offer:');
-              if (isHeader) {
-                return <article key={idx}><h3>{line.replace(':', '')}</h3></article>;
-              }
-              if (line.startsWith('- ')) {
-                return <li key={idx}>{line.substring(2)}</li>;
-              }
-              return <p key={idx}>{line}</p>;
-            })}
-          </div>
-        </section>
-      )}
+      {/* career-layout is ALWAYS rendered on first paint — no layout shift */}
+      <section className="career-layout" style={{ opacity: careerVisible ? 1 : 0, transition: 'opacity 150ms ease' }}>
+        <div className="career-role">
+          <span>OPEN POSITION</span>
+          <h2>{career.title}</h2>
+          <p>
+            {career.employment_type && <span style={{ fontSize: '0.85rem', color: '#666', marginRight: '1rem' }}>{career.employment_type}</span>}
+            {career.location && <span style={{ fontSize: '0.85rem', color: '#666' }}>{career.location}</span>}
+          </p>
+          <a className="primary-action" href="#application">START APPLICATION</a>
+        </div>
+        <div className="career-details">
+          {descriptionLines.map((line, idx) => {
+            const isHeader = line.startsWith('Key responsibilities:') || line.startsWith('What we are looking for:') || line.startsWith('What we offer:');
+            if (isHeader) {
+              return <article key={idx}><h3>{line.replace(':', '')}</h3></article>;
+            }
+            if (line.startsWith('- ')) {
+              return <li key={idx}>{line.substring(2)}</li>;
+            }
+            return <p key={idx}>{line}</p>;
+          })}
+        </div>
+      </section>
       <section className="application-section" id="application">
         <div>
           <span>APPLICATION</span>
