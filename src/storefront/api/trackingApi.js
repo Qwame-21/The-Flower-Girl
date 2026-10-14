@@ -57,23 +57,58 @@ export async function trackRecord(reference, credential) {
   const contact = credential.trim().toLowerCase();
   const digits = contact.replace(/\D/g, '');
 
-  // If reference looks like a customer request (e.g. RQ-XXXXXX), query track_record RPC first
-  if (ref.startsWith('RQ')) {
-    try {
-      const cleanRef = reference.trim().replace(/\s+/g, '');
-      const rpcRes = await supabase.rpc('track_record', {
-        lookup_reference: cleanRef,
-        lookup_contact: credential.trim(),
-      });
-      if (rpcRes.data) {
-        return { data: rpcRes.data };
+  const cleanRef = reference.trim().replace(/\s+/g, '');
+
+  // 1. PRIMARY & SECURE PATH: Use track_record RPC
+  // Validates credentials inside Postgres without exposing the full orders table
+  try {
+    const rpcRes = await supabase.rpc('track_record', {
+      lookup_reference: cleanRef,
+      lookup_contact: credential.trim(),
+    });
+
+    if (rpcRes.data) {
+      const data = rpcRes.data;
+      if (data.kind === 'order') {
+        const FULFILLMENT_MAP = {
+          preparing: 'packaging',
+          packaging: 'packaging',
+          ready: 'ready',
+          packed: 'ready',
+          dispatched: 'delivery',
+          delivery: 'delivery',
+          delivered: 'completed',
+          completed: 'completed',
+        };
+
+        const rawEvents = data.events || [];
+        const events = rawEvents.map(e => ({
+          stage: FULFILLMENT_MAP[e.stage] || e.stage,
+          note: e.note || e.customer_note || '',
+          createdAt: e.createdAt || e.created_at,
+        }));
+
+        const eventFields = Object.fromEntries(
+          events.flatMap(e => [[`${e.stage}At`, e.createdAt], [`${e.stage}Note`, e.note]])
+        );
+
+        return {
+          data: {
+            ...data,
+            status: FULFILLMENT_MAP[data.status] || data.status || 'packaging',
+            events,
+            ...eventFields,
+          },
+        };
       }
-    } catch (err) {
-      console.warn('[trackRecord] RPC check for request error:', err);
+
+      return { data };
     }
+  } catch (err) {
+    console.warn('[trackRecord] RPC error, attempting fallback:', err);
   }
 
-  // --- First pass: try extended columns on orders ---
+  // 2. FALLBACK PATH (for local/custom queries):
   let orders = null;
   let queryError = null;
   let usingBaseOnly = false;
@@ -93,8 +128,6 @@ export async function trackRecord(reference, credential) {
       firstResult.error.code === 'PGRST204';
 
     if (isColumnMissing) {
-      // --- Fallback: base columns only ---
-      console.warn('[trackRecord] Extended columns not found, falling back to base select:', msg);
       usingBaseOnly = true;
       const fallback = await supabase
         .from('orders')
@@ -103,36 +136,14 @@ export async function trackRecord(reference, credential) {
         .limit(10);
 
       if (fallback.error) {
-        console.error('[trackRecord] Base query also failed:', fallback.error);
         return { data: null, error: fallback.error.message };
       }
       orders = fallback.data;
     } else {
-      // Genuine network / auth / RLS error — surface it
-      console.error('[trackRecord] Lookup failed:', firstResult.error);
       return { data: null, error: firstResult.error.message };
     }
   } else {
     orders = firstResult.data;
-  }
-
-  if (!orders || orders.length === 0 || !orders.some(o => {
-    const email = (o.customer_email || '').toLowerCase();
-    const phone = (o.customer_phone || '').replace(/\D/g, '');
-    return email === contact || (digits.length >= 8 && phone.length >= 8 && phone.slice(-9) === digits.slice(-9));
-  })) {
-    try {
-      const cleanRef = reference.trim().replace(/\s+/g, '');
-      const rpcRes = await supabase.rpc('track_record', {
-        lookup_reference: cleanRef,
-        lookup_contact: credential.trim(),
-      });
-      if (rpcRes.data) {
-        return { data: rpcRes.data };
-      }
-    } catch (err) {
-      console.warn('[trackRecord] RPC fallback error:', err);
-    }
   }
 
   if (!orders || orders.length === 0) {
