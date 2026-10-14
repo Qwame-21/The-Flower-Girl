@@ -373,11 +373,28 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
               </>
             )}
             <div className="checkout-total checkout-total-grand"><span>Total</span><strong>GHS {total.toLocaleString()}</strong></div>
-            <div className="checkout-contact-grid"><label>Customer name<input name="customer" required disabled={submitting} /></label><label>Email for receipt<input name="email" required type="email" disabled={submitting} /></label><PhoneInput required disabled={submitting} /><label><span className="field-label">Recipient name <small>optional</small></span><input name="recipient-name" placeholder="Leave blank if you are receiving it" disabled={submitting} /></label></div>
-            <DeliveryAddressFields disabled={submitting} isCollection={selectedDeliveryType === 'collection'} /><label>Nearest landmark<input name="landmark" disabled={submitting} /></label>
-            <div className="location-field"><label>Google Maps or location link<input type="url" value={locationLink} onChange={event => setLocationLink(event.target.value)} placeholder="https://maps.google.com/..." disabled={submitting} /></label><OutlineActionButton icon={<LocateFixed size={16} strokeWidth={1.6} />} label="USE MY LOCATION" onClick={useCurrentLocation} disabled={submitting} loading={locating} loadingLabel="LOCATING…" />{locationStatus && <small><MapPin size={13} />{locationStatus}</small>}</div>
-            <label>Delivery instructions<textarea name="instructions" rows="2" placeholder="Gate, floor, preferred call time or surprise-delivery note" disabled={submitting} /></label><DateField label="Delivery date" prefix="checkout" />
-            <fieldset className="checkout-card-message"><legend>Gift card message <small>(optional)</small></legend><label>Message for the card<textarea name="cardMessage" rows="3" placeholder="Write the message exactly as it should appear" disabled={submitting} /></label><CardStylePicker disabled={submitting} /></fieldset>
+            <div className="checkout-contact-grid">
+              <label>Customer name<input name="customer" required disabled={submitting} /></label>
+              <label>Email for receipt<input name="email" required type="email" disabled={submitting} /></label>
+              <PhoneInput required disabled={submitting} />
+              <label><span className="field-label">Recipient name <small>optional</small></span><input name="recipient-name" placeholder="Leave blank if you are receiving it" disabled={submitting} /></label>
+            </div>
+            <DeliveryAddressFields disabled={submitting} isCollection={selectedDeliveryType === 'collection'} />
+            <label>Nearest landmark<input name="landmark" disabled={submitting} /></label>
+            <div className="location-field">
+              <label>Google Maps or location link
+                <input type="url" value={locationLink} onChange={event => setLocationLink(event.target.value)} placeholder="https://maps.google.com/..." disabled={submitting} />
+              </label>
+              <OutlineActionButton icon={<LocateFixed size={16} strokeWidth={1.6} />} label="USE MY LOCATION" onClick={useCurrentLocation} disabled={submitting} loading={locating} loadingLabel="LOCATING…" />
+              {locationStatus && <small><MapPin size={13} />{locationStatus}</small>}
+            </div>
+            <label>Delivery instructions<textarea name="instructions" rows="2" placeholder="Gate, floor, preferred call time or surprise-delivery note" disabled={submitting} /></label>
+            <DateField label="Delivery date" prefix="checkout" />
+            <fieldset className="checkout-card-message">
+              <legend>Gift card message <small>(optional)</small></legend>
+              <label>Message for the card<textarea name="cardMessage" rows="3" placeholder="Write the message exactly as it should appear" disabled={submitting} /></label>
+              <CardStylePicker disabled={submitting} />
+            </fieldset>
             {submitError && <small className="checkout-error">{submitError}</small>}
             <button className="primary-action" type="submit" disabled={submitting}>
               {submitting ? <><LoaderCircle size={16} className="spin-icon" /> PROCESSING…</> : <>PLACE ORDER {total > 0 ? `· GHS ${total.toLocaleString()}` : ''}</>}
