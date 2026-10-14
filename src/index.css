@@ -5539,34 +5539,6 @@ a {
   gap: 1.25rem;
 }
 
-.checkout-modal textarea {
-  width: 100%;
-  min-height: 84px;
-  padding: 0.75rem 0.85rem;
-  border: 1px solid rgba(17, 17, 17, 0.22);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.35);
-  color: #111;
-  font-family: var(--font-main);
-  font-size: 0.95rem;
-  line-height: 1.45;
-  box-sizing: border-box;
-  resize: vertical;
-  transition: border-color 0.18s ease, background-color 0.18s ease;
-}
-
-.checkout-modal textarea:focus {
-  outline: none;
-  border-color: #111;
-  background: rgba(255, 255, 255, 0.6);
-}
-
-.checkout-modal textarea::placeholder {
-  color: #888;
-  font-size: 0.85rem;
-  opacity: 0.85;
-}
-
 
 .information-page .published-policy {
   display: grid;
