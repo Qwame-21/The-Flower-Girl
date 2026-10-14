@@ -94,7 +94,7 @@ function SiteApp() {
       if (window.matchMedia('(max-width: 760px)').matches) window.scrollTo({ top: 0, behavior: 'instant' });
       else document.querySelector('.home-scroll, .content-page')?.scrollTo({ top: 0, behavior: 'instant' });
     });
-  }, [activeTab]);
+  }, [activeTab, checkoutRequested, wishlistRequested]);
 
   useEffect(() => {
     let scrollNode;
@@ -125,7 +125,7 @@ function SiteApp() {
       if (mobile) window.removeEventListener('resize', updateIndicator);
       resizeObserver?.disconnect();
     };
-  }, [activeTab]);
+  }, [activeTab, checkoutRequested, wishlistRequested]);
 
   useEffect(() => { window.localStorage.setItem('gifting-factory-cart', JSON.stringify(cart)); }, [cart]);
   useEffect(() => { window.localStorage.setItem('gifting-factory-wishlist', JSON.stringify(wishlist)); }, [wishlist]);
