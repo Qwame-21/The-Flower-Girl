@@ -86,13 +86,13 @@ export default function Navigation({ activeTab, setActiveTab, onOpenDrawer, onOp
           <button onClick={onOpenSearch} style={styles.searchButton} aria-label="Search" className="hover-lift">
             <Search size={18} color="#111111" strokeWidth={2.2} />
           </button>
-          <button className="nav-order" onClick={onOpenWishlist} aria-label={`${wishlistCount} saved gifts. Open wishlist`}>
+          <button className={`nav-order ${wishlistCount > 0 ? 'has-items' : ''}`} onClick={onOpenWishlist} aria-label={wishlistCount > 0 ? `${wishlistCount} saved gifts. Open wishlist` : 'Open wishlist'}>
             <Heart size={18} strokeWidth={1.9} />
-            {wishlistCount > 0 && <span aria-hidden="true">{wishlistCount}</span>}
+            {wishlistCount > 0 ? <span aria-hidden="true">{wishlistCount > 99 ? '99+' : wishlistCount}</span> : null}
           </button>
-          <button className={`nav-order ${cartCount ? 'has-items' : ''}`} onClick={onOpenCheckout} aria-label={`${cartCount} items in cart. Open checkout`}>
+          <button className={`nav-order ${cartCount > 0 ? 'has-items' : ''}`} onClick={onOpenCheckout} aria-label={cartCount > 0 ? `${cartCount} items in cart. Open checkout` : 'Open cart'}>
             <ShoppingBag size={18} strokeWidth={1.9} />
-            {cartCount > 0 && <span aria-hidden="true">{cartCount}</span>}
+            {cartCount > 0 ? <span aria-hidden="true">{cartCount > 99 ? '99+' : cartCount}</span> : null}
           </button>
         </div>
       </nav>
@@ -102,13 +102,13 @@ export default function Navigation({ activeTab, setActiveTab, onOpenDrawer, onOp
         <button onClick={onOpenSearch} style={styles.searchButton} aria-label="Search" className="hover-lift">
           <Search size={18} color="#111111" strokeWidth={2.2} />
         </button>
-        <button className="nav-order" onClick={onOpenWishlist} aria-label={`${wishlistCount} saved gifts. Open wishlist`}>
+        <button className={`nav-order ${wishlistCount > 0 ? 'has-items' : ''}`} onClick={onOpenWishlist} aria-label={wishlistCount > 0 ? `${wishlistCount} saved gifts. Open wishlist` : 'Open wishlist'}>
           <Heart size={18} strokeWidth={1.9} />
-          {wishlistCount > 0 && <span aria-hidden="true">{wishlistCount}</span>}
+          {wishlistCount > 0 ? <span aria-hidden="true">{wishlistCount > 99 ? '99+' : wishlistCount}</span> : null}
         </button>
-        <button className={`nav-order ${cartCount ? 'has-items' : ''}`} onClick={onOpenCheckout} aria-label={`${cartCount} items in cart. Open checkout`}>
+        <button className={`nav-order ${cartCount > 0 ? 'has-items' : ''}`} onClick={onOpenCheckout} aria-label={cartCount > 0 ? `${cartCount} items in cart. Open checkout` : 'Open cart'}>
           <ShoppingBag size={18} strokeWidth={1.9} />
-          {cartCount > 0 && <span aria-hidden="true">{cartCount}</span>}
+          {cartCount > 0 ? <span aria-hidden="true">{cartCount > 99 ? '99+' : cartCount}</span> : null}
         </button>
       </div>
 
