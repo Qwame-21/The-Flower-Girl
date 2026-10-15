@@ -21,6 +21,11 @@ const SVG = {
   trash: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
 };
 
+const formatCompactGHS = (amount) => {
+  const value = Number(amount);
+  return `GHS ${(Number.isFinite(value) ? Math.round(value) : 0).toLocaleString('en-US')}`;
+};
+
 // Spline helper
 function getCatmullRomSplinePath(pts) {
   if (!pts || pts.length === 0) return '';
@@ -294,6 +299,7 @@ function TrendChart({ series, mode }) {
           return (
             <text
               key={idx}
+              className="trend-x-axis-label"
               x={p.x.toFixed(1)}
               y={(height - 10).toFixed(1)}
               fontSize="11"
@@ -394,6 +400,7 @@ function TrendChart({ series, mode }) {
             opacity: 1,
             left: `${Math.min(Math.max(activePt.x - 70, 4), width - 144)}px`,
             top: `${Math.max(activePt.y - 60, 4)}px`,
+            '--chart-x': `${(activePt.x / width) * 100}%`,
             pointerEvents: 'none',
             zIndex: 10,
             background: '#ffffff',
@@ -696,7 +703,9 @@ export default function OverviewPage() {
             <div className="metric-icon-square">{SVG.dollar}</div>
           </div>
           <div className="metric-label">Total Revenue</div>
-          <div className="metric-value">{loading ? '—' : formatGHS(combinedStats.totalRevenue)}</div>
+          <div className="metric-value">
+            {loading ? '—' : <><span className="overview-value-full">{formatGHS(combinedStats.totalRevenue)}</span><span className="overview-value-compact">{formatCompactGHS(combinedStats.totalRevenue)}</span></>}
+          </div>
           <div className="metric-divider"></div>
           <div className="metric-comparison">
             <span className="comparison-label">vs prev period</span>
@@ -742,7 +751,9 @@ export default function OverviewPage() {
             <div className="metric-icon-square">{SVG.check}</div>
           </div>
           <div className="metric-label">Avg Order Value</div>
-          <div className="metric-value">{loading ? '—' : formatGHS(combinedStats.avgOrderValue)}</div>
+          <div className="metric-value">
+            {loading ? '—' : <><span className="overview-value-full">{formatGHS(combinedStats.avgOrderValue)}</span><span className="overview-value-compact">{formatCompactGHS(combinedStats.avgOrderValue)}</span></>}
+          </div>
           <div className="metric-divider"></div>
           <div className="metric-comparison">
             <span className="comparison-label">vs prev period</span>
@@ -859,7 +870,10 @@ export default function OverviewPage() {
               </div>
             </div>
           </div>
-          <div className="revenue-amount">{formatGHS(combinedStats.totalRevenue)}</div>
+          <div className="revenue-amount">
+            <span className="overview-value-full">{formatGHS(combinedStats.totalRevenue)}</span>
+            <span className="overview-value-compact">{formatCompactGHS(combinedStats.totalRevenue)}</span>
+          </div>
           <div className="segmented-legend" style={{ marginTop: '16px' }}>
             {Object.keys(combinedStats.categoryRevenue || {}).map(catKey => {
               const val = combinedStats.categoryRevenue[catKey];
@@ -871,7 +885,10 @@ export default function OverviewPage() {
                     <span className="legend-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--chart-good, #5E9470)' }}></span>
                     <span className="legend-label" style={{ fontSize: '13px', fontWeight: 500 }}>{catName}</span>
                   </div>
-                  <span className="legend-value" style={{ fontSize: '13px', fontWeight: 600 }}>{formatGHS(val)} ({pct}%)</span>
+                  <span className="legend-value" style={{ fontSize: '13px', fontWeight: 600 }}>
+                    <span className="overview-value-full">{formatGHS(val)}</span>
+                    <span className="overview-value-compact">{formatCompactGHS(val)}</span> ({pct}%)
+                  </span>
                 </div>
               );
             })}
@@ -899,7 +916,10 @@ export default function OverviewPage() {
                     <div className="product-rank" style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: '14px' }}>#{idx + 1}</div>
                     <div>
                       <div className="product-name" style={{ fontWeight: 600, fontSize: '14px' }}>{p.name}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{formatGHS(p.revenue)}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                        <span className="overview-value-full">{formatGHS(p.revenue)}</span>
+                        <span className="overview-value-compact">{formatCompactGHS(p.revenue)}</span>
+                      </div>
                     </div>
                   </div>
                   <div className="product-metric" style={{ textAlign: 'right' }}>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { fetchRequests, getCachedData, subscribeToCache } from '../../data/dataCache';
 import { getAppSettings } from '../../data/settingsAdapter';
+import { useDashboard } from '../../contexts/DashboardContext';
 import { supabase } from '../../../config/supabase';
 
 export default function Sidebar({
@@ -13,6 +14,7 @@ export default function Sidebar({
   isMobileOpen,
   onCloseMobile
 }) {
+  const { onSignOut } = useDashboard();
   const sideNavClass = `side-navigation ${
     isLocked || isHovered ? 'expanded' : 'collapsed'
   } ${isMobileOpen ? 'mobile-open' : ''}`;
@@ -112,6 +114,16 @@ export default function Sidebar({
           </button>
 
           <h2 className="menu-header-title">Menu</h2>
+          <button
+            type="button"
+            className="mobile-drawer-close"
+            aria-label="Close navigation menu"
+            onClick={onCloseMobile}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Menu Scroll Body (12 Approved Pages in 3 Groups) */}
@@ -377,7 +389,7 @@ export default function Sidebar({
             {/* 14. Settings */}
             <NavLink
               to="/settings"
-              className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+              className={({ isActive }) => `menu-item desktop-settings-item ${isActive ? 'active' : ''}`}
               data-page="Settings"
               onClick={onCloseMobile}
             >
@@ -390,6 +402,38 @@ export default function Sidebar({
               <span className="menu-item-label">Settings</span>
             </NavLink>
           </div>
+        </div>
+
+        <div className="mobile-drawer-footer">
+          <NavLink
+            to="/settings"
+            className={({ isActive }) => `menu-item mobile-settings-item ${isActive ? 'active' : ''}`}
+            onClick={onCloseMobile}
+          >
+            <div className="menu-item-icon-wrapper">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </div>
+            <span className="menu-item-label">Settings</span>
+          </NavLink>
+          <button
+            type="button"
+            className="menu-item mobile-sign-out"
+            onClick={() => {
+              onCloseMobile();
+              if (onSignOut) onSignOut();
+            }}
+          >
+            <div className="menu-item-icon-wrapper">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <path d="M16 17l5-5-5-5M21 12H9" />
+              </svg>
+            </div>
+            <span className="menu-item-label">Sign out</span>
+          </button>
         </div>
       </div>
     </aside>

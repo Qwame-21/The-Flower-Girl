@@ -30,19 +30,35 @@ export default function Layout() {
   useEffect(() => {
     if (!isMobileOpen || !window.matchMedia('(max-width: 767px)').matches) return undefined;
 
-    const bodyOverflow = document.body.style.overflow;
-    const rootOverflow = document.documentElement.style.overflow;
-    const contentBody = document.getElementById('extendableContentBody');
-    const contentOverflow = contentBody?.style.overflowY;
-
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    if (contentBody) contentBody.style.overflowY = 'hidden';
+    const scrollY = window.scrollY;
+    const bodyStyles = {
+      position: document.body.style.position,
+      top: document.body.style.top,
+      left: document.body.style.left,
+      right: document.body.style.right,
+      width: document.body.style.width
+    };
+    const bodyOverflow = {
+      value: document.body.style.getPropertyValue('overflow'),
+      priority: document.body.style.getPropertyPriority('overflow')
+    };
+    const rootOverflow = {
+      value: document.documentElement.style.getPropertyValue('overflow'),
+      priority: document.documentElement.style.getPropertyPriority('overflow')
+    };
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+    document.body.style.setProperty('overflow', 'hidden', 'important');
+    document.documentElement.style.setProperty('overflow', 'hidden', 'important');
 
     return () => {
-      document.body.style.overflow = bodyOverflow;
-      document.documentElement.style.overflow = rootOverflow;
-      if (contentBody) contentBody.style.overflowY = contentOverflow || '';
+      Object.assign(document.body.style, bodyStyles);
+      document.body.style.setProperty('overflow', bodyOverflow.value, bodyOverflow.priority);
+      document.documentElement.style.setProperty('overflow', rootOverflow.value, rootOverflow.priority);
+      window.scrollTo(0, scrollY);
     };
   }, [isMobileOpen]);
 
