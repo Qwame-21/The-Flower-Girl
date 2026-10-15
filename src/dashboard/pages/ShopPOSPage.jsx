@@ -530,8 +530,17 @@ export default function ShopPOSPage() {
       <div
         className={`shop-cart-indicator ${cartItemCount > 0 ? 'shop-has-items' : ''}`}
         id="shopCartIndicator"
+        role="button"
+        tabIndex={cartItemCount > 0 ? 0 : -1}
+        aria-label={`Open current order, ${cartItemCount} items, total GHS ${Math.round(cartSubtotal)}`}
         style={{ display: cartItemCount > 0 ? 'flex' : 'none' }}
         onClick={() => setIsShopDrawerOpen(true)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsShopDrawerOpen(true);
+          }
+        }}
       >
         <div className="shop-cart-info">
           <span className="shop-cart-count">{cartItemCount} items</span>

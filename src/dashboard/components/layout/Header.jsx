@@ -685,7 +685,7 @@ export default function Header({ onToggleMobile }) {
 
   return (
     <>
-    <div className="top-title-bar">
+    <div className={`top-title-bar${isNotifOpen ? ' notifications-open' : ''}`}>
       <div className="title-bar-left">
         <button
           className="icon-btn mobile-menu-btn"
@@ -757,6 +757,18 @@ export default function Header({ onToggleMobile }) {
               <div className="dropdown-header">
                 <span className="meta-label">NOTIFICATIONS</span>
                 <div className="dropdown-header-actions">
+                  <button
+                    type="button"
+                    className="notif-close-btn"
+                    aria-label="Close notifications"
+                    style={{ display: 'none' }}
+                    onClick={() => setIsNotifOpen(false)}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
                   {/* Mute toggle */}
                   <button
                     className={`mute-toggle-btn ${isMuted ? 'muted' : ''} ${isExpanding ? 'expanding-capsule' : ''}`}

@@ -446,7 +446,7 @@ export default function CustomizationPage() {
           <input type="text" placeholder="Search options..." value={search} onChange={e => setSearch(e.target.value)}
             style={{ width: "100%", padding: "8px 12px 8px 32px", borderRadius: "10px", border: "1px solid rgba(26,26,26,0.12)", fontSize: "13px", background: "rgba(255,255,255,0.8)", outline: "none", boxSizing: "border-box", fontFamily: "var(--font-family-base)" }} />
         </div>
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+        <div className="customization-category-filters" style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
           {[ { id: "all", name: "All", count: categories.reduce((sum, c) => sum + c.options.length, 0) }, ...categories.map(c => ({ id: c.id, name: c.name, count: c.options.length, visible: c.visible })) ].map(item => (
             <button key={item.id} type="button" onClick={() => setFilterCat(item.id)}
               style={{ padding: "6px 12px", borderRadius: "9999px", fontSize: "11px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer", border: "1px solid", background: filterCat === item.id ? "#1a1a1a" : "transparent", color: filterCat === item.id ? "#fff" : "var(--text-muted)", borderColor: filterCat === item.id ? "#1a1a1a" : "rgba(26,26,26,0.15)", transition: "all var(--dur-fast) var(--ease)", opacity: item.visible === false ? 0.55 : 1 }}>
@@ -494,7 +494,7 @@ export default function CustomizationPage() {
               {cat.options.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "20px", color: "var(--text-muted)", fontSize: "13px", fontStyle: "italic" }}>No options yet. Click + Add Option above.</div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px" }}>
+                <div className="customization-options-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px" }}>
                   {cat.options.map(opt => (
                     <div key={opt.id} style={{ background: opt.visible ? "#fff" : "rgba(26,26,26,0.03)", border: "1px solid rgba(26,26,26,0.08)", borderRadius: "10px", padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", opacity: opt.visible ? 1 : 0.6, transition: "opacity var(--dur-fast) var(--ease)" }}>
                       <div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import ToastContainer from '../ToastContainer';
@@ -7,9 +7,12 @@ import { useIdleTimer } from '../../lib/idle';
 import AdminErrorBoundary from '../ErrorBoundary';
 
 export default function Layout() {
+  const location = useLocation();
   const [isLocked, setIsLocked] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [mobileDrawer, setMobileDrawer] = useState({ open: false, pathname: location.pathname });
+  const isMobileOpen = mobileDrawer.open && mobileDrawer.pathname === location.pathname;
+  const closeMobileDrawer = () => setMobileDrawer({ open: false, pathname: location.pathname });
   const { warningShown, secondsLeft, resetActivity } = useIdleTimer();
 
   // Close mobile drawer on Escape key press
@@ -17,11 +20,30 @@ export default function Layout() {
     if (!isMobileOpen) return;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        setIsMobileOpen(false);
+        setMobileDrawer({ open: false, pathname: location.pathname });
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMobileOpen, location.pathname]);
+
+  useEffect(() => {
+    if (!isMobileOpen || !window.matchMedia('(max-width: 767px)').matches) return undefined;
+
+    const bodyOverflow = document.body.style.overflow;
+    const rootOverflow = document.documentElement.style.overflow;
+    const contentBody = document.getElementById('extendableContentBody');
+    const contentOverflow = contentBody?.style.overflowY;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    if (contentBody) contentBody.style.overflowY = 'hidden';
+
+    return () => {
+      document.body.style.overflow = bodyOverflow;
+      document.documentElement.style.overflow = rootOverflow;
+      if (contentBody) contentBody.style.overflowY = contentOverflow || '';
+    };
   }, [isMobileOpen]);
 
   return (
@@ -74,7 +96,7 @@ export default function Layout() {
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
           isMobileOpen={isMobileOpen}
-          onCloseMobile={() => setIsMobileOpen(false)}
+          onCloseMobile={closeMobileDrawer}
         />
 
         {/* Mobile Backdrop Overlay */}
@@ -86,7 +108,7 @@ export default function Layout() {
 
         {/* Main Admin Content Area with Horizontal Top Title Bar */}
         <section className="admin-main-canvas" id="adminCanvas">
-          <Header onToggleMobile={() => setIsMobileOpen((prev) => !prev)} />
+          <Header onToggleMobile={() => setMobileDrawer({ open: !isMobileOpen, pathname: location.pathname })} />
 
           {/* Full-Width Extendable Content Body (Scroll Container) */}
           <div className="extendable-content-body" id="extendableContentBody">
