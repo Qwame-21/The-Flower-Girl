@@ -103,7 +103,7 @@ export default function Layout() {
         <div
           className={`mobile-nav-backdrop ${isMobileOpen ? 'active' : ''}`}
           id="mobileBackdrop"
-          onClick={() => setIsMobileOpen(false)}
+          onClick={closeMobileDrawer}
         />
 
         {/* Main Admin Content Area with Horizontal Top Title Bar */}
