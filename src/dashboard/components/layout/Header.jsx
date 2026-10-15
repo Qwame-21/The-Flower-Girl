@@ -107,21 +107,20 @@ function formatLogDateTime(isoString) {
   }).format(d);
 }
 
-function getAccraDateText() {
+function getAccraDateTimeText(separator = '•') {
   const now = new Date();
-  const dtf = new Intl.DateTimeFormat('en-GB', {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Africa/Accra',
     weekday: 'short',
     day: 'numeric',
     month: 'short',
-    year: 'numeric'
-  });
-  const parts = Object.fromEntries(dtf.formatToParts(now).map(p => [p.type, p.value]));
-  const weekday = (parts.weekday || '').toUpperCase();
-  const day = parts.day;
-  const month = (parts.month || '').toUpperCase();
-  const year = parts.year;
-  return `${weekday}, ${day} ${month} ${year}`;
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(now).map(part => [part.type, part.value]));
+
+  return `${(parts.weekday || '').toUpperCase()}, ${parts.day} ${(parts.month || '').toUpperCase()} ${parts.year} ${separator} ${parts.hour}:${parts.minute} GMT`;
 }
 
 function LiveAccraClock() {
@@ -141,19 +140,19 @@ function LiveAccraClock() {
   );
 }
 
-function LiveMobileDateChip() {
+function LiveMobileDateChip({ separator }) {
   const ref = useRef(null);
   useEffect(() => {
     function update() {
-      if (ref.current) ref.current.textContent = getAccraDateText();
+      if (ref.current) ref.current.textContent = getAccraDateTimeText(separator);
     }
     update();
     const timer = setInterval(update, 60000);
     return () => clearInterval(timer);
-  }, []);
+  }, [separator]);
   return (
     <span ref={ref}>
-      {getAccraDateText()}
+      {getAccraDateTimeText(separator)}
     </span>
   );
 }
@@ -161,6 +160,7 @@ function LiveMobileDateChip() {
 export default function Header({ onToggleMobile }) {
   const location = useLocation();
   const activeTitle = ROUTE_TITLE_MAP[location.pathname] || 'OVERVIEW';
+  const usesReferenceMobileHeader = ['/log', '/customization', '/insights'].includes(location.pathname);
   const { onSignOut } = useDashboard();
 
   // Notification state
@@ -685,7 +685,7 @@ export default function Header({ onToggleMobile }) {
 
   return (
     <>
-    <div className={`top-title-bar${isNotifOpen ? ' notifications-open' : ''}`}>
+    <div className={`top-title-bar${isNotifOpen ? ' notifications-open' : ''}${usesReferenceMobileHeader ? ' reference-mobile-header' : ''}`}>
       <div className="title-bar-left">
         <button
           className="icon-btn mobile-menu-btn"
@@ -980,8 +980,8 @@ export default function Header({ onToggleMobile }) {
     </div>
 
     {/* Floating Translucent Date Chip (Mobile <768px only) */}
-    <div className="mobile-floating-date-chip" id="mobileFloatingDateChip" aria-hidden="true">
-      <LiveMobileDateChip />
+    <div className={`mobile-floating-date-chip${usesReferenceMobileHeader ? ' reference-mobile-date-chip' : ''}`} id="mobileFloatingDateChip" aria-hidden="true">
+      <LiveMobileDateChip separator={usesReferenceMobileHeader ? '·' : '•'} />
     </div>
 
     {/* Admin Profile Side Drawer */}

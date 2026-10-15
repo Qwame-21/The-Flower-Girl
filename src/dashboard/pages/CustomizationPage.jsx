@@ -115,6 +115,7 @@ export default function CustomizationPage() {
   const [errorDetails, setErrorDetails] = useState(null);
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("all");
+  const [expandedCategoryId, setExpandedCategoryId] = useState(null);
   const [drawer, setDrawer] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [formData, setFormData] = useState({});
@@ -181,6 +182,7 @@ export default function CustomizationPage() {
         });
         const loaded = catOrder.map(k => catMap[k]);
         setCategories(loaded);
+        setExpandedCategoryId(loaded[0]?.id ?? null);
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded)); } catch {}
       }
       setLoadState("ready");
@@ -426,13 +428,13 @@ export default function CustomizationPage() {
   const btnHoverDanger = (e, on) => { e.currentTarget.style.background = on ? "rgba(225,29,72,0.06)" : "transparent"; };
 
   return (
-    <div className="page-container">
-      <div className="page-header-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
+    <div className="page-container customization-mobile-page">
+      <div className="page-header-row customization-page-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
         <div className="page-title-group">
           <h2>Customization</h2>
           <p>Manage gift builder categories and options. Changes appear on the storefront immediately.</p>
         </div>
-        <button type="button" onClick={openNewCategory}
+        <button className="customization-new-category" type="button" onClick={openNewCategory}
           style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", borderRadius: "10px", border: "none", background: "#1a1a1a", color: "#fff", fontSize: "12px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer", flexShrink: 0, transition: "opacity var(--dur-fast) var(--ease)" }}
           onMouseEnter={e => { e.currentTarget.style.opacity = "0.82"; }} onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -440,15 +442,15 @@ export default function CustomizationPage() {
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", marginBottom: "20px" }}>
-        <div style={{ position: "relative", flex: "1", minWidth: "200px", maxWidth: "320px" }}>
+      <div className="customization-mobile-toolbar" style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", marginBottom: "20px" }}>
+        <div className="customization-search" style={{ position: "relative", flex: "1", minWidth: "200px", maxWidth: "320px" }}>
           <svg style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-          <input type="text" placeholder="Search options..." value={search} onChange={e => setSearch(e.target.value)}
+          <input className="customization-search-input" type="text" placeholder="Search options..." value={search} onChange={e => setSearch(e.target.value)}
             style={{ width: "100%", padding: "8px 12px 8px 32px", borderRadius: "10px", border: "1px solid rgba(26,26,26,0.12)", fontSize: "13px", background: "rgba(255,255,255,0.8)", outline: "none", boxSizing: "border-box", fontFamily: "var(--font-family-base)" }} />
         </div>
         <div className="customization-category-filters" style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
           {[ { id: "all", name: "All", count: categories.reduce((sum, c) => sum + c.options.length, 0) }, ...categories.map(c => ({ id: c.id, name: c.name, count: c.options.length, visible: c.visible })) ].map(item => (
-            <button key={item.id} type="button" onClick={() => setFilterCat(item.id)}
+            <button key={item.id} type="button" className={`customization-filter-chip${filterCat === item.id ? " selected" : ""}`} onClick={() => { setFilterCat(item.id); if (item.id !== "all") setExpandedCategoryId(item.id); }}
               style={{ padding: "6px 12px", borderRadius: "9999px", fontSize: "11px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer", border: "1px solid", background: filterCat === item.id ? "#1a1a1a" : "transparent", color: filterCat === item.id ? "#fff" : "var(--text-muted)", borderColor: filterCat === item.id ? "#1a1a1a" : "rgba(26,26,26,0.15)", transition: "all var(--dur-fast) var(--ease)", opacity: item.visible === false ? 0.55 : 1 }}>
               {item.name} ({item.count})
             </button>
@@ -466,21 +468,31 @@ export default function CustomizationPage() {
       )}
 
       {loadState === "ready" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div className="customization-category-list" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {visibleCats.length === 0 && (
             <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-muted)", fontSize: "14px" }}>
               {q ? "No options match your search." : "No categories found in database. Click New Category to get started."}
             </div>
           )}
           {visibleCats.map(cat => (
-            <div key={cat.id} style={{ background: "#f7f6f4", borderRadius: "16px", padding: "20px", border: "1px solid rgba(26,26,26,0.06)", opacity: cat.visible ? 1 : 0.7, transition: "opacity var(--dur-fast) var(--ease)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700 }}>{cat.name}</h3>
-                  <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)", background: "rgba(26,26,26,0.06)", padding: "2px 8px", borderRadius: "9999px" }}>{cat.options.length} option{cat.options.length !== 1 ? "s" : ""}</span>
+            <div key={cat.id} className="customization-category" data-expanded={expandedCategoryId === cat.id} style={{ background: "#f7f6f4", borderRadius: "16px", padding: "20px", border: "1px solid rgba(26,26,26,0.06)", opacity: cat.visible ? 1 : 0.7, transition: "opacity var(--dur-fast) var(--ease)" }}>
+              <div className="customization-category-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
+                <div className="customization-category-desktop-heading" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <h3 className="customization-category-name" style={{ margin: 0, fontSize: "15px", fontWeight: 700 }}>{cat.name}</h3>
+                  <span className="customization-category-count" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)", background: "rgba(26,26,26,0.06)", padding: "2px 8px", borderRadius: "9999px" }}>{cat.options.length} option{cat.options.length !== 1 ? "s" : ""}</span>
                   {!cat.visible && <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#c9612e", background: "rgba(201,97,46,0.08)", padding: "2px 8px", borderRadius: "9999px" }}>Hidden</span>}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <button type="button" className="customization-category-heading" aria-expanded={expandedCategoryId === cat.id} onClick={() => setExpandedCategoryId(expandedCategoryId === cat.id ? null : cat.id)} style={{ alignItems: "center", gap: "10px", padding: 0, border: 0, background: "transparent", color: "inherit", font: "inherit", textAlign: "left", cursor: "pointer" }}>
+                  <span className="customization-category-name" role="heading" aria-level="3" style={{ margin: 0, fontSize: "15px", fontWeight: 700 }}>{cat.name}</span>
+                  <span className="customization-category-count" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)", background: "rgba(26,26,26,0.06)", padding: "2px 8px", borderRadius: "9999px" }}>{cat.options.length} option{cat.options.length !== 1 ? "s" : ""}</span>
+                </button>
+                <div className="customization-collapsed-actions">
+                  <ToggleSwitch id={"cat-mobile-vis-" + cat.id} checked={cat.visible} onChange={() => toggleCategoryVisible(cat.id)} label={`${cat.name} visibility`} />
+                  <button type="button" aria-label={`${expandedCategoryId === cat.id ? "Collapse" : "Expand"} ${cat.name}`} aria-expanded={expandedCategoryId === cat.id} onClick={() => setExpandedCategoryId(expandedCategoryId === cat.id ? null : cat.id)} className="customization-category-chevron">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                  </button>
+                </div>
+                <div className="customization-category-actions" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <ToggleSwitch id={"cat-vis-" + cat.id} checked={cat.visible} onChange={() => toggleCategoryVisible(cat.id)} label={cat.visible ? "Visible" : "Hidden"} />
                   <button type="button" onClick={() => openNewOption(cat.id)} style={{ padding: "6px 12px", borderRadius: "8px", border: "1px solid rgba(26,26,26,0.15)", background: "transparent", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "#1a1a1a", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHover(e, true)} onMouseLeave={e => btnHover(e, false)}>+ Add Option</button>
                   <button type="button" onClick={() => openEditCategory(cat)} title="Edit category" style={{ padding: "6px", borderRadius: "8px", border: "none", background: "transparent", cursor: "pointer", color: "var(--text-muted)", display: "flex", alignItems: "center", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHover(e, true)} onMouseLeave={e => btnHover(e, false)}>
@@ -491,12 +503,13 @@ export default function CustomizationPage() {
                   </button>
                 </div>
               </div>
+              <div className="customization-category-content">
               {cat.options.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "20px", color: "var(--text-muted)", fontSize: "13px", fontStyle: "italic" }}>No options yet. Click + Add Option above.</div>
               ) : (
                 <div className="customization-options-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px" }}>
                   {cat.options.map(opt => (
-                    <div key={opt.id} style={{ background: opt.visible ? "#fff" : "rgba(26,26,26,0.03)", border: "1px solid rgba(26,26,26,0.08)", borderRadius: "10px", padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", opacity: opt.visible ? 1 : 0.6, transition: "opacity var(--dur-fast) var(--ease)" }}>
+                    <div key={opt.id} className="customization-option-row" style={{ background: opt.visible ? "#fff" : "rgba(26,26,26,0.03)", border: "1px solid rgba(26,26,26,0.08)", borderRadius: "10px", padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", opacity: opt.visible ? 1 : 0.6, transition: "opacity var(--dur-fast) var(--ease)" }}>
                       <div>
                         <div style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a" }}>{opt.name}</div>
                         <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>+ GHS {Number(opt.price).toLocaleString()}</div>
@@ -519,6 +532,7 @@ export default function CustomizationPage() {
                   ))}
                 </div>
               )}
+              </div>
             </div>
           ))}
         </div>

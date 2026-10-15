@@ -367,14 +367,14 @@ export default function InsightsPage() {
   };
 
   return (
-    <div className="page-container" style={{ padding: '24px 32px' }}>
-      <div className="page-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+    <div className="page-container insights-mobile-page" style={{ padding: '24px 32px' }}>
+      <div className="page-header-row insights-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div className="page-title-group">
-          <h2 style={{ fontSize: '20px', fontWeight: 600, margin: '0 0 4px 0' }}>Business Insights & Analytics</h2>
+          <h2 style={{ fontSize: '20px', fontWeight: 600, margin: '0 0 4px 0' }}><span className="insights-desktop-title">Business Insights &amp; Analytics</span><span className="insights-mobile-title">Insights</span></h2>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Real-time sales performance, revenue breakdown, and customer analytics.</p>
         </div>
         <div className="header-actions">
-          <button className="xp-pill" onClick={handleExportCSV} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <button className="xp-pill insights-export-button" onClick={handleExportCSV} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="7 10 12 15 17 10" />
@@ -386,11 +386,11 @@ export default function InsightsPage() {
       </div>
 
       {/* Date Range Filter Pills */}
-      <div className="xp-chips" style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
-        <button type="button" className={`xp-chip ${dateRange === 'week' ? 'xp-on' : ''}`} onClick={() => setDateRange('week')}>This week</button>
-        <button type="button" className={`xp-chip ${dateRange === 'month' ? 'xp-on' : ''}`} onClick={() => setDateRange('month')}>This month</button>
-        <button type="button" className={`xp-chip ${dateRange === '30days' ? 'xp-on' : ''}`} onClick={() => setDateRange('30days')}>Last 30 days</button>
-        <button type="button" className={`xp-chip ${dateRange === 'all' ? 'xp-on' : ''}`} onClick={() => setDateRange('all')}>All time</button>
+      <div className="xp-chips insights-period-tabs mobile-underline-tabs" style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
+        <button type="button" className={`xp-chip mobile-underline-tab ${dateRange === 'week' ? 'xp-on active' : ''}`} onClick={() => setDateRange('week')}>This week</button>
+        <button type="button" className={`xp-chip mobile-underline-tab ${dateRange === 'month' ? 'xp-on active' : ''}`} onClick={() => setDateRange('month')}>This month</button>
+        <button type="button" className={`xp-chip mobile-underline-tab ${dateRange === '30days' ? 'xp-on active' : ''}`} onClick={() => setDateRange('30days')}>Last 30 days</button>
+        <button type="button" className={`xp-chip mobile-underline-tab ${dateRange === 'all' ? 'xp-on active' : ''}`} onClick={() => setDateRange('all')}>All time</button>
       </div>
 
       {/* 4 Summary KPI Cards */}
@@ -432,29 +432,31 @@ export default function InsightsPage() {
 
       <div className="insights-grid-2col" style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
         {/* Revenue/Orders Chart */}
-        <div className="chart-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(26,26,26,0.08)' }}>
+        <div className="chart-card insights-trend-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(26,26,26,0.08)' }}>
           <div className="chart-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <span className="meta-label">{chartMode === 'revenue' ? 'REVENUE' : 'ORDERS'} TREND</span>
-            <div style={{ display: 'flex', gap: '4px' }}>
-              <button className={`xp-chip ${chartMode === 'revenue' ? 'xp-on' : ''}`} onClick={() => setChartMode('revenue')}>Revenue</button>
-              <button className={`xp-chip ${chartMode === 'orders' ? 'xp-on' : ''}`} onClick={() => setChartMode('orders')}>Orders</button>
+            <span className="meta-label insights-desktop-section-label">{chartMode === 'revenue' ? 'REVENUE' : 'ORDERS'} TREND</span>
+            <span className="insights-section-heading insights-mobile-section-label">{chartMode === 'revenue' ? 'Revenue trend' : 'Orders trend'}</span>
+            <div className="insights-chart-tabs mobile-underline-tabs" style={{ display: 'flex', gap: '4px' }}>
+              <button className={`xp-chip mobile-underline-tab ${chartMode === 'revenue' ? 'xp-on active' : ''}`} onClick={() => setChartMode('revenue')}>Revenue</button>
+              <button className={`xp-chip mobile-underline-tab ${chartMode === 'orders' ? 'xp-on active' : ''}`} onClick={() => setChartMode('orders')}>Orders</button>
             </div>
           </div>
           <InsightsTrendChart orders={filteredOrders} mode={chartMode} />
         </div>
 
         {/* Category Breakdown */}
-        <div className="chart-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(26,26,26,0.08)' }}>
+        <div className="chart-card insights-category-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(26,26,26,0.08)' }}>
           <div className="chart-header-row" style={{ marginBottom: '16px' }}>
-            <span className="meta-label">CATEGORY BREAKDOWN</span>
+            <span className="meta-label insights-desktop-section-label">CATEGORY BREAKDOWN</span>
+            <span className="insights-section-heading insights-mobile-section-label">Category breakdown</span>
           </div>
           {categoryBreakdown.total > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
               {categoryBreakdown.categories.map(cat => (
-                <div key={cat.name} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div key={cat.name} className="insights-category-breakdown-row" data-category={cat.name} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 500 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: cat.color }}></span>
+                      <span className="insights-category-marker" style={{ width: '8px', height: '8px', borderRadius: '50%', background: cat.color }}></span>
                       {cat.name}
                     </span>
                     <span style={{ fontWeight: 600 }}>{formatGHS(cat.revenue)} ({cat.percentage}%)</span>
@@ -473,22 +475,26 @@ export default function InsightsPage() {
 
       <div className="insights-grid-2col" style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
         {/* Top Selling Products */}
-        <div className="chart-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(26,26,26,0.08)' }}>
-          <span className="meta-label">TOP PRODUCTS</span>
+        <div className="chart-card insights-products-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(26,26,26,0.08)' }}>
+          <span className="meta-label insights-desktop-section-label">TOP PRODUCTS</span>
+          <span className="insights-section-heading insights-mobile-section-label">Top products</span>
           {topProducts.length > 0 ? (
             <div className="top-products-list" style={{ marginTop: '12px' }}>
               {topProducts.map((p, idx) => (
-                <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(26,26,26,0.05)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: '14px', width: '24px' }}>#{idx + 1}</div>
+                <div key={p.id} className="insights-product-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(26,26,26,0.05)' }}>
+                  <div className="insights-product-name" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: '14px', width: '24px' }}>#{idx + 1}</span>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '14px' }}>{p.name}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{formatGHS(p.revenue)}</div>
+                      <div className="insights-product-title" style={{ fontWeight: 600, fontSize: '14px' }}>{p.name}</div>
+                      <div className="insights-product-revenue" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{formatGHS(p.revenue)}</div>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 700, fontSize: '15px', fontVariantNumeric: 'tabular-nums' }}>{p.units}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>units sold</div>
+                  <div className="insights-product-metrics" style={{ textAlign: 'right' }}>
+                    <div className="insights-product-units">
+                      <div style={{ fontWeight: 700, fontSize: '15px', fontVariantNumeric: 'tabular-nums' }}>{p.units}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>units sold</div>
+                    </div>
+                    <span className="insights-product-mobile-summary">{p.units} sold · {formatGHS(p.revenue)}</span>
                   </div>
                 </div>
               ))}

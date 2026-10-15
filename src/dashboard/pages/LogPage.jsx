@@ -328,12 +328,12 @@ export default function LogPage() {
   }
 
   return (
-    <div className="page-container">
+    <div className="page-container logs-mobile-page">
       {/* Page Header — Monolith lines 24349–24367 */}
       <div className="page-header-row" style={{ marginBottom: '20px' }}>
         <div className="page-title-group">
           <h2>Logs &amp; Delivery History</h2>
-          <p>Archived delivery records and system event logs. Entries are removed after 30 days. Export to keep a copy.</p>
+          <p>Archived delivery records and system event logs. Entries are removed after 30 days.</p>
         </div>
         <div className="header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           {/* Export CSV Button */}
@@ -347,17 +347,17 @@ export default function LogPage() {
             {SVG_ICONS.download} Export CSV
           </button>
           {/* Tab Switcher Segmented Control */}
-          <div className="seg" id="logsTabSwitcher">
+          <div className="seg mobile-underline-tabs" id="logsTabSwitcher">
             <button
               type="button"
-              className={`seg-btn ${logsTabState === 'delivered' ? 'active' : ''}`}
+              className={`seg-btn mobile-underline-tab ${logsTabState === 'delivered' ? 'active' : ''}`}
               onClick={() => setLogsTabState('delivered')}
             >
               Delivered Orders ({deliveredOrders.length})
             </button>
             <button
               type="button"
-              className={`seg-btn ${logsTabState === 'activity' ? 'active' : ''}`}
+              className={`seg-btn mobile-underline-tab ${logsTabState === 'activity' ? 'active' : ''}`}
               onClick={() => setLogsTabState('activity')}
             >
               Activity Log ({activityLogs.length})
@@ -384,10 +384,20 @@ export default function LogPage() {
                   value={logsSearchQuery}
                   onChange={e => setLogsSearchQuery(e.target.value)}
                 />
+                <textarea
+                  className="orders-search-input log-mobile-search-input"
+                  id="logDeliveredSearchInputMobile"
+                  rows={1}
+                  aria-label="Search delivered orders"
+                  placeholder="Search by name, phone, order code, or product..."
+                  value={logsSearchQuery}
+                  onChange={e => setLogsSearchQuery(e.target.value)}
+                />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                <label htmlFor="logDateRangeSelect" style={{ fontSize: '12px', fontWeight: 600, color: '#555', whiteSpace: 'nowrap' }}>Date range:</label>
+              <div className="logs-date-filter-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <label htmlFor="logDateRangeSelect" style={{ fontSize: '12px', fontWeight: 600, color: '#555', whiteSpace: 'nowrap' }}>Date range</label>
                 <CustomDropdown
+                  className="logs-date-dropdown"
                   options={[
                     { value: 'all', label: 'All time' },
                     { value: 'today', label: 'Today' },
@@ -433,7 +443,7 @@ export default function LogPage() {
                             style={{ cursor: 'pointer', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}
                           >
                             {/* Left: Avatar & Customer Info */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '220px' }}>
+                            <div className="log-order-identity" style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '220px' }}>
                               <div
                                 className="customer-avatar"
                                 style={{
@@ -444,9 +454,9 @@ export default function LogPage() {
                               >
                                 {initials}
                               </div>
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{order.customerName}</span>
+                              <div className="log-order-info">
+                                <div className="log-order-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span className="log-customer-name" style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{order.customerName}</span>
                                   <span
                                     className={`source-pill ${order.source || 'online'}`}
                                     style={{
@@ -457,15 +467,16 @@ export default function LogPage() {
                                   >
                                     {order.source === 'staff' ? 'Staff' : 'Online'}
                                   </span>
+                                  <span className="log-mobile-price" aria-hidden="true">{formattedAmount}</span>
                                 </div>
-                                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>
+                                <div className="log-order-item-summary" style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>
                                   {itemsSummary}
                                 </div>
                               </div>
                             </div>
 
                             {/* Middle: Delivered Chip */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div className="log-order-delivery" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               <span className="status-delivered-chip">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                   <polyline points="20 6 9 17 4 12" />
@@ -475,17 +486,17 @@ export default function LogPage() {
                             </div>
 
                             {/* Right: Amount, Code & Expand Chevron */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                            <div className="log-order-meta" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                               <div>
-                                <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)', textAlign: 'right' }}>{formattedAmount}</div>
-                                <span className="order-code-sub code-with-copy" style={{ display: 'block', textAlign: 'right', fontSize: '12px', color: '#6b7280' }}>
+                                <div className="log-desktop-price" style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)', textAlign: 'right' }}>{formattedAmount}</div>
+                                <span className="order-code-sub code-with-copy log-order-code" style={{ display: 'block', textAlign: 'right', fontSize: '12px', color: '#6b7280' }}>
                                   {order.orderCode || order.id}
                                   <CopyIcon text={order.orderCode || order.id} />
                                 </span>
                               </div>
                               <button
                                 type="button"
-                                className="btn-icon-action toggle-chevron-btn"
+                                className="btn-icon-action toggle-chevron-btn log-order-toggle"
                                 aria-label="Toggle Details"
                                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#6b7280', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}
                               >
