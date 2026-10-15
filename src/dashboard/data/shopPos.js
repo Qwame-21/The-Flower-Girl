@@ -1,6 +1,7 @@
 import { supabase } from '../../config/supabase';
 import { createStaffOrder } from './orders';
 import { getImageUrl } from '../lib/imageUrlHelper';
+import { applyPromotionsToProducts, calculateCartTotals } from '../../shared/pricing';
 
 // Normalize phone to international format (+233xxxxxxxxx for Ghana)
 function normalizePhone(phone) {
@@ -26,25 +27,22 @@ function normalizePhone(phone) {
 
 import { PRODUCTS } from '../../data/products';
 
-// Load products for POS (visible only)
+// Load products for POS (visible only, with promotions applied)
 export async function loadPosProducts() {
   if (!supabase) {
     console.warn('Supabase not configured');
     return [];
   }
 
-  const { data: products, error } = await supabase
-    .from('products')
-    .select('*')
-    .eq('visible', true)
-    .order('sort_order', { ascending: true });
+  const [productsRes, promosRes] = await Promise.all([
+    supabase.from('products').select('*').eq('visible', true).order('sort_order', { ascending: true }),
+    supabase.from('promotions').select('*').eq('status', 'active')
+  ]);
 
-  if (error || !products) {
-    console.warn('Error fetching POS products from DB:', error);
-    return [];
-  }
+  const products = productsRes.data || [];
+  const promotions = promosRes.data || [];
 
-  return products.map(p => ({
+  const rawProducts = products.map(p => ({
     id: p.id,
     name: p.name,
     price: p.price,
@@ -54,8 +52,11 @@ export async function loadPosProducts() {
     imageUrl: getImageUrl(p.image_path),
     tag: p.tag,
     description: p.description,
-    code: p.id
+    code: p.id,
+    discountPercent: p.discount_percent ?? p.discountPercent ?? 0
   }));
+
+  return applyPromotionsToProducts(rawProducts, promotions);
 }
 
 // Place staff order
@@ -65,7 +66,8 @@ export async function placeStaffOrder(formData, cart, userId) {
     return { success: false, error: 'Supabase not configured' };
   }
 
-  const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+  const totals = calculateCartTotals(cart);
+  const totalAmount = totals.total;
 
   const orderData = {
     customer_name: formData.fullName,

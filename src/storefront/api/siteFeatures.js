@@ -24,7 +24,7 @@ export async function getSiteSettings() {
   // Default settings (matches current behavior when settings are missing)
   const defaults = {
     delivery_selector_enabled: false,
-    tracking_auto_refresh_enabled: false,
+    tracking_auto_refresh_enabled: true,
     tracking_refresh_interval_seconds: 10,
     track_max_failed_attempts: 10,
     track_lockout_minutes: 15,

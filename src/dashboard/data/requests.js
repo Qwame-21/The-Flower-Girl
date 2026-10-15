@@ -69,6 +69,49 @@ export async function updateRequestStatus(id, status, adminNote = null) {
   return { success: true, data };
 }
 
+export async function updateRequestAdminNote(id, adminNote) {
+  if (!supabase) {
+    console.warn('Supabase not configured');
+    return { success: false, error: 'Supabase not configured' };
+  }
+
+  const { data, error } = await supabase
+    .from('customer_requests')
+    .update({ admin_note: adminNote })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating request note:', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, data };
+}
+
+export async function markRequestViewed(id) {
+  if (!supabase) {
+    console.warn('Supabase not configured');
+    return { success: false, error: 'Supabase not configured' };
+  }
+
+  const { data, error } = await supabase
+    .from('customer_requests')
+    .update({ viewed_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('viewed_at', null)
+    .select('id, viewed_at')
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error marking request viewed:', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, data };
+}
+
 // Update request quote — also advances status to quote_needed and stamps quoted_at
 export async function updateRequestQuote(id, confirmedQuote) {
   if (!supabase) {

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseDateString, formatDateISO, formatDateDisplay } from '../src/shared/dateUtils.js';
+import { parseAdminOrderNotes } from '../src/shared/orderNotes.js';
 
 // Logic mirror of TrackOrderPage.jsx delivery formatting helpers
 const formatDeliveryTypeName = (type) => {
@@ -148,4 +149,85 @@ test('Scenario 8: Admin note with special characters / quotes / newlines', () =>
   assert.equal(info.hasConfirmed, true);
   assert.equal(info.winLabel, '4:00 PM – 7:00 PM');
   assert.equal(order.adminNote, rawNote);
+});
+
+test('Scenario 9: Split on "Gift card:" and "Card style:" markers', () => {
+  const note = 'Please leave at ACP Estate security gate.\nGift card: Happy 30th Birthday Ama! Blessings and love.\nCard style: Gold Foil Calligraphy';
+  const blocks = parseAdminOrderNotes(note);
+  assert.equal(blocks.length, 3);
+  assert.deepEqual(blocks[0], {
+    id: 'instructions',
+    label: 'Delivery instructions',
+    content: 'Please leave at ACP Estate security gate.'
+  });
+  assert.deepEqual(blocks[1], {
+    id: 'gift-message',
+    label: 'Gift message',
+    content: 'Happy 30th Birthday Ama! Blessings and love.'
+  });
+  assert.deepEqual(blocks[2], {
+    id: 'card-style',
+    label: 'Card style',
+    content: 'Gold Foil Calligraphy'
+  });
+});
+
+test('Scenario 10: Fallback to delivery instructions when no markers exist', () => {
+  const note = 'Deliver before noon directly to the reception on 3rd floor.';
+  const blocks = parseAdminOrderNotes(note);
+  assert.equal(blocks.length, 1);
+  assert.deepEqual(blocks[0], {
+    id: 'instructions',
+    label: 'Delivery instructions',
+    content: 'Deliver before noon directly to the reception on 3rd floor.'
+  });
+});
+
+test('Scenario 11: Only gift card and card style without delivery instructions', () => {
+  const note = 'Gift card: Congratulations on your promotion!\nCard style: Handwritten minimal font';
+  const blocks = parseAdminOrderNotes(note);
+  assert.equal(blocks.length, 2);
+  assert.equal(blocks[0].label, 'Gift message');
+  assert.equal(blocks[0].content, 'Congratulations on your promotion!');
+  assert.equal(blocks[1].label, 'Card style');
+  assert.equal(blocks[1].content, 'Handwritten minimal font');
+});
+
+test('Scenario 12: Empty or whitespace note produces empty blocks', () => {
+  assert.deepEqual(parseAdminOrderNotes(''), []);
+  assert.deepEqual(parseAdminOrderNotes('   '), []);
+  assert.deepEqual(parseAdminOrderNotes(null), []);
+  assert.deepEqual(parseAdminOrderNotes(undefined), []);
+});
+
+test('Scenario 13: Strip surrounding quotes before splitting note blocks', () => {
+  const note = '"Instruction text. Gift card: Hello. Card style: Clean minimal"';
+  const blocks = parseAdminOrderNotes(note);
+  assert.deepEqual(blocks, [
+    {
+      id: 'instructions',
+      label: 'Delivery instructions',
+      content: 'Instruction text.'
+    },
+    {
+      id: 'gift-message',
+      label: 'Gift message',
+      content: 'Hello.'
+    },
+    {
+      id: 'card-style',
+      label: 'Card style',
+      content: 'Clean minimal'
+    }
+  ]);
+  assert.equal(blocks.some(block => /["'“”‘’]/.test(block.content)), false);
+});
+
+test('Scenario 14: Strip curly quotes surrounding note blocks', () => {
+  const blocks = parseAdminOrderNotes('“Instruction text. Gift card: Hello. Card style: Clean minimal”');
+  assert.deepEqual(blocks.map(block => block.content), [
+    'Instruction text.',
+    'Hello.',
+    'Clean minimal'
+  ]);
 });

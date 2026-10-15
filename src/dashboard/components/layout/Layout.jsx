@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -11,6 +11,18 @@ export default function Layout() {
   const [isHovered, setIsHovered] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const { warningShown, secondsLeft, resetActivity } = useIdleTimer();
+
+  // Close mobile drawer on Escape key press
+  useEffect(() => {
+    if (!isMobileOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsMobileOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMobileOpen]);
 
   return (
     <div className="viewport-frame" id="app">

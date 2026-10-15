@@ -2,11 +2,12 @@
 // Rebuilt to query real live database table `customization_options` with real column names:
 // category, option_name, estimate, display_order, visible
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../../config/supabase";
 import { focusAndScrollToFirstError } from "../lib/formValidationHelper";
 import { getAppSettings } from "../data/settingsAdapter";
 import PasswordConfirmModal from "../components/PasswordConfirmModal";
+import { buildStorefrontCustomizationSnapshot, CUSTOMIZATION_SYNC_CHANNEL } from "../../shared/customizationSync";
 
 const STORAGE_KEY = "xa12-customization-v3";
 
@@ -122,6 +123,17 @@ export default function CustomizationPage() {
   const [settings, setSettings] = useState(() => getAppSettings());
   const [showPwConfirm, setShowPwConfirm] = useState(false);
   const [pendingDeleteAction, setPendingDeleteAction] = useState(null);
+  const syncChannelRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return undefined;
+    const channel = new BroadcastChannel(CUSTOMIZATION_SYNC_CHANNEL);
+    syncChannelRef.current = channel;
+    return () => {
+      syncChannelRef.current = null;
+      channel.close();
+    };
+  }, []);
 
   // Load settings for password confirmation check
   useEffect(() => {
@@ -186,6 +198,7 @@ export default function CustomizationPage() {
   const persist = useCallback((cats) => {
     setCategories(cats);
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cats)); } catch {}
+    syncChannelRef.current?.postMessage(buildStorefrontCustomizationSnapshot(cats));
   }, []);
 
   const q = search.trim().toLowerCase();
@@ -265,16 +278,74 @@ export default function CustomizationPage() {
   }
 
   function handleDrawerSave() { if (drawer.mode === "new-category" || drawer.mode === "edit-category") saveCategory(); else saveOption(); }
-  function toggleCategoryVisible(catId) { persist(categories.map(c => c.id === catId ? { ...c, visible: !c.visible } : c)); }
+
+  async function toggleCategoryVisible(catId) {
+    const prevCategories = categories;
+    const cat = categories.find(c => c.id === catId);
+    if (!cat) return;
+    const nextVisible = !cat.visible;
+
+    // Optimistically update category and all its child options
+    const updatedCategories = categories.map(c =>
+      c.id === catId
+        ? {
+            ...c,
+            visible: nextVisible,
+            options: c.options.map(o => ({ ...o, visible: nextVisible }))
+          }
+        : c
+    );
+    persist(updatedCategories);
+
+    if (supabase) {
+      try {
+        const { error } = await supabase
+          .from("customization_options")
+          .update({ visible: nextVisible })
+          .eq("category", cat.name);
+
+        if (error) throw error;
+        showToast(`Category "${cat.name}" is now ${nextVisible ? 'visible' : 'hidden'}.`);
+      } catch (err) {
+        console.error("Failed to update category visibility:", err);
+        persist(prevCategories);
+        showToast("Failed to update category visibility. Rolled back.");
+      }
+    }
+  }
+
   async function toggleOptionVisible(catId, optId) {
-    const newCats = categories.map(c => c.id === catId ? { ...c, options: c.options.map(o => o.id === optId ? { ...o, visible: !o.visible } : o) } : c);
-    persist(newCats);
+    const prevCategories = categories;
+    const cat = categories.find(c => c.id === catId);
+    const targetOpt = cat?.options?.find(o => o.id === optId);
+    if (!targetOpt) return;
+    const nextVisible = !targetOpt.visible;
+
+    // Optimistically update option visibility
+    const updatedCategories = categories.map(c => {
+      if (c.id === catId) {
+        const newOptions = c.options.map(o => (o.id === optId ? { ...o, visible: nextVisible } : o));
+        // Category is visible if at least one option is visible
+        const catVisible = newOptions.some(o => o.visible);
+        return { ...c, visible: catVisible, options: newOptions };
+      }
+      return c;
+    });
+    persist(updatedCategories);
+
     if (supabase && optId && !String(optId).startsWith('local-')) {
-      const targetOpt = categories.flatMap(c => c.options).find(o => o.id === optId);
-      if (targetOpt) {
-        try {
-          await supabase.from("customization_options").update({ visible: !targetOpt.visible }).eq("id", optId);
-        } catch {}
+      try {
+        const { error } = await supabase
+          .from("customization_options")
+          .update({ visible: nextVisible })
+          .eq("id", optId);
+
+        if (error) throw error;
+        showToast(`"${targetOpt.name}" is now ${nextVisible ? 'visible' : 'hidden'}.`);
+      } catch (err) {
+        console.error("Failed to update option visibility:", err);
+        persist(prevCategories);
+        showToast("Failed to update option visibility. Rolled back.");
       }
     }
   }

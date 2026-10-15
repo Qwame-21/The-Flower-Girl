@@ -28,8 +28,7 @@ export async function fetchStorefrontCustomization() {
   try {
     const { data, error } = await supabase
       .from('customization_options')
-      .select('category, option_name, estimate, display_order')
-      .eq('visible', true)
+      .select('category, option_name, estimate, display_order, visible')
       .order('category', { ascending: true })
       .order('display_order', { ascending: true });
 
@@ -37,27 +36,44 @@ export async function fetchStorefrontCustomization() {
       throw error;
     }
 
+    // Only fallback to defaults if table is completely unseeded (0 rows)
     if (!data || data.length === 0) {
-      console.log('No visible customization options in database, using defaults');
+      console.log('No customization options in database, using defaults');
       return { options: DEFAULT_OPTIONS, estimates: DEFAULT_ESTIMATES, source: 'hardcoded' };
     }
 
     const optionsMap = {};
-    const estimatesMap = {};
+    const estimatesMap = { ...DEFAULT_ESTIMATES };
 
     data.forEach(row => {
       const cat = row.category || 'General';
-      if (!optionsMap[cat]) optionsMap[cat] = [];
-      if (!optionsMap[cat].includes(row.option_name)) {
-        optionsMap[cat].push(row.option_name);
+      const isVisible = row.visible !== false;
+      const optName = row.option_name;
+
+      // Always populate estimate so existing carts/orders retain pricing
+      estimatesMap[optName] = Number(row.estimate || 0);
+
+      // Only include visible options in the options picker
+      if (isVisible) {
+        if (!optionsMap[cat]) optionsMap[cat] = [];
+        if (!optionsMap[cat].includes(optName)) {
+          optionsMap[cat].push(optName);
+        }
       }
-      estimatesMap[row.option_name] = Number(row.estimate || 0);
+    });
+
+    // Remove any empty categories
+    const filteredOptionsMap = {};
+    Object.entries(optionsMap).forEach(([cat, opts]) => {
+      if (Array.isArray(opts) && opts.length > 0) {
+        filteredOptionsMap[cat] = opts;
+      }
     });
 
     // Update cache
     try {
       localStorage.setItem(CACHE_KEY, JSON.stringify({
-        options: optionsMap,
+        options: filteredOptionsMap,
         estimates: estimatesMap,
         timestamp: Date.now(),
       }));
@@ -65,7 +81,7 @@ export async function fetchStorefrontCustomization() {
       console.warn('Failed to cache customization options:', e);
     }
 
-    return { options: optionsMap, estimates: estimatesMap, source: 'live' };
+    return { options: filteredOptionsMap, estimates: estimatesMap, source: 'live' };
   } catch (error) {
     console.error('Failed to fetch customization options:', error);
 

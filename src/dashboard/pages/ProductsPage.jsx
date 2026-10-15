@@ -19,6 +19,7 @@ import {
   deletePromotion
 } from '../data/products';
 import { getAppSettings } from '../data/settingsAdapter';
+import { getProductDiscountPercent, calculateProductPrice } from '../../shared/pricing';
 
 const PRODUCTS_KEY = 'xa12-products-data-v1';
 
@@ -590,16 +591,7 @@ export default function ProductsPage() {
     return allDetails.filter(d => !formDetails.includes(d));
   };
 
-  const getPromotionPercent = (productId) => {
-    const promo = promotions.find(p => p.product_id === productId && p.status === 'active');
-    if (!promo) return 0;
-    const now = new Date();
-    const starts = promo.starts_at ? new Date(promo.starts_at) : null;
-    const ends = promo.ends_at ? new Date(promo.ends_at) : null;
-    if (starts && now < starts) return 0;
-    if (ends && now > ends) return 0;
-    return promo.percent;
-  };
+  const getPromotionPercent = (productId) => getProductDiscountPercent(productId, promotions);
 
   // Top ordered chip items calculation (0 by default in monolith unless order sales exist)
   const topOrdered = [];
@@ -850,7 +842,7 @@ export default function ProductsPage() {
                 <div className="xp-grid">
                   {categoryProds.map(p => {
                     const discountVal = getPromotionPercent(p.id);
-                    const discountedPrice = discountVal > 0 ? p.price * (1 - discountVal / 100) : p.price;
+                    const { salePrice: discountedPrice } = calculateProductPrice(p.price, discountVal);
                     const lowThreshold = getGlobalThreshold(p);
                     const isLowStock = p.stock <= lowThreshold && p.stock > 0;
                     const isOutOfStock = p.stock === 0;

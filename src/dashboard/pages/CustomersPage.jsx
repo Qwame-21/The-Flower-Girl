@@ -8,6 +8,7 @@ import { loadCustomersData, saveCustomersData, syncCustomersWithSupabase } from 
 import { fetchOrders, getCachedData, isDataLoading } from '../data/dataCache';
 import CustomDropdown from '../components/shared/CustomDropdown';
 import CopyIcon from '../components/shared/CopyIcon';
+import AutoGrowTextarea from '../components/shared/AutoGrowTextarea';
 
 const CUSTOMERS_KEY = 'xa12-customers-data-v1';
 
@@ -271,8 +272,7 @@ export default function CustomersPage() {
 
               <div>
                 <span className="drawer-section-title">STAFF NOTES</span>
-                <textarea
-                  className="notes-textarea"
+                <AutoGrowTextarea
                   id="custNotesInput"
                   placeholder="Add confidential customer preferences or delivery instructions..."
                   value={notesInput}

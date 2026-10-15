@@ -271,7 +271,7 @@ begin
   
   select jsonb_build_object(
     'kind','order','trackingNumber',o.tracking_number,'orderCode',o.order_code,'customerName',o.customer_name,
-    'status',o.fulfillment_status,'paymentStatus',o.payment_status,
+    'status',o.fulfillment_status,'paymentStatus',o.payment_status,'customerNote',o.customer_note,
     'estimatedDelivery',o.estimated_delivery,'adminNote',o.admin_note,
     'requestedDeliveryDate',o.requested_delivery_date,
     'events',coalesce((select jsonb_agg(jsonb_build_object('stage',e.stage,'note',e.customer_note,'createdAt',e.created_at) order by e.created_at) from public.order_events e where e.order_id=o.id),'[]'::jsonb)
@@ -285,7 +285,7 @@ begin
     'kind','request','reference',r.reference,'customerName',r.customer_name,
     'requestType',r.request_type,'service',r.service,'status',r.status,
     'preferredDate',r.preferred_date,'confirmedQuote',r.confirmed_quote,
-    'adminNote',r.admin_note,'updatedAt',r.updated_at
+    'adminNote',r.admin_note,'customerNote',r.delivery_instructions,'updatedAt',r.updated_at
   ) into result from public.customer_requests r
   where lower(r.reference)=lower(trim(lookup_reference))
     and (lower(coalesce(r.email,''))=lower(trim(lookup_contact)) or public.normalize_phone(r.phone)=normalized_lookup_phone)
@@ -306,12 +306,25 @@ grant execute on function public.track_record(text,text) to anon, authenticated;
 -- select public.normalize_phone('07700 900077');    -- Expected: 7700900077 (non-Ghana, drops leading 0)
 
 do $$ declare table_name text; begin
-  foreach table_name in array array['products','gallery_items']
+  foreach table_name in array array['products','gallery_items','customization_options']
   loop
     if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename=table_name) then
       execute format('alter publication supabase_realtime add table public.%I', table_name);
     end if;
   end loop;
 end $$;
+
+-- Public customization rows are filtered by `visible` in the storefront.
+-- Realtime also needs anon SELECT access to hidden rows so visibility-off updates
+-- are delivered to subscribers; hidden rows are not rendered by the storefront.
+alter table public.customization_options enable row level security;
+drop policy if exists "public reads visible customization options" on public.customization_options;
+drop policy if exists "public reads customization options for realtime" on public.customization_options;
+create policy "public reads customization options for realtime"
+  on public.customization_options
+  for select
+  to anon, authenticated
+  using (true);
+grant select on table public.customization_options to anon, authenticated;
 
 COMMIT;

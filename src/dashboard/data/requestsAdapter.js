@@ -1,32 +1,14 @@
 // Adapter to make HOPESON RequestsPage work with Supabase
 // Returns data in the exact shape HOPESON expects
 
-import { listRequests, updateRequestStatus, updateRequestQuote, deleteRequest } from './requests';
+import { listRequests, updateRequestStatus, updateRequestAdminNote, updateRequestQuote, deleteRequest, markRequestViewed } from './requests';
 import { supabase } from '../../config/supabase';
+import { readRequestNoteField } from '../../shared/requestNoteFields';
 
 const REQUESTS_KEY = 'xa12_custom_requests';
 
-function extractFromNotes(notes, key) {
-  if (!notes || typeof notes !== 'string') return '';
-  const regex = new RegExp(`^${key}:\\s*(.*)$`, 'im');
-  const match = notes.match(regex);
-  return match ? match[1].trim() : '';
-}
-
 function extractDeliveryAddress(notes) {
-  if (!notes || typeof notes !== 'string') return '';
-  const match = notes.match(/^Delivery address:\s*([^\n]+)/im);
-  return match ? match[1].trim() : '';
-}
-
-function extractBlobField(notes, key) {
-  if (!notes || typeof notes !== 'string') return '';
-  const regex = new RegExp(`^${key}:\\s*(.*)$`, 'im');
-  const match = notes.match(regex);
-  if (!match) return '';
-  const val = match[1].trim();
-  if (val.toLowerCase() === key.toLowerCase()) return '';
-  return val;
+  return readRequestNoteField(notes, 'Delivery address') || '';
 }
 
 function cleanNotes(notes) {
@@ -89,19 +71,19 @@ export async function syncRequestsWithSupabase() {
     const rawNotes = r.notes || '';
     // Structured delivery columns take precedence; fall back to parsing the blob
     const deliveryAddress = r.delivery_address || extractDeliveryAddress(rawNotes);
-    const rawFulfilment = r.fulfilment || extractBlobField(rawNotes, 'fulfilment');
+    const rawFulfilment = r.fulfilment || readRequestNoteField(rawNotes, 'fulfilment') || '';
     const fulfilment = ['delivery', 'collection'].includes(rawFulfilment)
       ? rawFulfilment
       : deliveryAddress.toLowerCase().includes('collection') ? 'collection' : 'delivery';
     // recipient: use structured col; if blob value === customer_name treat as blank recipient
-    const blobRecipient = extractBlobField(rawNotes, 'recipient');
-    const recipient = r.recipient || (blobRecipient !== r.customer_name ? blobRecipient : '') || r.customer_name;
-    const blobRecipPhone = extractBlobField(rawNotes, 'recipientPhone');
-    const recipientPhone = r.recipient_phone || (blobRecipPhone !== r.phone ? blobRecipPhone : '') || r.phone;
-    const landmark = r.landmark || extractBlobField(rawNotes, 'landmark');
-    const locationLink = r.location_link || extractBlobField(rawNotes, 'locationLink');
-    const deliveryInstructions = r.delivery_instructions || extractBlobField(rawNotes, 'deliveryInstructions');
-    const budgetVal = r.budget || extractBlobField(rawNotes, 'budget');
+    const blobRecipient = readRequestNoteField(rawNotes, 'recipientName') ?? readRequestNoteField(rawNotes, 'recipient');
+    const recipient = r.recipient || (blobRecipient !== undefined ? blobRecipient : r.customer_name);
+    const blobRecipPhone = readRequestNoteField(rawNotes, 'recipientPhone');
+    const recipientPhone = r.recipient_phone || (blobRecipPhone !== undefined ? blobRecipPhone : r.phone);
+    const landmark = r.landmark || readRequestNoteField(rawNotes, 'landmark') || '';
+    const locationLink = r.location_link || readRequestNoteField(rawNotes, 'locationLink') || '';
+    const deliveryInstructions = r.delivery_instructions || readRequestNoteField(rawNotes, 'deliveryInstructions') || '';
+    const budgetVal = r.budget || readRequestNoteField(rawNotes, 'budget') || null;
     const city = r.city || (deliveryAddress ? deliveryAddress.split(',')[0].trim() : '');
     const selections = normalizeSelections(r.selections);
     // notes shown in drawer: strip the delivery blob footer
@@ -131,6 +113,7 @@ export async function syncRequestsWithSupabase() {
       created_at: formattedDate,
       created_at_iso: r.created_at,
       status: r.status || 'new',
+      viewed_at: r.viewed_at || null,
       customer_name: r.customer_name,
       phone: r.phone,
       email: r.email,
@@ -139,7 +122,7 @@ export async function syncRequestsWithSupabase() {
       occasion: r.occasion,
       quantity: r.quantity || 1,
       budget: budgetVal,
-      preferred_date: r.preferred_date || extractBlobField(rawNotes, 'preferredDate') || '',
+      preferred_date: r.preferred_date || readRequestNoteField(rawNotes, 'preferredDate') || '',
       fulfilment,
       city,
       recipient,
@@ -151,8 +134,8 @@ export async function syncRequestsWithSupabase() {
       selections,
       notes: displayNotes,
       inspiration_path: r.inspiration_path,
-      card_message: r.card_message || extractBlobField(rawNotes, 'cardMessage'),
-      card_style: r.card_style || extractBlobField(rawNotes, 'cardStyleNotes') || extractBlobField(rawNotes, 'cardStyle'),
+      card_message: r.card_message || readRequestNoteField(rawNotes, 'cardMessage'),
+      card_style: r.card_style || readRequestNoteField(rawNotes, 'cardStyleNotes') || readRequestNoteField(rawNotes, 'cardStyle'),
       estimate_low: r.estimate_low,
       estimate_high: r.estimate_high,
       confirmed_quote: r.confirmed_quote,
@@ -171,9 +154,23 @@ export async function syncRequestsWithSupabase() {
   return mapped;
 }
 
+export async function markRequestViewedSync(id) {
+  const result = await markRequestViewed(id);
+  if (result.success) await syncRequestsWithSupabase();
+  return result;
+}
+
 // Update request status in Supabase and update cache
 export async function updateRequestStatusSync(id, status, adminNote = null) {
   const result = await updateRequestStatus(id, status, adminNote);
+  if (result.success) {
+    await syncRequestsWithSupabase();
+  }
+  return result;
+}
+
+export async function updateRequestAdminNoteSync(id, adminNote) {
+  const result = await updateRequestAdminNote(id, adminNote);
   if (result.success) {
     await syncRequestsWithSupabase();
   }

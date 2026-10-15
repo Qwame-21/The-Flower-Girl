@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useReducer } from 'react';
 import { submitInquiry } from '../api/submissions';
 import { fetchStorefrontCustomization, getCachedCustomization } from '../data/customization';
+import { supabase } from '../../config/supabase';
 import { formDate, formIsoDate } from '../utils/date';
 import CardStylePicker from '../components/CardStylePicker';
 import DateField from '../components/DateField';
@@ -11,6 +12,7 @@ import RequestDeliveryFields from '../components/RequestDeliveryFields';
 import RequestConfirmation from '../components/RequestConfirmation';
 import ShuffleCardStack from '../components/ShuffleCardStack';
 import { requestDeliveryDetails } from '../utils/request';
+import { CUSTOMIZATION_SYNC_CHANNEL } from '../../shared/customizationSync';
 
 const DRAFT_STORAGE_KEY = 'fg_customize_form_draft_v2';
 const SCROLL_STORAGE_KEY = 'fg_customize_scroll_pos';
@@ -121,13 +123,13 @@ function formReducer(state, action) {
     }
     case 'VALIDATE_SELECTIONS': {
       const { validOptions } = action;
-      if (!validOptions || validOptions.size === 0) return state;
+      if (!validOptions) return state;
       const filtered = state.selected.filter(opt => validOptions.has(opt));
       if (filtered.length !== state.selected.length) {
         return {
           ...state,
           selected: filtered,
-          notice: 'Some of your choices are no longer available.'
+          notice: 'Some choices are no longer available and were removed from your estimate.'
         };
       }
       return state;
@@ -181,29 +183,94 @@ export default function CustomizePage({ onNavigate }) {
 
   const stateRef = useRef(state);
   stateRef.current = state;
+  const hasLoadedOptionsRef = useRef(false);
+  const customOptionsRef = useRef(customOptions);
+  customOptionsRef.current = customOptions;
 
-  // Background fetch options without unmounting the form
+  // Refresh options from Supabase and listen for cross-tab visibility changes.
   useEffect(() => {
     let isMounted = true;
-    fetchStorefrontCustomization()
-      .then(({ options, estimates }) => {
-        if (!isMounted) return;
-        setCustomOptions(options);
-        setCustomEstimates(estimates);
-        setLoading(false);
+    let requestInProgress = false;
 
-        const allOptionNames = new Set(Object.values(options).flat());
-        dispatch({ type: 'VALIDATE_SELECTIONS', validOptions: allOptionNames });
-      })
-      .catch(err => {
-        if (!isMounted) return;
+    function loadOptions() {
+      if (requestInProgress) return;
+      requestInProgress = true;
+      fetchStorefrontCustomization()
+        .then(({ options, estimates }) => {
+          if (!isMounted) return;
+          hasLoadedOptionsRef.current = true;
+          setCustomOptions(options);
+          setCustomEstimates(estimates);
+          setLoading(false);
+        })
+        .catch(err => {
+          if (!isMounted) return;
+          setLoading(false);
+          if (!customOptionsRef.current || Object.keys(customOptionsRef.current).length === 0) {
+            setFetchError(err.message || 'Failed to load customization options.');
+          }
+        })
+        .finally(() => {
+          requestInProgress = false;
+        });
+    }
+
+    loadOptions();
+
+    let channel = null;
+    if (supabase) {
+      channel = supabase
+        .channel(CUSTOMIZATION_SYNC_CHANNEL)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'customization_options' }, () => {
+          loadOptions();
+        })
+        .subscribe((status, error) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn('Customization realtime subscription unavailable; polling remains active.', error);
+          }
+        });
+    }
+
+    const broadcastChannel = typeof BroadcastChannel === 'undefined'
+      ? null
+      : new BroadcastChannel(CUSTOMIZATION_SYNC_CHANNEL);
+    if (broadcastChannel) {
+      broadcastChannel.onmessage = ({ data }) => {
+        if (!isMounted || !data?.options || !data?.estimates) return;
+        hasLoadedOptionsRef.current = true;
+        setCustomOptions(data.options);
+        setCustomEstimates(data.estimates);
         setLoading(false);
-        if (!customOptions || Object.keys(customOptions).length === 0) {
-          setFetchError(err.message || 'Failed to load customization options.');
-        }
-      });
-    return () => { isMounted = false; };
+        setFetchError('');
+      };
+    }
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') loadOptions();
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    const poll = window.setInterval(refreshWhenVisible, 12_000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(poll);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      broadcastChannel?.close();
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, []);
+
+  useEffect(() => {
+    if (!hasLoadedOptionsRef.current) return;
+    dispatch({
+      type: 'VALIDATE_SELECTIONS',
+      validOptions: new Set(Object.values(customOptions).flat())
+    });
+  }, [customOptions]);
 
   // Restore scroll position
   useEffect(() => {
@@ -366,13 +433,15 @@ export default function CustomizePage({ onNavigate }) {
             </div>
 
             {state.notice && (
-              <div role="status" style={{ padding: '8px 12px', background: '#fef3c7', color: '#92400e', borderRadius: '6px', fontSize: '12px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div role="status" style={{ padding: '7px 10px', background: 'rgba(26,26,26,0.04)', color: '#666', borderRadius: '4px', fontSize: '11px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>{state.notice}</span>
                 <button type="button" onClick={() => dispatch({ type: 'DISMISS_NOTICE' })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', color: '#92400e' }}>✕</button>
               </div>
             )}
 
-            {Object.entries(customOptions).map(([group, options], groupIndex) => {
+            {Object.entries(customOptions)
+              .filter(([_, options]) => Array.isArray(options) && options.length > 0)
+              .map(([group, options], groupIndex) => {
               const isSingle = isSingleSelectGroup(group);
               return (
                 <fieldset className="custom-option-group" key={group}>

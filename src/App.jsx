@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense, startTransition } from 'react';
 import Navigation from './components/Navigation';
 import DrawerMenu from './components/DrawerMenu';
 import SearchModal from './components/SearchModal';
+import StorefrontErrorBoundary from './components/StorefrontErrorBoundary';
 import AdminAccess, { AdminLoadingFallback } from './admin/components/AdminAccess';
 import { logoutToLogin } from './admin/utils/logout';
 const AboutPage = lazy(() => import('./storefront/pages/AboutPage'));
@@ -192,6 +193,7 @@ function SiteApp() {
       <div className={`page-scroll-indicator ${scrollIndicator.visible ? 'visible' : ''}`} aria-hidden="true"><span style={{ top: `${scrollIndicator.progress * 100}%`, transform: `translateY(-${scrollIndicator.progress * 100}%)` }} /></div>
 
       {/* Main Full-Screen Seamless Editorial Canvas */}
+      <StorefrontErrorBoundary>
       {activeTab === 'home' && (
         <HomePage
           currentSlideIndex={currentSlideIndex}
@@ -229,6 +231,8 @@ function SiteApp() {
       {activeTab === 'track' && <TrackOrderPage onNavigate={navigateStorefront} />}
       {activeTab === 'delivery' && <InformationPage key="delivery" type="delivery" onNavigate={navigateStorefront} />}
       {activeTab === 'policy' && <InformationPage key="policy" type="policy" onNavigate={navigateStorefront} />}
+
+      </StorefrontErrorBoundary>
 
       {/* Modals and Side Drawers */}
       <DrawerMenu

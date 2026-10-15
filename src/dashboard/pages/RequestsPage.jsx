@@ -2,10 +2,11 @@
 // Ported 1-for-1 verbatim from admin-monolith.html renderRequestsView() (lines 23569–24236)
 // Storage key: 'xa12_custom_requests'
 
-import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import CopyIcon from '../components/shared/CopyIcon';
-import { loadRequestsData, saveRequestsData, syncRequestsWithSupabase, convertRequestToOrder, updateRequestStatusSync, updateRequestQuoteSync, deleteRequestSync } from '../data/requestsAdapter';
+import AutoGrowTextarea from '../components/shared/AutoGrowTextarea';
+import { loadRequestsData, saveRequestsData, syncRequestsWithSupabase, convertRequestToOrder, updateRequestStatusSync, updateRequestAdminNoteSync, updateRequestQuoteSync, deleteRequestSync, markRequestViewedSync } from '../data/requestsAdapter';
 import { fetchRequests, getCachedData, isDataLoading, subscribeToCache } from '../data/dataCache';
 import { supabase } from '../../config/supabase';
 import { parseDateString, formatDateDisplay, formatTimestampDisplay } from '../../shared/dateUtils';
@@ -228,8 +229,20 @@ function showToast(msg) {
   window.dispatchEvent(new CustomEvent('xa12:toast', { detail: { message: msg } }));
 }
 
+function isHttpLink(value) {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 export default function RequestsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const handledRequestId = useRef(null);
   const [requests, setRequests] = useState(() => {
     const cached = loadRequestsData();
     return cached.length > 0 ? cached : SEED_REQUESTS;
@@ -246,6 +259,7 @@ export default function RequestsPage() {
   const [whatsappPrompt, setWhatsappPrompt] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const [adminNoteDrawerInput, setAdminNoteDrawerInput] = useState('');
+  const [adminNoteSaveState, setAdminNoteSaveState] = useState('idle');
 
   const saveAndSetRequests = (updated) => {
     saveRequestsData(updated);
@@ -279,6 +293,29 @@ export default function RequestsPage() {
       setIsRefreshing(false);
     }
   }, []);
+
+  const openRequest = useCallback((request) => {
+    setDrawerTarget(request);
+    setAdminNoteDrawerInput(request.admin_note || '');
+    setAdminNoteSaveState('idle');
+    markRequestViewedSync(request.id).then(result => {
+      if (!result.success) {
+        showToast('Could not mark request as viewed');
+        return;
+      }
+      refreshRequests(false);
+    });
+  }, [refreshRequests]);
+
+  useEffect(() => {
+    const requestId = location.state?.openRequestId;
+    if (!requestId || handledRequestId.current === requestId) return;
+    const request = requests.find(item => String(item.id) === String(requestId));
+    if (!request) return;
+    handledRequestId.current = requestId;
+    openRequest(request);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate, openRequest, requests]);
 
   // Load requests from cache/Supabase on mount
   useEffect(() => {
@@ -676,10 +713,7 @@ export default function RequestsPage() {
               key={req.id}
               className={`card req-card-v3 ${matches ? '' : 'hide'}`}
               data-id={req.id}
-              onClick={() => {
-                setDrawerTarget(req);
-                setAdminNoteDrawerInput(req.admin_note || '');
-              }}
+              onClick={() => openRequest(req)}
             >
               <div className="top">
                 <span className="ref code-with-copy" style={{ fontFamily: 'monospace', letterSpacing: '0.04em' }}>
@@ -844,9 +878,12 @@ export default function RequestsPage() {
                       <div className="drow">
                         <div className="k">Phone</div>
                         <div className="v">
-                          <a href={`tel:${drawerTarget.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>
-                            {drawerTarget.phone}
-                          </a>
+                          <span className="req-delivery-value">
+                            <a href={`tel:${drawerTarget.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>
+                              {drawerTarget.phone}
+                            </a>
+                            <CopyIcon text={drawerTarget.phone} ariaLabel="Copy customer phone number" />
+                          </span>
                         </div>
                       </div>
                     )}
@@ -854,9 +891,12 @@ export default function RequestsPage() {
                       <div className="drow">
                         <div className="k">Email</div>
                         <div className="v">
-                          <a href={`mailto:${drawerTarget.email}`} style={{ color: 'inherit', textDecoration: 'underline' }}>
-                            {drawerTarget.email}
-                          </a>
+                          <span className="req-delivery-value">
+                            <a href={`mailto:${drawerTarget.email}`} style={{ color: 'inherit', textDecoration: 'underline' }}>
+                              {drawerTarget.email}
+                            </a>
+                            <CopyIcon text={drawerTarget.email} ariaLabel="Copy customer email address" />
+                          </span>
                         </div>
                       </div>
                     )}
@@ -963,9 +1003,12 @@ export default function RequestsPage() {
                       <div className="drow">
                         <div className="k">Recipient Phone</div>
                         <div className="v">
-                          <a href={`tel:${drawerTarget.recipient_phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>
-                            {drawerTarget.recipient_phone}
-                          </a>
+                          <span className="req-delivery-value">
+                            <a href={`tel:${drawerTarget.recipient_phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>
+                              {drawerTarget.recipient_phone}
+                            </a>
+                            <CopyIcon text={drawerTarget.recipient_phone} ariaLabel="Copy recipient phone number" />
+                          </span>
                         </div>
                       </div>
                     )}
@@ -987,7 +1030,7 @@ export default function RequestsPage() {
                         <div className="v">{drawerTarget.landmark}</div>
                       </div>
                     )}
-                    {drawerTarget.location_link && (
+                    {isHttpLink(drawerTarget.location_link) && (
                       <div className="drow" style={{ gridColumn: 'span 2' }}>
                         <div className="k">Location Link</div>
                         <div className="v">
@@ -1063,44 +1106,50 @@ export default function RequestsPage() {
 
                 {/* 8. Admin note visible to the customer on /track */}
                 <div className="field">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label htmlFor="reqDrawerAdminNote" style={{ margin: 0, fontWeight: 600 }}>Note from our team (visible on /track)</label>
+                  <label htmlFor="reqDrawerAdminNote" style={{ margin: '0 0 8px', fontWeight: 600 }}>Note from our team (visible on /track)</label>
+                  <AutoGrowTextarea
+                    id="reqDrawerAdminNote"
+                    value={adminNoteDrawerInput}
+                    placeholder="Write an update for the customer to see on /track..."
+                    onChange={e => {
+                      setAdminNoteDrawerInput(e.target.value);
+                      setAdminNoteSaveState('idle');
+                    }}
+                  />
+                  <div className="req-drawer-note-save">
+                    {adminNoteSaveState === 'saved' && <span role="status">Saved</span>}
+                    {adminNoteSaveState === 'failed' && <span role="status">Could not save</span>}
                     <button
                       type="button"
+                      className="btn"
+                      disabled={adminNoteSaveState === 'saving'}
                       onClick={async () => {
-                        const res = await updateRequestStatusSync(drawerTarget.id, drawerTarget.status, adminNoteDrawerInput);
-                        if (res.success) {
-                          showToast('Admin note saved and updated on tracking');
-                          reloadFromCache();
-                        } else {
+                        setAdminNoteSaveState('saving');
+                        try {
+                          const res = await updateRequestAdminNoteSync(drawerTarget.id, adminNoteDrawerInput);
+                          if (res.success) {
+                            setAdminNoteSaveState('saved');
+                            showToast('Admin note saved and updated on tracking');
+                            reloadFromCache();
+                          } else {
+                            setAdminNoteSaveState('failed');
+                            showToast('Failed to save note');
+                          }
+                        } catch (error) {
+                          console.error('Failed to save request note:', error);
+                          setAdminNoteSaveState('failed');
                           showToast('Failed to save note');
                         }
                       }}
-                      style={{
-                        background: 'transparent',
-                        border: '1px solid #1c1c1b',
-                        borderRadius: '999px',
-                        padding: '3px 14px',
-                        fontSize: '11px',
-                        cursor: 'pointer',
-                        fontWeight: 600
-                      }}
                     >
-                      Save Note
+                      {adminNoteSaveState === 'saving' ? 'Saving…' : 'Save Note'}
                     </button>
                   </div>
-                  <textarea
-                    id="reqDrawerAdminNote"
-                    rows={2}
-                    placeholder="Write an update for the customer to see on /track..."
-                    value={adminNoteDrawerInput}
-                    onChange={e => setAdminNoteDrawerInput(e.target.value)}
-                  />
                 </div>
               </div>
 
               {/* Drawer Footer */}
-              <div className="dfoot" style={{ display: 'flex', gap: '10px', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="dfoot req-drawer-action-footer" style={{ display: 'flex', gap: '10px', justifyContent: 'space-between', alignItems: 'center' }}>
                 {drawerTarget.status !== 'closed' ? (
                   <button
                     type="button"
@@ -1157,13 +1206,12 @@ export default function RequestsPage() {
               />
             </div>
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: '#747471', display: 'block', marginBottom: '4px' }}>Note to customer</label>
-              <textarea
-                rows={3}
+              <label htmlFor="quote-note" style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: '#747471', display: 'block', marginBottom: '4px' }}>Note to customer</label>
+              <AutoGrowTextarea
+                id="quote-note"
                 value={quoteNoteVal}
                 onChange={e => setQuoteNoteVal(e.target.value)}
                 placeholder="Add a note or special terms..."
-                style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid rgba(26,26,26,0.15)', fontSize: '13px', boxSizing: 'border-box' }}
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
@@ -1261,12 +1309,10 @@ export default function RequestsPage() {
                   style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(26,26,26,0.15)', fontSize: '13px', marginBottom: '12px' }}
                 />
 
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Note (optional)</label>
-                <textarea
+                <label htmlFor="convert-note" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Note (optional)</label>
+                <AutoGrowTextarea
                   id="convert-note"
-                  rows="2"
                   placeholder="Any additional notes"
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(26,26,26,0.15)', fontSize: '13px', resize: 'vertical' }}
                 />
               </div>
             )}

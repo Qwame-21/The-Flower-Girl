@@ -1014,6 +1014,49 @@ html, body {
   position: relative;
 }
 
+.notif-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid var(--border-color, rgba(26, 26, 26, 0.08));
+}
+
+.notif-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted, #6b7280);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.notif-tab.active {
+  border-color: rgba(26, 26, 26, 0.1);
+  background: rgba(26, 26, 26, 0.05);
+  color: var(--text-primary, #1a1a1a);
+}
+
+.notif-tab span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: rgba(26, 26, 26, 0.08);
+  color: inherit;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
 .notif-body::-webkit-scrollbar {
   width: 4px;
 }
@@ -13969,5 +14012,427 @@ select::placeholder,
   font-size: var(--admin-input-font-size, 16px) !important;
 }
 
+/* ==========================================================================
+   TASK 2: ADMIN DASHBOARD MOBILE LAYOUT (<768px)
+   ========================================================================== */
+
+/* Hide floating mobile date chip on desktop */
+.mobile-floating-date-chip {
+  display: none !important;
+}
+
+@media (max-width: 767px) {
+  /* 1. Global Page Width & Overflow Lock */
+  html,
+  body,
+  #root,
+  #app,
+  .viewport-frame,
+  .content-container,
+  .admin-main-canvas,
+  .extendable-content-body,
+  .page-container,
+  .overview-page-container,
+  .orders-page-container {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+  }
+
+  .viewport-frame {
+    padding: 8px !important;
+  }
+
+  /* 2. Header Island — 4 Elements Fitting 360px without Overflow */
+  .top-title-bar {
+    height: 56px !important;
+    min-height: 56px !important;
+    max-height: 56px !important;
+    padding: 0 8px !important;
+    border-radius: 28px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+    background: rgba(255, 255, 255, 0.94) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
+  }
+
+  .title-bar-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  /* 44px Circle Mobile Menu Button */
+  .mobile-menu-btn {
+    display: flex !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(255, 255, 255, 0.6) !important;
+    border: 1px solid rgba(26, 26, 26, 0.12) !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Active Page Title: Truncates Cleanly, Never Wraps or Overflows */
+  .active-page-title {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.04em !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    color: var(--text-primary, #1a1a1a) !important;
+  }
+
+  .title-bar-right {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Remove Live Clock/Date From Inside Island on Mobile */
+  .top-bar-clock-box {
+    display: none !important;
+  }
+
+  .notif-admin-group {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* 44px Circle Bell Button */
+  .title-bar-right .notif-wrapper {
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .title-bar-right .notif-btn,
+  .notif-btn {
+    display: flex !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(255, 255, 255, 0.6) !important;
+    border: 1px solid rgba(26, 26, 26, 0.12) !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 44px Circle Admin Button */
+  .admin-profile-wrapper {
+    display: flex !important;
+    align-items: center !important;
+    position: relative !important;
+  }
+
+  .admin-profile-btn,
+  .admin-profile-pill.prominent {
+    display: flex !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(255, 255, 255, 0.6) !important;
+    border: 1px solid rgba(26, 26, 26, 0.12) !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .admin-name,
+  .admin-chevron {
+    display: none !important;
+  }
+
+  .admin-avatar {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    border-radius: 50% !important;
+    margin: 0 !important;
+  }
+
+  /* 3. Floating Translucent Date Chip Fixed Below Island */
+  .mobile-floating-date-chip {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    position: fixed !important;
+    top: 68px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 100 !important;
+    background: rgba(255, 255, 253, 0.8) !important;
+    backdrop-filter: blur(16px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.7) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05) !important;
+    border-radius: 9999px !important;
+    padding: 4px 14px !important;
+    font-family: var(--font-family-base) !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.04em !important;
+    color: var(--text-muted, #555555) !important;
+    white-space: nowrap !important;
+    pointer-events: none !important;
+  }
+
+  /* Page Content Top Breathing Room to Scroll Under Floating Island & Chip */
+  #extendableContentBody,
+  .extendable-content-body {
+    padding-top: 48px !important;
+  }
+
+  /* 4. Icon Rail Slide-In Drawer with Blue Orders Badge */
+  .side-navigation {
+    position: fixed !important;
+    top: 8px !important;
+    left: 8px !important;
+    bottom: 8px !important;
+    height: calc(100vh - 16px) !important;
+    width: 270px !important;
+    max-width: 82vw !important;
+    transform: translateX(-110%) !important;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    backdrop-filter: blur(24px) !important;
+    -webkit-backdrop-filter: blur(24px) !important;
+    border: 1px solid rgba(26, 26, 26, 0.08) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.16) !important;
+    z-index: 9999 !important;
+    overflow-y: auto !important;
+  }
+
+  .side-navigation.mobile-open {
+    transform: translateX(0) !important;
+  }
+
+  .side-navigation.mobile-open .menu-item-label {
+    display: block !important;
+    opacity: 1 !important;
+  }
+
+  .side-navigation.mobile-open .menu-item {
+    width: 100% !important;
+    padding: 0 14px !important;
+    justify-content: flex-start !important;
+    min-height: 44px !important;
+  }
+
+  .mobile-nav-backdrop {
+    z-index: 9998 !important;
+  }
+
+  #ordersStatusBadge {
+    display: flex !important;
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+  }
+
+  /* 5. Tables Become Stacked Cards */
+  .data-table,
+  .data-table tbody,
+  .data-table tr,
+  .data-table td {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .data-table thead {
+    display: none !important;
+  }
+
+  .data-table tr {
+    margin-bottom: 12px !important;
+    background: #ffffff !important;
+    border: 1px solid rgba(26, 26, 26, 0.08) !important;
+    border-radius: 12px !important;
+    padding: 12px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  .data-table td {
+    padding: 6px 0 !important;
+    border: none !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    font-size: 13px !important;
+    text-align: right !important;
+  }
+
+  .data-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--text-muted, #747471);
+    font-size: 11px;
+    text-transform: uppercase;
+    text-align: left;
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+
+  /* 6. Filter Pill Rows Scroll Horizontally Inside Their Own Container */
+  .filter-pills,
+  .filter-pills-row,
+  .req-pills,
+  .category-pills,
+  .shop-category-pills,
+  .status-pills,
+  .custom-pills-row,
+  .log-filter-row {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    max-width: 100% !important;
+    padding-bottom: 4px !important;
+    box-sizing: border-box !important;
+  }
+
+  .filter-pills::-webkit-scrollbar,
+  .filter-pills-row::-webkit-scrollbar,
+  .req-pills::-webkit-scrollbar,
+  .category-pills::-webkit-scrollbar,
+  .log-filter-row::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .filter-pill,
+  .req-pill,
+  .category-pill {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  /* 7. Touch Targets / Buttons at Least 44px Tall */
+  .btn,
+  .btn-capsule,
+  .segment-btn,
+  .seg-btn,
+  .filter-pill,
+  .req-pill,
+  .category-pill,
+  .island-action,
+  .pillbtn,
+  button.btn-primary,
+  button.btn-secondary,
+  .btn-period-toggle {
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 8. Period Switcher (7 days / 30 days / all time) — Full Width 3-Column Grid */
+  #overviewPeriodControl,
+  .segmented-control,
+  .seg,
+  .chart-period-toggle {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    gap: 4px !important;
+  }
+
+  #overviewPeriodControl .segment-btn,
+  .seg-btn,
+  .btn-period-toggle {
+    width: 100% !important;
+    text-align: center !important;
+    justify-content: center !important;
+    padding: 0 4px !important;
+    font-size: 12px !important;
+  }
+
+  /* 9. KPI Cards in 2-Column Grid */
+  .metric-cards-row,
+  .summary-kpi-grid,
+  .kpi-cards-grid,
+  .overview-kpi-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .metric-card {
+    padding: 14px 12px !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .metric-card .metric-value {
+    font-size: 20px !important;
+  }
+
+  /* 10. Modals and Side Drawers Become Full-Screen Sheets */
+  .modal-overlay .modal-container,
+  .modal-overlay .x-modal-card,
+  .modal-dialog,
+  .modal-container,
+  .modal-sheet,
+  .x-modal-card,
+  .drawer-panel,
+  .drawer,
+  #reqDrawerContainer,
+  .order-detail-drawer,
+  .cart-drawer,
+  .side-drawer {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    inset: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    border-radius: 0 !important;
+    height: 100% !important;
+    max-height: 100vh !important;
+    box-sizing: border-box !important;
+  }
+}
 
 

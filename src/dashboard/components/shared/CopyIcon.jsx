@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function CopyIcon({ text, className = '' }) {
+export default function CopyIcon({ text, className = '', ariaLabel = 'Copy to clipboard' }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -33,8 +33,8 @@ export default function CopyIcon({ text, className = '' }) {
       type="button"
       className={`copy-icon-btn ${className}`}
       onClick={handleCopy}
-      title={copied ? 'Copied!' : 'Copy'}
-      aria-label={copied ? 'Copied' : 'Copy to clipboard'}
+      title={copied ? 'Copied' : ariaLabel}
+      aria-label={copied ? 'Copied' : ariaLabel}
     >
       {copied ? (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

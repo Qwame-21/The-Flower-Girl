@@ -7,6 +7,7 @@ import { getInventorySummary } from '../data/products';
 import { FULFILLMENT_STATUS_LABELS } from '../data/statusMap';
 import { calculateOrderStats, calculateDailyTrend } from '../data/statsHelper';
 import { fetchOrders, subscribeToCache, getCachedData, isDataLoading } from '../data/dataCache';
+import { supabase } from '../../config/supabase';
 
 // SVG Icons matching monolith
 const SVG = {
@@ -431,11 +432,12 @@ export default function OverviewPage() {
   const [deliveryFilter, setDeliveryFilter] = useState('all');
 
   const [orders, setOrders] = useState(() => getCachedData('orders') || []);
-  const [inventory, setInventory] = useState({ healthy: 0, low: 0, out: 0, products: [] });
+  const [completedLogs, setCompletedLogs] = useState([]);
+  const [inventory, setInventory] = useState({ healthy: 0, low: 0, out: 0, totalProducts: 0, products: [] });
   const [loading, setLoading] = useState(!getCachedData('orders'));
   const [error, setError] = useState(null);
 
-  // Load orders from cache/Supabase on mount
+  // Load orders and completed_orders_log from cache/Supabase on mount
   useEffect(() => {
     async function loadOrders() {
       if (!isDataLoading('orders')) {
@@ -443,8 +445,14 @@ export default function OverviewPage() {
       }
       
       try {
-        const loadedOrders = await fetchOrders();
+        const [loadedOrders, logsRes] = await Promise.all([
+          fetchOrders(),
+          supabase ? supabase.from('completed_orders_log').select('*').order('completed_at', { ascending: false }) : Promise.resolve({ data: [] })
+        ]);
         setOrders(loadedOrders || []);
+        if (logsRes?.data) {
+          setCompletedLogs(logsRes.data);
+        }
         setError(null);
       } catch (err) {
         setError(err.message);
@@ -480,52 +488,177 @@ export default function OverviewPage() {
     return unsubscribe;
   }, []);
 
-  const periodDays = period === '7d' ? 7 : period === '30d' ? 30 : Infinity;
-  const cutoffDate = periodDays !== Infinity ? new Date(new Date().getTime() - periodDays * 86400000) : null;
-  const combinedStats = calculateOrderStats(orders, { cutoffDate });
-  
-  const prevPeriodDays = period === '7d' ? 30 : Infinity;
-  const prevCutoffDate = prevPeriodDays !== Infinity ? new Date(new Date().getTime() - prevPeriodDays * 86400000) : null;
-  const prevStats = calculateOrderStats(orders, { cutoffDate: prevCutoffDate });
+  // Combine live orders and completed_orders_log (archived/snapshot records)
+  const archivedDeliveredOrders = (completedLogs || [])
+    .filter(log => {
+      const logCode = (log.order_code || '').toUpperCase();
+      const matchingLive = orders.find(o =>
+        o.id === log.order_id ||
+        (o.orderCode && o.orderCode.toUpperCase() === logCode)
+      );
+      // Only synthesize if not already present in live orders
+      return !matchingLive;
+    })
+    .map(log => ({
+      id: log.order_id || log.id,
+      orderCode: log.order_code,
+      customerName: log.customer_name,
+      customerPhone: log.customer_phone,
+      customerEmail: log.customer_email,
+      total: Number(log.total) || 0,
+      subtotal: Number(log.total) || 0,
+      fulfillmentStatus: 'delivered',
+      paymentStatus: 'paid',
+      orderDate: log.created_at || log.completed_at,
+      deliveredAt: log.completed_at || log.created_at,
+      requestedDeliveryDate: null,
+      source: 'online',
+      items: [],
+      auditLog: []
+    }));
 
-  const activeOrdersCount = orders.filter(o => o.fulfillmentStatus !== 'completed' && o.fulfillmentStatus !== 'cancelled').length;
+  const enrichedLiveOrders = orders.map(order => {
+    const orderCode = (order.orderCode || '').toUpperCase();
+    const matchingLog = (completedLogs || []).find(l =>
+      l.order_id === order.id ||
+      (orderCode && l.order_code && orderCode === l.order_code.toUpperCase())
+    );
+    if (matchingLog) {
+      return {
+        ...order,
+        fulfillmentStatus: 'delivered',
+        deliveredAt: order.deliveredAt || matchingLog.completed_at || matchingLog.created_at
+      };
+    }
+    return order;
+  });
+
+  const unifiedOrders = [...enrichedLiveOrders, ...archivedDeliveredOrders];
+
+  const periodDays = period === '7d' ? 7 : period === '30d' ? 30 : Infinity;
+  const cutoffDate = periodDays !== Infinity ? new Date(Date.now() - periodDays * 86400000) : null;
+  const prevPeriodDays = period === '7d' ? 7 : period === '30d' ? 30 : Infinity;
+  const prevCutoffDate = periodDays !== Infinity ? new Date(Date.now() - periodDays * 2 * 86400000) : null;
+
+  // Filter unified orders by selected period
+  const periodOrders = cutoffDate
+    ? unifiedOrders.filter(o => {
+        const d = new Date(o.deliveredAt || o.orderDate || o.paymentDate || 0);
+        return !isNaN(d.getTime()) && d >= cutoffDate;
+      })
+    : unifiedOrders;
+
+  const prevPeriodOrders = cutoffDate && prevCutoffDate
+    ? unifiedOrders.filter(o => {
+        const d = new Date(o.deliveredAt || o.orderDate || o.paymentDate || 0);
+        return !isNaN(d.getTime()) && d >= prevCutoffDate && d < cutoffDate;
+      })
+    : [];
+
+  const combinedStats = calculateOrderStats(periodOrders);
+  const prevStats = calculateOrderStats(prevPeriodOrders);
+
+  const activeOrdersCount = periodOrders.filter(o =>
+    o.fulfillmentStatus !== 'delivered' &&
+    o.fulfillmentStatus !== 'completed' &&
+    o.fulfillmentStatus !== 'cancelled'
+  ).length;
   const pendingPaymentCount = combinedStats.awaitingPaymentCount;
 
-  const revDelta = prevStats.totalRevenue > 0 ? Math.round(((combinedStats.totalRevenue - prevStats.totalRevenue) / prevStats.totalRevenue) * 100) : null;
-  const ordersDelta = prevStats.totalOrdersCount > 0 ? Math.round(((combinedStats.totalOrdersCount - prevStats.totalOrdersCount) / prevStats.totalOrdersCount) * 100) : null;
+  const revDelta = prevStats.totalRevenue > 0
+    ? Math.round(((combinedStats.totalRevenue - prevStats.totalRevenue) / prevStats.totalRevenue) * 100)
+    : null;
+  const ordersDelta = prevStats.totalOrdersCount > 0
+    ? Math.round(((combinedStats.totalOrdersCount - prevStats.totalOrdersCount) / prevStats.totalOrdersCount) * 100)
+    : null;
 
   const hasData = combinedStats.totalRevenue > 0 || combinedStats.totalOrdersCount > 0;
 
-  // Compute order status distribution from real orders (using dashboard-mapped values)
+  // Delivered orders in the selected period (support both 'delivered' and 'completed' statuses)
+  const deliveredOrders = periodOrders.filter(o =>
+    o.fulfillmentStatus === 'delivered' || o.fulfillmentStatus === 'completed'
+  );
+
+  // Compute order status distribution from unified orders (respecting period filter)
   const orderStatusData = {
-    completed: { key: 'completed', label: 'Delivered', value: orders.filter(o => o.fulfillmentStatus === 'completed').length, color: 'var(--chart-good, #5E9470)' },
-    packaging: { key: 'packaging', label: 'Processing', value: orders.filter(o => o.fulfillmentStatus === 'packaging').length, color: 'var(--chart-progress, #D0A24A)' },
-    ready: { key: 'ready', label: 'Packed', value: orders.filter(o => o.fulfillmentStatus === 'ready').length, color: 'var(--chart-info, #5F82A6)' },
-    delivery: { key: 'delivery', label: 'Dispatched', value: orders.filter(o => o.fulfillmentStatus === 'delivery').length, color: 'var(--chart-sage, #6E9C7B)' },
-    pending_payment: { key: 'pending_payment', label: 'Pending Payment', value: orders.filter(o => o.paymentStatus === 'pending' && o.fulfillmentStatus !== 'cancelled').length, color: 'var(--chart-bad, #B9645C)' }
+    completed: {
+      key: 'completed',
+      label: 'Delivered',
+      value: deliveredOrders.length,
+      color: 'var(--chart-good, #5E9470)'
+    },
+    packaging: {
+      key: 'packaging',
+      label: 'Processing',
+      value: periodOrders.filter(o => o.fulfillmentStatus === 'packaging' || o.fulfillmentStatus === 'preparing').length,
+      color: 'var(--chart-progress, #D0A24A)'
+    },
+    ready: {
+      key: 'ready',
+      label: 'Packed',
+      value: periodOrders.filter(o => o.fulfillmentStatus === 'ready' || o.fulfillmentStatus === 'packed').length,
+      color: 'var(--chart-info, #5F82A6)'
+    },
+    delivery: {
+      key: 'delivery',
+      label: 'Dispatched',
+      value: periodOrders.filter(o => o.fulfillmentStatus === 'delivery' || o.fulfillmentStatus === 'dispatched').length,
+      color: 'var(--chart-sage, #6E9C7B)'
+    },
+    pending_payment: {
+      key: 'pending_payment',
+      label: 'Pending Payment',
+      value: periodOrders.filter(o => o.paymentStatus === 'pending' && o.fulfillmentStatus !== 'cancelled').length,
+      color: 'var(--chart-bad, #B9645C)'
+    }
   };
 
-  // Inventory data - derived from products table
+  // Inventory data - derived from products table or default catalog
   const inventoryData = {
-    healthy: { key: 'healthy', label: 'In Stock', value: inventory.healthy, color: 'var(--chart-good, #5E9470)' },
-    low: { key: 'low', label: 'Low Stock', value: inventory.low, color: 'var(--chart-progress, #D0A24A)' },
-    out: { key: 'out', label: 'Out of Stock', value: inventory.out, color: 'var(--chart-bad, #B9645C)' }
+    healthy: { key: 'healthy', label: 'In Stock', value: inventory.healthy || 0, color: 'var(--chart-good, #5E9470)' },
+    low: { key: 'low', label: 'Low Stock', value: inventory.low || 0, color: 'var(--chart-progress, #D0A24A)' },
+    out: { key: 'out', label: 'Out of Stock', value: inventory.out || 0, color: 'var(--chart-bad, #B9645C)' }
   };
-  const totalProducts = inventory.healthy + inventory.low + inventory.out;
+  const totalProducts = (inventory.healthy || 0) + (inventory.low || 0) + (inventory.out || 0);
 
-  // Delivery data - derived from orders
-  const deliveredOrders = orders.filter(o => o.fulfillmentStatus === 'completed');
+  // Compute On Time vs confirmed delivery date for delivered orders
+  function checkOrderOnTime(order) {
+    const targetStr = order.requestedDeliveryDate || order.requested_delivery_date || order.estimatedDelivery;
+    const deliveredStr = order.deliveredAt || order.orderDate;
+
+    if (targetStr && deliveredStr) {
+      const targetMatch = String(targetStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      const deliveredDate = new Date(deliveredStr);
+
+      if (targetMatch && !isNaN(deliveredDate.getTime())) {
+        const deliveredAccraStr = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Africa/Accra',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        }).format(deliveredDate); // "YYYY-MM-DD"
+        const targetDateStr = `${targetMatch[1]}-${targetMatch[2]}-${targetMatch[3]}`;
+        return deliveredAccraStr <= targetDateStr;
+      }
+    }
+    return true;
+  }
+
+  const onTimeCount = deliveredOrders.filter(checkOrderOnTime).length;
+  const lateCount = deliveredOrders.length - onTimeCount;
+
+  // Delivery data - derived from delivered orders with On Time vs Late computation
   const deliveryData = {
-    onTime: { key: 'onTime', label: 'On Time', value: deliveredOrders.length, color: 'var(--chart-good, #5E9470)' },
-    runningLate: { key: 'runningLate', label: 'Running Late', value: 0, color: 'var(--chart-bad, #B9645C)' }
+    onTime: { key: 'onTime', label: 'On Time', value: onTimeCount, color: 'var(--chart-good, #5E9470)' },
+    runningLate: { key: 'runningLate', label: 'Late', value: lateCount, color: 'var(--chart-bad, #B9645C)' }
   };
 
   // Calculate real daily trend data based on selected mode
-  const trendSeries = calculateDailyTrend(orders, trendMode, 30);
+  const trendSeries = calculateDailyTrend(periodOrders, trendMode, 30);
 
-  // Derive activity log from order_events
+  // Derive activity log from order_events across unified orders
   const activityLog = [];
-  orders.slice(0, 6).forEach(order => {
+  unifiedOrders.slice(0, 6).forEach(order => {
     if (order.auditLog && order.auditLog.length > 0) {
       order.auditLog.slice(0, 2).forEach(event => {
         const stageLabel = FULFILLMENT_STATUS_LABELS[event.stage] || event.stage;
@@ -579,7 +712,7 @@ export default function OverviewPage() {
             <div className="metric-icon-square">{SVG.shoppingBag}</div>
           </div>
           <div className="metric-label">Active Orders</div>
-          <div className="metric-value">{loading ? '—' : combinedStats.totalOrdersCount}</div>
+          <div className="metric-value">{loading ? '—' : activeOrdersCount}</div>
           <div className="metric-divider"></div>
           <div className="metric-comparison">
             <span className="comparison-label">vs prev period</span>

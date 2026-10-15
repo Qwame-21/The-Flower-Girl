@@ -12,10 +12,21 @@ const BASE_SELECT = `
   customer_name,
   customer_email,
   customer_phone,
+  recipient_name,
+  delivery_address,
+  landmark,
+  location_link,
+  customer_note,
+  card_message,
+  card_style,
   fulfillment_status,
   payment_status,
+  estimated_delivery,
+  requested_delivery_date,
+  admin_note,
   created_at,
-  order_events (stage, customer_note, created_at)
+  order_events (stage, created_at),
+  order_items (item_name, quantity)
 `;
 
 // Additional columns added by migrations. Queried in the first pass;
@@ -28,16 +39,23 @@ const EXTENDED_SELECT = `
   customer_name,
   customer_email,
   customer_phone,
+  customer_note,
   recipient_name,
+  delivery_address,
+  landmark,
+  location_link,
   fulfillment_status,
   payment_status,
   estimated_delivery,
   requested_delivery_date,
   delivery_type,
+  delivery_fee,
   delivery_window,
+  customization_selections,
   admin_note,
   created_at,
-  order_events (stage, customer_note, created_at)
+  order_events (stage, created_at),
+  order_items (item_name, quantity)
 `;
 
 /**
@@ -84,13 +102,10 @@ export async function trackRecord(reference, credential) {
         const rawEvents = data.events || [];
         const events = rawEvents.map(e => ({
           stage: FULFILLMENT_MAP[e.stage] || e.stage,
-          note: e.note || e.customer_note || '',
           createdAt: e.createdAt || e.created_at,
         }));
 
-        const eventFields = Object.fromEntries(
-          events.flatMap(e => [[`${e.stage}At`, e.createdAt], [`${e.stage}Note`, e.note]])
-        );
+        const eventFields = Object.fromEntries(events.map(e => [`${e.stage}At`, e.createdAt]));
 
         return {
           data: {
@@ -109,8 +124,7 @@ export async function trackRecord(reference, credential) {
   }
 
   // 2. FALLBACK PATH (for local/custom queries):
-  let orders = null;
-  let queryError = null;
+  let orders;
   let usingBaseOnly = false;
 
   const firstResult = await supabase
@@ -177,28 +191,39 @@ export async function trackRecord(reference, credential) {
 
   const events = (matched.order_events || []).map(e => ({
     stage: FULFILLMENT_MAP[e.stage] || e.stage,
-    note: e.customer_note,
     createdAt: e.created_at,
   }));
 
-  const eventFields = Object.fromEntries(
-    events.flatMap(e => [[`${e.stage}At`, e.createdAt], [`${e.stage}Note`, e.note]])
-  );
+  const eventFields = Object.fromEntries(events.map(e => [`${e.stage}At`, e.createdAt]));
 
   return {
     data: {
       kind: 'order',
       trackingNumber: matched.tracking_number || matched.order_code,
       customerName: matched.customer_name,
+      customerPhone: matched.customer_phone ?? null,
+      customerEmail: matched.customer_email ?? null,
       // Optional — null when migration not yet run
-      recipientName: usingBaseOnly ? null : (matched.recipient_name ?? null),
+      recipientName: matched.recipient_name ?? null,
+      deliveryAddress: matched.delivery_address ?? null,
+      landmark: matched.landmark ?? null,
+      locationLink: matched.location_link ?? null,
       status: FULFILLMENT_MAP[matched.fulfillment_status] || matched.fulfillment_status || 'packaging',
       paymentStatus: matched.payment_status,
-      estimatedDelivery: usingBaseOnly ? null : (matched.estimated_delivery ?? null),
+      customerNote: matched.customer_note ?? null,
+      cardMessage: matched.card_message ?? null,
+      cardStyle: matched.card_style ?? null,
+      estimatedDelivery: matched.estimated_delivery ?? null,
       deliveryType: usingBaseOnly ? null : (matched.delivery_type ?? null),
+      deliveryFee: usingBaseOnly ? null : (matched.delivery_fee ?? null),
       deliveryWindow: usingBaseOnly ? null : (matched.delivery_window ?? null),
-      requestedDeliveryDate: usingBaseOnly ? null : (matched.requested_delivery_date ?? null),
-      adminNote: usingBaseOnly ? null : (matched.admin_note ?? null),
+      requestedDeliveryDate: matched.requested_delivery_date ?? null,
+      customizationSelections: usingBaseOnly ? null : (matched.customization_selections ?? null),
+      items: (matched.order_items || []).map(item => ({
+        name: item.item_name,
+        quantity: item.quantity,
+      })),
+      staffNote: matched.admin_note ?? null,
       createdAt: matched.created_at,
       events,
       ...eventFields,

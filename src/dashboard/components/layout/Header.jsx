@@ -107,17 +107,66 @@ function formatLogDateTime(isoString) {
   }).format(d);
 }
 
+function getAccraDateText() {
+  const now = new Date();
+  const dtf = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Accra',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+  const parts = Object.fromEntries(dtf.formatToParts(now).map(p => [p.type, p.value]));
+  const weekday = (parts.weekday || '').toUpperCase();
+  const day = parts.day;
+  const month = (parts.month || '').toUpperCase();
+  const year = parts.year;
+  return `${weekday}, ${day} ${month} ${year}`;
+}
+
+function LiveAccraClock() {
+  const ref = useRef(null);
+  useEffect(() => {
+    function update() {
+      if (ref.current) ref.current.textContent = getAccraClockText();
+    }
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <span ref={ref} className="meta-label top-bar-clock" id="topBarClock">
+      {getAccraClockText()}
+    </span>
+  );
+}
+
+function LiveMobileDateChip() {
+  const ref = useRef(null);
+  useEffect(() => {
+    function update() {
+      if (ref.current) ref.current.textContent = getAccraDateText();
+    }
+    update();
+    const timer = setInterval(update, 60000);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <span ref={ref}>
+      {getAccraDateText()}
+    </span>
+  );
+}
+
 export default function Header({ onToggleMobile }) {
   const location = useLocation();
   const activeTitle = ROUTE_TITLE_MAP[location.pathname] || 'OVERVIEW';
   const { onSignOut } = useDashboard();
 
-  // Live top bar clock state — Accra time with GMT suffix
-  const [clockText, setClockText] = useState(getAccraClockText);
-
   // Notification state
   const [isMuted, setIsMuted] = useState(() => localStorage.getItem('notifications-muted') === 'true');
   const [notifications, setNotifications] = useState([]);
+  const [notificationTab, setNotificationTab] = useState('orders');
   const [loading, setLoading] = useState(true);
   const [usingPolling, setUsingPolling] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
@@ -334,6 +383,18 @@ export default function Header({ onToggleMobile }) {
   // Unread count for badge
   const visibleNotifications = notifications.filter(isNotifAllowed);
   const unreadCount = visibleNotifications.filter(n => !n.readAt).length;
+  const getNotificationTab = notification => {
+    const type = (notification.type || '').toLowerCase();
+    if (type === 'new_order' || type === 'order') return 'orders';
+    if (type === 'new_request' || type === 'request') return 'requests';
+    return 'other';
+  };
+  const notificationCounts = {
+    orders: visibleNotifications.filter(n => getNotificationTab(n) === 'orders').length,
+    requests: visibleNotifications.filter(n => getNotificationTab(n) === 'requests').length,
+    other: visibleNotifications.filter(n => getNotificationTab(n) === 'other').length,
+  };
+  const displayedNotifications = visibleNotifications.filter(n => getNotificationTab(n) === notificationTab);
 
   // Clear All overlay confirm state
   const [clearAllConfirm, setClearAllConfirm] = useState(false);
@@ -341,13 +402,7 @@ export default function Header({ onToggleMobile }) {
   // Multi-select for bulk delete
   const [selectedNotifIds, setSelectedNotifIds] = useState([]);
 
-  useEffect(() => {
-    function updateClock() {
-      setClockText(getAccraClockText());
-    }
-    const timer = setInterval(updateClock, 1000);
-    return () => clearInterval(timer);
-  }, []);
+
 
   // Dropdown states
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -602,7 +657,7 @@ export default function Header({ onToggleMobile }) {
         navigate('/orders');
       }
     } else if (type === 'new_request') {
-      navigate('/requests');
+      navigate('/requests', { state: { openRequestId: recordId } });
     } else if (type === 'new_application') {
       navigate('/careers');
     } else if (type === 'low_stock') {
@@ -656,9 +711,7 @@ export default function Header({ onToggleMobile }) {
       <div className="title-bar-right">
         {/* Current Live Date and Time */}
         <div className="top-bar-clock-box">
-          <span className="meta-label top-bar-clock" id="topBarClock">
-            {clockText}
-          </span>
+          <LiveAccraClock />
         </div>
 
         {/* Grouped Notification Bell & Admin Profile Pair */}
@@ -759,13 +812,31 @@ export default function Header({ onToggleMobile }) {
                   </div>
                 </div>
               )}
+              <div className="notif-tabs" role="tablist" aria-label="Notification categories">
+                {[
+                  ['orders', 'Orders'],
+                  ['requests', 'Requests'],
+                  ['other', 'Other'],
+                ].map(([tab, label]) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={notificationTab === tab}
+                    className={`notif-tab${notificationTab === tab ? ' active' : ''}`}
+                    onClick={() => setNotificationTab(tab)}
+                  >
+                    {label}<span>{notificationCounts[tab]}</span>
+                  </button>
+                ))}
+              </div>
               <div className="notif-body" id="notifBody">
-                {visibleNotifications.length === 0 ? (
+                {displayedNotifications.length === 0 ? (
                   <div className="notif-empty" id="notifEmpty" style={{ display: 'block' }}>
-                    <span className="meta-label">No notifications</span>
+                    <span className="meta-label">No {notificationTab === 'other' ? 'other ' : ''}{notificationTab} notifications</span>
                   </div>
                 ) : (
-                  visibleNotifications.map((notif) => {
+                  displayedNotifications.map((notif) => {
                     const isSelected = selectedNotifIds.includes(notif.id);
                     return (
                       <div
@@ -894,6 +965,11 @@ export default function Header({ onToggleMobile }) {
           </div>
         </div>
       </div>
+    </div>
+
+    {/* Floating Translucent Date Chip (Mobile <768px only) */}
+    <div className="mobile-floating-date-chip" id="mobileFloatingDateChip" aria-hidden="true">
+      <LiveMobileDateChip />
     </div>
 
     {/* Admin Profile Side Drawer */}
@@ -1222,4 +1298,3 @@ export default function Header({ onToggleMobile }) {
     </>
   );
 }
-

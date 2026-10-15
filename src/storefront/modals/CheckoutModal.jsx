@@ -302,7 +302,7 @@ export default function CheckoutModal({ cart, onClose, onQuantity, onNavigate })
             )}
           </div>
         ) : !cart.length ? (
-          <div className="flow-success empty-order"><p>Add a ready-made gift or begin with the custom gift builder.</p><button className="primary-action" onClick={onClose}>BROWSE THE SHOP</button></div>
+          <div className="flow-success empty-order"><p>Add a ready-made gift or begin with the custom gift builder.</p><button className="primary-action empty-state-shop-action" onClick={onClose}>BROWSE THE SHOP</button></div>
         ) : (
           <form onSubmit={submit}>
             <div className="checkout-summary">{cart.map(item => (

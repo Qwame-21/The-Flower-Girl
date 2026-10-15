@@ -1,8 +1,10 @@
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useEffect, useTransition, useLayoutEffect, useRef } from 'react';
 import CustomDropdown from '../components/shared/CustomDropdown';
 import CopyIcon from '../components/shared/CopyIcon';
+import AutoGrowTextarea from '../components/shared/AutoGrowTextarea';
 import PasswordConfirmModal from '../components/PasswordConfirmModal';
 import { ORDER_CATEGORIES, formatGHS } from '../lib/ordersModel';
+import { getOrderCustomerFields } from '../../shared/trackingFields';
 import { listOrders, updateOrderStatus, deleteOrder, deleteOrders, updateOrderNote } from '../data/orders';
 import { supabase } from '../../config/supabase';
 import { DASHBOARD_TO_DB_FULFILLMENT, DB_TO_DASHBOARD_FULFILLMENT, STEPPER_TO_EVENT_STAGE } from '../data/statusMap';
@@ -22,6 +24,7 @@ import {
   dateRange,
   compareDates
 } from '../../shared/dateUtils';
+import { parseAdminOrderNotes } from '../../shared/orderNotes';
 
 // SVG Icons
 // SVG Icons (clean thin-stroke line icons, 18-20px)
@@ -166,6 +169,70 @@ function CollapsibleText({ text, maxLines = 3, style = {} }) {
       )}
     </div>
   );
+}
+
+function CollapsibleOrderNote({ id, label, text }) {
+  const [expanded, setExpanded] = useState(false);
+  const [canToggle, setCanToggle] = useState(false);
+  const contentRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content || expanded) return undefined;
+
+    const updateToggle = () => setCanToggle(content.scrollHeight > content.clientHeight + 2);
+    updateToggle();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(updateToggle);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [expanded, text]);
+
+  return (
+    <div className="admin-order-note-block">
+      <span className="admin-order-note-block__label">{label}</span>
+      <div
+        ref={contentRef}
+        id={id}
+        className={`admin-order-note-block__content ${expanded ? '' : 'is-collapsed'}`}
+      >
+        {text}
+      </div>
+      {canToggle && (
+        <button
+          type="button"
+          className="admin-order-note-block__toggle"
+          aria-expanded={expanded}
+          aria-controls={id}
+          onClick={() => setExpanded(value => !value)}
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function getOrderNoteEntries(order) {
+  const legacyCustomerNote = !order.customerNote && /(?:gift\s*card|card\s*style)\s*:/i.test(order.adminNote || '')
+    ? order.adminNote
+    : '';
+  const blocks = parseAdminOrderNotes(order.customerNote || legacyCustomerNote);
+  const hasGiftMessage = blocks.some(block => block.id === 'gift-message');
+  const hasCardStyle = blocks.some(block => block.id === 'card-style');
+  const entries = blocks.map(block => ({
+    ...block,
+    label: block.id === 'gift-message' ? 'Gift card message' : block.label,
+  }));
+
+  if (order.cardMessage && !hasGiftMessage && !entries.some(block => block.content === order.cardMessage)) {
+    entries.push({ id: 'gift-message', label: 'Gift card message', content: order.cardMessage });
+  }
+  if (order.cardStyle && !hasCardStyle && !entries.some(block => block.content === order.cardStyle)) {
+    entries.push({ id: 'card-style', label: 'Card style', content: order.cardStyle });
+  }
+
+  return entries;
 }
 
 export default function OrdersPage() {
@@ -911,6 +978,7 @@ export default function OrdersPage() {
             const isSelected = selectedIds.includes(order.id);
             const isExpanded = expandedId === order.id;
             const displayCode = order.orderCode || order.id;
+            const customerNoteEntries = getOrderNoteEntries(order);
 
             let offTrackPill = null;
             if (order.paymentStatus === 'pending') {
@@ -955,7 +1023,8 @@ export default function OrdersPage() {
             const draftWindow = draft.window !== undefined ? draft.window : '';
             const draftFrom = draft.from !== undefined ? draft.from : '';
             const draftTo = draft.to !== undefined ? draft.to : '';
-            const draftNote = draft.note !== undefined ? draft.note : (order.adminNote || '');
+            const staffNote = getOrderCustomerFields(order).staffNote;
+            const draftNote = draft.note !== undefined ? draft.note : staffNote;
 
             // Timezone-safe: parse YYYY-MM-DD without new Date(string) to avoid UTC shift
             const requestedDateStr = order.requestedDeliveryDate
@@ -1009,7 +1078,7 @@ export default function OrdersPage() {
 
             const savedDateVal = order.estimatedDelivery ? (order.estimatedDelivery.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || '') : '';
             const savedWinVal = order.deliveryWindow || '';
-            const savedNoteVal = order.adminNote || '';
+            const savedNoteVal = staffNote;
 
             const hasUnsavedChanges =
               (draft.date !== undefined && draft.date !== savedDateVal) ||
@@ -1391,38 +1460,21 @@ export default function OrdersPage() {
                               )}
 
                               {/* Customer Note (omit if empty) */}
-                              {order.customerNote && (
+                              {customerNoteEntries.length > 0 && (
                                 <div className="contact-detail-row">
                                   <div className="contact-icon-tile">{SVG.note}</div>
                                   <div className="contact-detail-content">
                                     <div className="contact-detail-label">CUSTOMER NOTE</div>
-                                    <div className="contact-detail-value" style={{ fontStyle: 'italic', background: 'rgba(26,26,26,0.03)', padding: '6px 10px', borderRadius: '4px' }}>
-                                      "{order.customerNote}"
+                                    <div className="contact-detail-value">
+                                      {customerNoteEntries.map(entry => (
+                                        <CollapsibleOrderNote
+                                          key={entry.id}
+                                          id={`order-${order.id}-note-${entry.id}`}
+                                          label={entry.label}
+                                          text={entry.content}
+                                        />
+                                      ))}
                                     </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Gift Card Message (omit if empty) */}
-                              {order.cardMessage && (
-                                <div className="contact-detail-row">
-                                  <div className="contact-icon-tile">{SVG.giftCard}</div>
-                                  <div className="contact-detail-content">
-                                    <div className="contact-detail-label">GIFT CARD MESSAGE</div>
-                                    <div className="contact-detail-value" style={{ fontStyle: 'italic', background: 'rgba(236,72,153,0.06)', borderLeft: '3px solid #ec4899', padding: '6px 10px', borderRadius: '0 4px 4px 0' }}>
-                                      "{order.cardMessage}"
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Card / Lettering Style (omit if empty) */}
-                              {order.cardStyle && (
-                                <div className="contact-detail-row">
-                                  <div className="contact-icon-tile">{SVG.pen}</div>
-                                  <div className="contact-detail-content">
-                                    <div className="contact-detail-label">CARD / LETTERING STYLE</div>
-                                    <div className="contact-detail-value">{order.cardStyle}</div>
                                   </div>
                                 </div>
                               )}
@@ -1594,12 +1646,12 @@ export default function OrdersPage() {
 
                         <div className="admin-note-section">
                           <div className="form-field-row">
-                            <label className="form-field-label">ADMIN NOTE (VISIBLE TO CUSTOMER ON TRACK ORDER)</label>
-                            <textarea
+                            <label className="form-field-label" htmlFor={`orderAdminNote-${order.id}`}>ADMIN NOTE (VISIBLE TO CUSTOMER ON TRACK ORDER)</label>
+                            <AutoGrowTextarea
+                              id={`orderAdminNote-${order.id}`}
                               className="form-field-input admin-note-field"
                               value={draftNote}
                               placeholder="e.g. Call customer 10 mins before arrival"
-                              rows={2}
                               onChange={(e) => updateDraft(order.id, 'note', e.target.value)}
                             />
                           </div>

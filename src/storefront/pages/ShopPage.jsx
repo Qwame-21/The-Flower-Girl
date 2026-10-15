@@ -8,6 +8,7 @@ import ProductDetail from '../modals/ProductDetail';
 import RequestModal from '../modals/RequestModal';
 import WishlistModal from '../modals/WishlistModal';
 import { ProductGridSkeleton, useDelayedLoading } from '../components/Skeleton';
+import { applyPromotionsToProducts } from '../../shared/pricing';
 
 export default function ShopPage({ onNavigate, cart, setCart, wishlist, setWishlist, openCheckout, onCheckoutHandled, openWishlist, onWishlistHandled, initialProduct, onClearInitialProduct }) {
   const [requestProduct, setRequestProduct] = useState(null);
@@ -35,13 +36,7 @@ export default function ShopPage({ onNavigate, cart, setCart, wishlist, setWishl
   const { products: liveProducts, loading, error, source } = useLiveProducts();
   const showSkeleton = useDelayedLoading(loading && liveProducts.length === 0, { delay: 150, minDuration: 300 });
   
-  const shopProducts = useMemo(() => liveProducts.map(product => { 
-    const promotion = promotions.find(item => item.productId === product.id && item.status === 'active' && Number(item.percent) > 0); 
-    if (!promotion) return product; 
-    const discountPercent = Math.min(90, Number(promotion.percent)); 
-    const salePrice = Math.round(product.price * (100 - discountPercent) / 100); 
-    return { ...product, originalPriceLabel: product.priceLabel, discountPercent, price: salePrice, priceLabel: `GHS ${salePrice.toLocaleString()}` }; 
-  }), [liveProducts, promotions]);
+  const shopProducts = useMemo(() => applyPromotionsToProducts(liveProducts, promotions), [liveProducts, promotions]);
   useEffect(() => {
     setCart(current => {
       // Update cart items with live product data

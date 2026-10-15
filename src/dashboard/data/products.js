@@ -285,25 +285,162 @@ export async function deletePromotion(id) {
   return { success: true };
 }
 
+export const DEFAULT_PRODUCTS = [
+  {
+    id: 'hamper-3750',
+    name: 'Luxury hamper',
+    slug: 'luxury-hamper',
+    category: 'hampers',
+    price: 3750,
+    stock: 25,
+    low_stock_threshold: 3,
+    tag: 'SIGNATURE',
+    description: 'Laptop bag, Lacoste shirt, YSL perfume, Patek Philippe watch, manicure set and card.',
+    details: ['Premium gift box', 'Fashion and fragrance selection', 'Watch and grooming pieces', 'Personal message card'],
+    image_path: 'hamper-editorial-v2.png',
+    secondary_image_path: null,
+    visible: true,
+    sort_order: 0
+  },
+  {
+    id: 'christmas-bundle',
+    name: 'Christmas bundle',
+    slug: 'christmas-bundle',
+    category: 'bundles',
+    price: 1250,
+    stock: 20,
+    low_stock_threshold: 3,
+    tag: 'SEASONAL',
+    description: 'Six yards of Hollandaise fabric, Bodycology fragrance splash and an insulated tumbler.',
+    details: ['Hollandaise fabric', 'Fragrance splash', 'Insulated tumbler', 'Gift presentation'],
+    image_path: 'engagement-presentation-v2.png',
+    secondary_image_path: null,
+    visible: true,
+    sort_order: 1
+  },
+  {
+    id: 'period-care',
+    name: 'Period care box',
+    slug: 'period-care-box',
+    category: 'care',
+    price: 650,
+    stock: 30,
+    low_stock_threshold: 5,
+    tag: 'SUBSCRIPTION',
+    description: 'Pads and panty liners, feminine wash and wipes, ginger tea with mint, cranberry juice, cookies and a hot water bottle. Monthly subscription available.',
+    details: ['Period-care essentials', 'Tea, juice and cookies', 'Hot water bottle', 'Optional monthly delivery'],
+    image_path: 'wrapping-editorial-v2.png',
+    secondary_image_path: null,
+    visible: true,
+    sort_order: 2
+  },
+  {
+    id: 'fresh-bouquet',
+    name: 'Fresh flower bouquet',
+    slug: 'fresh-flower-bouquet',
+    category: 'flowers',
+    price: 450,
+    stock: 30,
+    low_stock_threshold: 5,
+    tag: 'FRESH',
+    description: 'A fresh arrangement selected around your preferred palette, occasion and delivery date.',
+    details: ['Seasonal fresh flowers', 'Chosen colour direction', 'Hand-tied finishing', 'Message card'],
+    image_path: 'bouquet-editorial-v2.png',
+    secondary_image_path: null,
+    visible: true,
+    sort_order: 3
+  },
+  {
+    id: 'fragrance-gift',
+    name: 'Fragrance & treats gift',
+    slug: 'fragrance-treats-gift',
+    category: 'hampers',
+    price: 950,
+    stock: 20,
+    low_stock_threshold: 3,
+    tag: 'FREQUENTLY CHOSEN',
+    description: 'A personalized combination of fragrance, premium chocolate, flowers and a handwritten card.',
+    details: ['Fragrance selection', 'Premium chocolates', 'Fresh floral accent', 'Handwritten card'],
+    image_path: 'basket-hamper-editorial-v2.png',
+    secondary_image_path: null,
+    visible: true,
+    sort_order: 4
+  },
+  {
+    id: 'personalized-bag',
+    name: 'Personalized wrist bag',
+    slug: 'personalized-wrist-bag',
+    category: 'personalized',
+    price: 650,
+    stock: 20,
+    low_stock_threshold: 3,
+    tag: 'PERSONALIZED',
+    description: 'A wrist bag gift with optional name engraving, wrapping and additional accessories.',
+    details: ['Wrist bag', 'Optional name finishing', 'Gift wrapping', 'Selected accessories'],
+    image_path: 'delivery-editorial-v2.png',
+    secondary_image_path: null,
+    visible: true,
+    sort_order: 5
+  },
+  {
+    id: 'embroidery',
+    name: 'Embroidery & personalization',
+    slug: 'embroidery-personalization',
+    category: 'personalized',
+    price: 180,
+    stock: 50,
+    low_stock_threshold: 10,
+    tag: 'MADE TO ORDER',
+    description: 'Add a name or short personal detail to selected shirts, fabric gifts and accessories.',
+    details: ['Name or short wording', 'Thread colour selection', 'Placement confirmation', 'Production approval'],
+    image_path: 'embroidery-editorial-v2.png',
+    secondary_image_path: null,
+    visible: true,
+    sort_order: 6
+  }
+];
+
 // Get inventory summary for Overview
 export async function getInventorySummary() {
-  if (!supabase) {
-    console.warn('Supabase not configured');
-    return { totalProducts: 0, lowStockCount: 0, outOfStockCount: 0 };
+  let products = [];
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, stock, low_stock_threshold');
+      if (!error && Array.isArray(data) && data.length > 0) {
+        products = data;
+      }
+    } catch (err) {
+      console.warn('Error fetching inventory summary from Supabase:', err);
+    }
   }
 
-  const { data: products, error } = await supabase
-    .from('products')
-    .select('id, stock, low_stock_threshold');
-
-  if (error) {
-    console.error('Error fetching inventory summary:', error);
-    return { totalProducts: 0, lowStockCount: 0, outOfStockCount: 0 };
+  // Fallback to default catalog products if DB table is empty or inaccessible
+  if (products.length === 0) {
+    products = DEFAULT_PRODUCTS;
   }
 
-  const totalProducts = products.length;
-  const lowStockCount = products.filter(p => p.stock <= p.low_stock_threshold).length;
-  const outOfStockCount = products.filter(p => p.stock === 0).length;
+  const out = products.filter(p => Number(p.stock || 0) === 0).length;
+  const low = products.filter(p => {
+    const s = Number(p.stock || 0);
+    const th = Number(p.low_stock_threshold || 3);
+    return s > 0 && s <= th;
+  }).length;
+  const healthy = products.filter(p => {
+    const s = Number(p.stock || 0);
+    const th = Number(p.low_stock_threshold || 3);
+    return s > th;
+  }).length;
+  const total = products.length;
 
-  return { totalProducts, lowStockCount, outOfStockCount };
+  return {
+    healthy,
+    low,
+    out,
+    totalProducts: total,
+    lowStockCount: low,
+    outOfStockCount: out,
+    products
+  };
 }

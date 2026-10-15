@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { getCachedData, subscribeToCache } from '../../data/dataCache';
+import { fetchRequests, getCachedData, subscribeToCache } from '../../data/dataCache';
 import { getAppSettings } from '../../data/settingsAdapter';
+import { supabase } from '../../../config/supabase';
 
 export default function Sidebar({
   isLocked,
@@ -41,8 +42,8 @@ export default function Sidebar({
         return p.stock <= threshold;
       }).length : 0;
 
-      // New requests: status === 'new'
-      const newRequests = requests.filter(r => r.status === 'new').length;
+      // Unread new requests stop contributing once their drawer has been opened.
+      const newRequests = requests.filter(r => r.status === 'new' && !r.viewed_at).length;
 
       setActiveOrdersCount(activeOrders);
       setStockAlertsCount(lowStock);
@@ -54,6 +55,22 @@ export default function Sidebar({
     // Subscribe to cache updates
     const unsubscribe = subscribeToCache(updateCounts);
     return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) return undefined;
+
+    fetchRequests(true);
+    const channel = supabase
+      .channel('sidebar-request-count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_requests' }, () => {
+        fetchRequests(true);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return (

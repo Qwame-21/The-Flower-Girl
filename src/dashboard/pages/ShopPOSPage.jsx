@@ -10,6 +10,7 @@ import CopyIcon from '../components/shared/CopyIcon';
 import DatePickerDropdowns from '../components/shared/DatePickerDropdowns';
 import { focusAndScrollToFirstError } from '../lib/formValidationHelper';
 import { getImageUrl } from '../lib/imageUrlHelper';
+import { applyPromotionsToProducts, calculateCartTotals } from '../../shared/pricing';
 
 const CATEGORY_IMAGE_FALLBACKS = {
   hampers: '/assets/hamper-editorial-v2.png',
@@ -145,7 +146,12 @@ function normalizeProduct(p, idx = 0) {
     code: String(p.code || p.sku || defaultCode),
     name: String(p.name || 'Unnamed Product'),
     category: categoryTitle,
-    price: typeof p.price === 'number' ? p.price : (parseFloat(p.price) || 0),
+    price: typeof (p.originalPrice ?? p.original_price ?? p.price) === 'number'
+      ? (p.originalPrice ?? p.original_price ?? p.price)
+      : (parseFloat(p.originalPrice ?? p.original_price ?? p.price) || 0),
+    originalPrice: typeof (p.originalPrice ?? p.original_price) === 'number'
+      ? (p.originalPrice ?? p.original_price)
+      : (p.original_price !== undefined ? (parseFloat(p.original_price) || 0) : undefined),
     stock: typeof p.stock === 'number' ? p.stock : (parseInt(p.stock, 10) || 0),
     threshold: typeof p.threshold === 'number' ? p.threshold : (parseInt(p.threshold, 10) || 3),
     salesCount: typeof p.salesCount === 'number' ? p.salesCount : 0,
@@ -157,7 +163,9 @@ function normalizeProduct(p, idx = 0) {
     sizeType: p.sizeType || '',
     isBestseller: !!p.isBestseller,
     isTrending: !!p.isTrending,
-    discountPercent: typeof p.discountPercent === 'number' ? p.discountPercent : (parseFloat(p.discountPercent) || 0)
+    discountPercent: typeof (p.discountPercent ?? p.discount_percent) === 'number'
+      ? (p.discountPercent ?? p.discount_percent)
+      : (parseFloat(p.discountPercent ?? p.discount_percent) || 0)
   };
 }
 
@@ -255,20 +263,9 @@ export default function ShopPOSPage() {
     return matchSearch && matchCategory;
   });
 
-  // Apply active promotions to the product list
-  function applyPromotions(prods, promos) {
-    if (!promos || promos.length === 0) return prods;
-    return prods.map(p => {
-      const promo = promos.find(pr => pr.productId === p.id && pr.status === 'active' && Number(pr.percent) > 0);
-      if (!promo) return p;
-      const pct = Math.min(90, Number(promo.percent));
-      const discountedPrice = Math.round(p.price * (100 - pct) / 100);
-      return { ...p, discountPercent: pct, discountedPrice };
-    });
-  }
-
-  const cartSubtotal = shopCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-  const displayProducts = applyPromotions(filteredProducts, promotions);
+  const displayProducts = applyPromotionsToProducts(filteredProducts, promotions);
+  const cartTotals = calculateCartTotals(shopCart);
+  const cartSubtotal = cartTotals.subtotal;
   const cartItemCount = shopCart.reduce((sum, item) => sum + item.qty, 0);
 
   const cartItemsWithStock = shopCart.map(item => {
@@ -285,7 +282,8 @@ export default function ShopPOSPage() {
     if (!product || product.stock <= 0) return;
     const existing = shopCart.find(item => item.id === product.id);
     let newCart;
-    const finalPrice = product.discountedPrice !== undefined ? product.discountedPrice : product.price;
+    const finalPrice = product.price;
+    const originalPrice = product.originalPrice !== undefined ? product.originalPrice : product.price;
     const discountPct = product.discountPercent || 0;
     if (existing) {
       if (existing.qty < product.stock) {
@@ -302,7 +300,7 @@ export default function ShopPOSPage() {
           id: product.id,
           name: product.name,
           price: finalPrice,
-          originalPrice: product.price,
+          originalPrice: originalPrice,
           discountPercent: discountPct,
           category: product.category,
           image: product.imageUrl || product.image,
@@ -495,8 +493,8 @@ export default function ShopPOSPage() {
                     <div className="shop-card-price" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {p.discountPercent > 0 ? (
                         <>
-                          <del style={{ color: 'var(--text-muted, #888)', fontSize: '0.85em' }}>GHS {Math.round(p.price).toLocaleString('en-US')}</del>
-                          <span style={{ color: '#0284c7', fontWeight: 600 }}>GHS {Math.round(p.discountedPrice).toLocaleString('en-US')}</span>
+                          <del style={{ color: 'var(--text-muted, #888)', fontSize: '0.85em' }}>GHS {Math.round(p.originalPrice).toLocaleString('en-US')}</del>
+                          <span style={{ color: '#0284c7', fontWeight: 600 }}>GHS {Math.round(p.price).toLocaleString('en-US')}</span>
                         </>
                       ) : (
                         <span>GHS {Math.round(p.price).toLocaleString('en-US')}</span>
@@ -690,6 +688,18 @@ export default function ShopPOSPage() {
 
             {/* Totals */}
             <div className="shop-totals">
+              {cartTotals.totalDiscount > 0 && (
+                <div className="shop-total-row" style={{ color: 'var(--text-muted)' }}>
+                  <span>Original Total</span>
+                  <del>GHS {Math.round(cartTotals.originalSubtotal)}</del>
+                </div>
+              )}
+              {cartTotals.totalDiscount > 0 && (
+                <div className="shop-total-row" style={{ color: '#0284c7', fontWeight: 600 }}>
+                  <span>Discount Savings</span>
+                  <span>-GHS {Math.round(cartTotals.totalDiscount)}</span>
+                </div>
+              )}
               <div className="shop-total-row">
                 <span>Subtotal</span>
                 <span>GHS {Math.round(cartSubtotal)}</span>
