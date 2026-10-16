@@ -20948,7 +20948,7 @@ select::placeholder,
   }
 
   .viewport-frame .side-navigation.mobile-open .mobile-drawer-footer {
-    order: 0 !important;
-    margin-top: 0 !important;
+    order: 16 !important;
+    margin-top: 8px !important;
   }
 }
