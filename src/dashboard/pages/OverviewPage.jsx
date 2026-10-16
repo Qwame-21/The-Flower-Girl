@@ -208,9 +208,9 @@ function TrendChart({ series, mode }) {
   const maxVal = rawMax > 0 ? rawMax : 100;
   const width = mobileWidth || 600;
   const isMobileWidth = mobileWidth !== null;
-  const height = 180;
+  const height = isMobileWidth ? 148 : 180;
   const padding = isMobileWidth
-    ? { top: 28, right: 10, bottom: 34, left: 58 }
+    ? { top: 22, right: 24, bottom: 30, left: 54 }
     : { top: 28, right: 24, bottom: 34, left: 58 };
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;

@@ -16823,12 +16823,12 @@ select::placeholder,
   }
 
   .overview-page-container .trend-chart-container {
-    min-height: 180px !important;
+    min-height: 148px !important;
     overflow: visible !important;
   }
 
   .overview-page-container .trend-chart-svg {
-    height: 180px !important;
+    height: 148px !important;
     overflow: visible !important;
   }
 
