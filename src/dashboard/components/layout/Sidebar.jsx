@@ -437,7 +437,6 @@ export default function Sidebar({
               <span className="menu-item-label">Settings</span>
             </NavLink>
           </div>
-        <div className="mobile-drawer-footer">
           <NavLink
             to="/settings"
             className={({ isActive }) => `menu-item mobile-settings-item ${isActive ? 'active' : ''}`}
@@ -468,7 +467,6 @@ export default function Sidebar({
             </div>
             <span className="menu-item-label">Sign out</span>
           </button>
-        </div>
         </nav>
       </div>
     </aside>
