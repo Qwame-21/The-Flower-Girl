@@ -36,29 +36,33 @@ export default function Layout() {
       top: document.body.style.top,
       left: document.body.style.left,
       right: document.body.style.right,
-      width: document.body.style.width
+      width: document.body.style.width,
+      overflow: document.body.style.overflow,
+      overscrollBehavior: document.body.style.overscrollBehavior
     };
-    const bodyOverflow = {
-      value: document.body.style.getPropertyValue('overflow'),
-      priority: document.body.style.getPropertyPriority('overflow')
+    const rootStyles = {
+      overflow: document.documentElement.style.overflow,
+      overscrollBehavior: document.documentElement.style.overscrollBehavior
     };
-    const rootOverflow = {
-      value: document.documentElement.style.getPropertyValue('overflow'),
-      priority: document.documentElement.style.getPropertyPriority('overflow')
-    };
+
     document.body.style.position = 'fixed';
     document.body.style.top = `-${scrollY}px`;
     document.body.style.left = '0';
     document.body.style.right = '0';
     document.body.style.width = '100%';
     document.body.style.setProperty('overflow', 'hidden', 'important');
+    document.body.style.setProperty('overscroll-behavior', 'contain', 'important');
     document.documentElement.style.setProperty('overflow', 'hidden', 'important');
+    document.documentElement.style.setProperty('overscroll-behavior', 'contain', 'important');
 
     return () => {
       Object.assign(document.body.style, bodyStyles);
-      document.body.style.setProperty('overflow', bodyOverflow.value, bodyOverflow.priority);
-      document.documentElement.style.setProperty('overflow', rootOverflow.value, rootOverflow.priority);
-      window.scrollTo(0, scrollY);
+      Object.assign(document.documentElement.style, rootStyles);
+      document.body.style.setProperty('overflow', bodyStyles.overflow, 'important');
+      document.body.style.setProperty('overscroll-behavior', bodyStyles.overscrollBehavior, 'important');
+      document.documentElement.style.setProperty('overflow', rootStyles.overflow, 'important');
+      document.documentElement.style.setProperty('overscroll-behavior', rootStyles.overscrollBehavior, 'important');
+      window.scrollTo({ top: scrollY, behavior: 'instant' });
     };
   }, [isMobileOpen]);
 

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { fetchRequests, getCachedData, subscribeToCache } from '../../data/dataCache';
 import { getAppSettings } from '../../data/settingsAdapter';
-import { useDashboard } from '../../contexts/DashboardContext';
 import { supabase } from '../../../config/supabase';
 
 export default function Sidebar({
@@ -14,7 +13,6 @@ export default function Sidebar({
   isMobileOpen,
   onCloseMobile
 }) {
-  const { onSignOut } = useDashboard();
   const sideNavClass = `side-navigation ${
     isLocked || isHovered ? 'expanded' : 'collapsed'
   } ${isMobileOpen ? 'mobile-open' : ''}`;
@@ -418,22 +416,6 @@ export default function Sidebar({
             </div>
             <span className="menu-item-label">Settings</span>
           </NavLink>
-          <button
-            type="button"
-            className="menu-item mobile-sign-out"
-            onClick={() => {
-              onCloseMobile();
-              if (onSignOut) onSignOut();
-            }}
-          >
-            <div className="menu-item-icon-wrapper">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <path d="M16 17l5-5-5-5M21 12H9" />
-              </svg>
-            </div>
-            <span className="menu-item-label">Sign out</span>
-          </button>
         </div>
       </div>
     </aside>

@@ -16646,7 +16646,7 @@ select::placeholder,
     box-shadow: none !important;
     color: #151515 !important;
     text-decoration: underline !important;
-    text-decoration-color: #151515 !important;
+    text-decoration-color: var(--accent-underline) !important;
     text-decoration-thickness: 2px !important;
     text-underline-offset: 3px !important;
   }
@@ -16709,7 +16709,7 @@ select::placeholder,
     box-shadow: none !important;
     color: #151515 !important;
     text-decoration: underline !important;
-    text-decoration-color: #151515 !important;
+    text-decoration-color: var(--accent-underline) !important;
     text-decoration-thickness: 2px !important;
     text-underline-offset: 3px !important;
   }
