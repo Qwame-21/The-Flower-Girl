@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CopyIcon from '../components/shared/CopyIcon';
 import { formatGHS, CATEGORY_MAP } from '../lib/ordersModel';
@@ -176,16 +176,51 @@ function DonutRingCard({ title, icon, totalLabel, type, filter, onFilterChange, 
 // Trend Chart SVG Component
 function TrendChart({ series, mode }) {
   const [hoverIndex, setHoverIndex] = useState(null);
+  const containerRef = useRef(null);
+  const [mobileWidth, setMobileWidth] = useState(null);
+
+  useLayoutEffect(() => {
+    const syncWidth = () => {
+      if (window.innerWidth >= 768) {
+        setMobileWidth(null);
+        return;
+      }
+
+      const nextWidth = containerRef.current?.clientWidth;
+      if (nextWidth) setMobileWidth(Math.round(nextWidth));
+    };
+
+    syncWidth();
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(syncWidth);
+    if (containerRef.current && observer) observer.observe(containerRef.current);
+    window.addEventListener('resize', syncWidth);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', syncWidth);
+    };
+  }, []);
 
   const { dates = [], currentValues = [], previousValues = [] } = series;
   const rawMax = Math.max(...currentValues, ...previousValues, 0);
   const maxVal = rawMax > 0 ? rawMax : 100;
-  const width = 600;
+  const width = mobileWidth || 600;
+  const isMobileWidth = mobileWidth !== null;
   const height = 180;
-  const padding = { top: 28, right: 24, bottom: 34, left: 58 };
+  const padding = isMobileWidth
+    ? { top: 28, right: 10, bottom: 34, left: 58 }
+    : { top: 28, right: 24, bottom: 34, left: 58 };
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
   const count = currentValues.length;
+  const mobileLabelIndices = new Set([
+    0,
+    Math.round((count - 1) / 3),
+    Math.round((2 * (count - 1)) / 3),
+    count - 1
+  ]);
 
   const getX = (idx) => padding.left + (count > 1 ? (idx / (count - 1)) * chartW : chartW / 2);
   const getY = (val) => padding.top + chartH - (maxVal > 0 ? (val / maxVal) * chartH : 0);
@@ -240,7 +275,7 @@ function TrendChart({ series, mode }) {
   }
 
   return (
-    <div className="trend-chart-container" style={{ position: 'relative', width: '100%', minHeight: `${height}px` }}>
+    <div ref={containerRef} className="trend-chart-container" style={{ position: 'relative', width: '100%', minHeight: `${height}px` }}>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         style={{ width: '100%', height: 'auto', overflow: 'visible', cursor: 'crosshair' }}
@@ -295,7 +330,11 @@ function TrendChart({ series, mode }) {
 
         {/* X axis date labels */}
         {pts.map((p, idx) => {
-          if (count > 8 && idx % Math.ceil(count / 6) !== 0 && idx !== count - 1) return null;
+          if (isMobileWidth && count > 4) {
+            if (!mobileLabelIndices.has(idx)) return null;
+          } else if (count > 8 && idx % Math.ceil(count / 6) !== 0 && idx !== count - 1) {
+            return null;
+          }
           return (
             <text
               key={idx}
