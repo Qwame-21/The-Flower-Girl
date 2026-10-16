@@ -437,6 +437,7 @@ export default function Sidebar({
               <span className="menu-item-label">Settings</span>
             </NavLink>
           </div>
+        </nav>
         <div className="mobile-drawer-footer">
           <NavLink
             to="/settings"
@@ -469,7 +470,6 @@ export default function Sidebar({
             <span className="menu-item-label">Sign out</span>
           </button>
         </div>
-        </nav>
       </div>
     </aside>
   );

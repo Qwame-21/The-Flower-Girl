@@ -335,7 +335,7 @@
 .signout-confirm-actions button {
   min-height: 40px;
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: 9999px !important;
   font-weight: 600;
   letter-spacing: 0.06em;
 }
@@ -20930,5 +20930,25 @@ select::placeholder,
   .logs-mobile-page #logsTabSwitcher .mobile-underline-tab.active,
   .logs-mobile-page #logsTabSwitcher .seg-btn.active {
     box-shadow: none !important;
+  }
+
+  .logs-mobile-page .log-order-code .copy-icon-btn {
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    min-height: 36px !important;
+    border: 1px solid rgba(37, 42, 40, 0.16) !important;
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.78) !important;
+    color: #515957 !important;
+  }
+
+  .viewport-frame .side-navigation.mobile-open .menu-body {
+    flex: 1 1 0 !important;
+  }
+
+  .viewport-frame .side-navigation.mobile-open .mobile-drawer-footer {
+    order: 0 !important;
+    margin-top: 0 !important;
   }
 }
