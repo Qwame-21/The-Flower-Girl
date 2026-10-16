@@ -335,79 +335,91 @@ export default function LogPage() {
           <h2>Logs &amp; Delivery History</h2>
           <p>Archived delivery records and system event logs. Entries are removed after 30 days.</p>
         </div>
-        <div className="header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {/* Export CSV Button */}
-          <button
-            className="btn-capsule"
-            id="exportLogsCSVBtn"
-            type="button"
-            onClick={handleExportCSV}
-            style={{ background: '#1a1a1a', color: '#fff', minHeight: '38px', gap: '6px' }}
-          >
-            {SVG_ICONS.download} Export CSV
-          </button>
-          {/* Tab Switcher Segmented Control */}
-          <div className="seg mobile-underline-tabs" id="logsTabSwitcher">
-            <button
-              type="button"
-              className={`seg-btn mobile-underline-tab ${logsTabState === 'delivered' ? 'active' : ''}`}
-              onClick={() => setLogsTabState('delivered')}
-            >
-              Delivered Orders ({deliveredOrders.length})
-            </button>
-            <button
-              type="button"
-              className={`seg-btn mobile-underline-tab ${logsTabState === 'activity' ? 'active' : ''}`}
-              onClick={() => setLogsTabState('activity')}
-            >
-              Activity Log ({activityLogs.length})
-            </button>
-          </div>
-        </div>
+      </div>
+
+      {/* Export CSV Button - full-width under subtitle */}
+      <div className="header-actions" style={{ marginBottom: '20px' }}>
+        <button
+          className="btn-capsule"
+          id="exportLogsCSVBtn"
+          type="button"
+          onClick={handleExportCSV}
+          style={{ width: '100%', height: '44px', background: 'transparent', color: '#1a1a1a', border: '1px solid rgba(26, 26, 26, 0.8)', borderRadius: '9999px', fontSize: '13px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', gap: '6px' }}
+        >
+          {SVG_ICONS.download} Export CSV
+        </button>
+      </div>
+
+      {/* Tab Switcher - full-width underlined tabs */}
+      <div className="seg mobile-underline-tabs" id="logsTabSwitcher" style={{ width: '100%', marginBottom: '20px' }}>
+        <button
+          type="button"
+          className={`seg-btn mobile-underline-tab ${logsTabState === 'delivered' ? 'active' : ''}`}
+          onClick={() => setLogsTabState('delivered')}
+        >
+          Delivered Orders ({deliveredOrders.length})
+        </button>
+        <button
+          type="button"
+          className={`seg-btn mobile-underline-tab ${logsTabState === 'activity' ? 'active' : ''}`}
+          onClick={() => setLogsTabState('activity')}
+        >
+          Activity Log ({activityLogs.length})
+        </button>
       </div>
 
       {logsTabState === 'delivered' ? (
         <>
           {/* Delivered Orders Controls — Monolith lines 24370–24396 */}
           <div className="orders-filter-card" style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <div className="filter-card-search" style={{ flex: 1, minWidth: '260px' }}>
-                <svg className="search-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                <input
-                  type="text"
-                  className="orders-search-input"
-                  id="logDeliveredSearchInput"
-                  placeholder="Search by customer name, phone, order code, or product..."
-                  value={logsSearchQuery}
-                  onChange={e => setLogsSearchQuery(e.target.value)}
-                />
-                <textarea
-                  className="orders-search-input log-mobile-search-input"
-                  id="logDeliveredSearchInputMobile"
-                  rows={1}
-                  aria-label="Search delivered orders"
-                  placeholder="Search by name, phone, order code, or product..."
-                  value={logsSearchQuery}
-                  onChange={e => setLogsSearchQuery(e.target.value)}
-                />
-              </div>
-              <div className="logs-date-filter-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                <label htmlFor="logDateRangeSelect" style={{ fontSize: '12px', fontWeight: 600, color: '#555', whiteSpace: 'nowrap' }}>Date range</label>
-                <CustomDropdown
-                  className="logs-date-dropdown"
-                  options={[
-                    { value: 'all', label: 'All time' },
-                    { value: 'today', label: 'Today' },
-                    { value: '7days', label: 'Last 7 days' },
-                    { value: '30days', label: 'Last 30 days' }
-                  ]}
-                  value={logsDateFilter}
-                  onChange={setLogsDateFilter}
-                />
-              </div>
+            <div className="filter-card-search" style={{ width: '100%', marginBottom: '16px' }}>
+              <svg className="search-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                type="text"
+                className="orders-search-input"
+                id="logDeliveredSearchInput"
+                placeholder="Search by customer name, phone, order code, or product..."
+                value={logsSearchQuery}
+                onChange={e => setLogsSearchQuery(e.target.value)}
+              />
+              <textarea
+                className="orders-search-input log-mobile-search-input"
+                id="logDeliveredSearchInputMobile"
+                rows={1}
+                aria-label="Search delivered orders"
+                placeholder="Search by name, phone, order code, or product..."
+                value={logsSearchQuery}
+                onChange={e => setLogsSearchQuery(e.target.value)}
+              />
+            </div>
+            <div
+              className="logs-date-filter-row"
+              onClick={event => {
+                if (!event.target.closest('.logs-date-dropdown')) {
+                  const trigger = event.currentTarget.querySelector('.field-select-trigger');
+                  if (trigger) {
+                    event.stopPropagation();
+                    trigger.click();
+                  }
+                }
+              }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', height: '44px', borderBottom: '1px solid rgba(26, 26, 26, 0.14)' }}
+            >
+              <label htmlFor="logDateRangeSelect" style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Date range</label>
+              <CustomDropdown
+                className="logs-date-dropdown"
+                options={[
+                  { value: 'all', label: 'All time' },
+                  { value: 'today', label: 'Today' },
+                  { value: '7days', label: 'Last 7 days' },
+                  { value: '30days', label: 'Last 30 days' }
+                ]}
+                value={logsDateFilter}
+                onChange={setLogsDateFilter}
+              />
             </div>
           </div>
 

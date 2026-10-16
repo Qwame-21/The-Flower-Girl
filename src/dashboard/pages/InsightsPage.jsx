@@ -132,6 +132,14 @@ function getCategoryRevenueBreakdown(orders) {
 
 function InsightsTrendChart({ orders, mode }) {
   const [hoverIndex, setHoverIndex] = useState(null);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const updateViewport = () => setIsMobile(mediaQuery.matches);
+    mediaQuery.addEventListener('change', updateViewport);
+    return () => mediaQuery.removeEventListener('change', updateViewport);
+  }, []);
 
   if (!orders || orders.length === 0) {
     return <div className="empty-state">No sales data for this period</div>;
@@ -160,25 +168,40 @@ function InsightsTrendChart({ orders, mode }) {
     v: mode === 'revenue' ? dateMap[k].revenue : dateMap[k].orders
   }));
 
-  const padL = 50, padR = 20, padT = 15, padB = 35, w = 680, h = 260;
-  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const padL = isMobile ? -4 : 50;
+  const padR = isMobile ? 15 : 20;
+  const padT = isMobile ? 12 : 15;
+  const padB = isMobile ? 30 : 35;
+  const w = isMobile ? 360 : 680;
+  const h = isMobile ? 200 : 260;
+  const plotH = h - padT - padB;
 
   const maxVal = Math.max(...chartData.map(p => p.v), 0);
   const niceMax = maxVal > 0 ? (mode === 'revenue' ? (Math.ceil(maxVal / 1000) * 1000 || Math.ceil(maxVal)) : Math.ceil(maxVal)) : 10;
   const steps = 4;
 
   const count = chartData.length;
-  const xFor = i => padL + (count > 1 ? (i / (count - 1)) * plotW : plotW / 2);
+  const gridStart = isMobile && mode === 'orders' ? -36 : padL;
+  const pointStart = isMobile ? (mode === 'orders' ? -27 : padL + 10) : padL;
+  const pointPlotW = w - pointStart - padR;
+  const xFor = i => pointStart + (count > 1 ? (i / (count - 1)) * pointPlotW : pointPlotW / 2);
   const yFor = v => padT + plotH - (niceMax > 0 ? (v / niceMax) * plotH : 0);
 
   const pts = chartData.map((p, i) => [xFor(i), yFor(p.v)]);
   const linePath = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
 
-  const xStep = count > 30 ? Math.ceil(count / 6) : (count > 12 ? Math.ceil(count / 8) : (count > 6 ? 2 : 1));
+  const xStep = isMobile
+    ? Math.max(1, Math.ceil((count - 1) / 3))
+    : (count > 30 ? Math.ceil(count / 6) : (count > 12 ? Math.ceil(count / 8) : (count > 6 ? 2 : 1)));
 
   const handlePointerMove = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const svgX = ((e.clientX - rect.left) / rect.width) * w;
+    const svg = e.currentTarget;
+    const matrix = svg.getScreenCTM();
+    if (!matrix) return;
+    const pointer = svg.createSVGPoint();
+    pointer.x = e.clientX;
+    pointer.y = e.clientY;
+    const svgX = pointer.matrixTransform(matrix.inverse()).x;
     let closestIdx = 0;
     let closestDist = Infinity;
     pts.forEach((p, i) => {
@@ -216,7 +239,7 @@ function InsightsTrendChart({ orders, mode }) {
           {Array.from({ length: steps + 1 }).map((_, i) => {
             const y = padT + plotH - (i / steps) * plotH;
             return (
-              <line key={i} x1={padL} y1={y.toFixed(1)} x2={w - padR} y2={y.toFixed(1)} stroke="rgba(26,26,26,0.08)" strokeDasharray="3 3" />
+              <line key={i} x1={gridStart} y1={y.toFixed(1)} x2={w - padR} y2={y.toFixed(1)} stroke="rgba(26,26,26,0.08)" strokeDasharray="3 3" />
             );
           })}
         </g>
@@ -228,7 +251,7 @@ function InsightsTrendChart({ orders, mode }) {
               ? (val >= 1000 ? `GHS ${(val / 1000).toFixed(1)}k` : `GHS ${Math.round(val).toLocaleString()}`)
               : Math.round(val).toLocaleString();
             return (
-              <text key={i} x={padL - 10} y={(y + 4).toFixed(1)} textAnchor="end" fill="var(--text-muted, #7a7a7a)" fontSize="11" fontWeight="500">
+              <text key={i} x={isMobile ? -29 : padL - 10} y={(y + 4).toFixed(1)} textAnchor="end" fill="var(--text-muted, #7a7a7a)" fontSize="11" fontWeight="500">
                 {formatted}
               </text>
             );
@@ -274,7 +297,7 @@ function InsightsTrendChart({ orders, mode }) {
           {chartData.map((p, i) => {
             if (i % xStep !== 0 && i !== count - 1) return null;
             return (
-              <text key={i} className="xlabel" x={xFor(i).toFixed(1)} y={(h - 10).toFixed(1)} textAnchor="middle" fill="var(--text-muted, #7a7a7a)" fontSize="11" fontWeight="500">
+              <text key={i} className="xlabel" x={xFor(i).toFixed(1)} y={(h - 10).toFixed(1)} textAnchor={isMobile && i === count - 1 ? 'end' : 'middle'} fill="var(--text-muted, #7a7a7a)" fontSize="11" fontWeight="500">
                 {p.d}
               </text>
             );
@@ -295,7 +318,7 @@ function InsightsTrendChart({ orders, mode }) {
             fontWeight: '600',
             padding: '8px 12px',
             borderRadius: '10px',
-            left: `${leftPercent}%`,
+            left: `clamp(64px, ${leftPercent}%, calc(100% - 64px))`,
             top: isNearTop ? `calc(${topPercent}% + 15px)` : `calc(${topPercent}% - 10px)`,
             transform: isNearTop ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
             opacity: 1,
@@ -813,67 +836,68 @@ export default function InsightsPage() {
 
       <div className="page-header-row insights-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div className="page-title-group">
-          <h2 style={{ fontSize: '20px', fontWeight: 600, margin: '0 0 4px 0' }}><span className="insights-desktop-title">Business Insights &amp; Analytics</span><span className="insights-mobile-title">Insights</span></h2>
+          <h2 style={{ fontSize: '20px', fontWeight: 600, margin: '0 0 4px 0' }}><span className="insights-desktop-title">Business Insights &amp; Analytics</span><span className="insights-mobile-title">Business Insights &amp; Analytics</span></h2>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Real-time sales performance, revenue breakdown, and customer analytics.</p>
         </div>
-        <div className="header-actions">
-          <button className="xp-pill insights-export-button" onClick={handleExportCSV} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            Export CSV
-          </button>
-        </div>
+      </div>
+
+      <div className="header-actions" style={{ marginBottom: '20px' }}>
+        <button className="xp-pill insights-export-btn" onClick={handleExportCSV} style={{ width: '100%', height: '44px', background: 'transparent', color: '#1a1a1a', border: '1px solid rgba(26, 26, 26, 0.8)', borderRadius: '9999px', fontSize: '13px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Export CSV
+        </button>
       </div>
 
       {loading && <p className="insights-loading" role="status">Loading insights...</p>}
 
-      <div className="xp-chips insights-period-tabs mobile-underline-tabs" style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
-        <button type="button" className={`xp-chip mobile-underline-tab ${dateRange === 'week' ? 'xp-on active' : ''}`} onClick={() => setDateRange('week')}>This week</button>
-        <button type="button" className={`xp-chip mobile-underline-tab ${dateRange === 'month' ? 'xp-on active' : ''}`} onClick={() => setDateRange('month')}>This month</button>
-        <button type="button" className={`xp-chip mobile-underline-tab ${dateRange === '30days' ? 'xp-on active' : ''}`} onClick={() => setDateRange('30days')}>Last 30 days</button>
-        <button type="button" className={`xp-chip mobile-underline-tab ${dateRange === 'all' ? 'xp-on active' : ''}`} onClick={() => setDateRange('all')}>All time</button>
+      <div className="insights-period-tabs xp-chips mobile-underline-tabs" style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
+        <button type="button" className={`insights-period-tab mobile-underline-tab ${dateRange === 'week' ? 'active' : ''}`} onClick={() => setDateRange('week')}>This week</button>
+        <button type="button" className={`insights-period-tab mobile-underline-tab ${dateRange === 'month' ? 'active' : ''}`} onClick={() => setDateRange('month')}>This month</button>
+        <button type="button" className={`insights-period-tab mobile-underline-tab ${dateRange === '30days' ? 'active' : ''}`} onClick={() => setDateRange('30days')}>Last 30 days</button>
+        <button type="button" className={`insights-period-tab mobile-underline-tab ${dateRange === 'all' ? 'active' : ''}`} onClick={() => setDateRange('all')}>All time</button>
       </div>
 
-      <div className="summary-kpi-grid" style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-        <div className="kpi-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '16px 20px', border: '1px solid rgba(26,26,26,0.08)' }}>
-          <span className="meta-label">TOTAL REVENUE</span>
+      <div className="insights-kpi-grid summary-kpi-grid" style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+        <div className="insights-kpi-block kpi-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '16px 20px', border: '1px solid rgba(26,26,26,0.08)' }}>
+          <span className="kpi-label meta-label">TOTAL REVENUE</span>
           <div className="kpi-value" style={{ fontSize: '24px', fontWeight: 700, margin: '8px 0 4px 0', fontVariantNumeric: 'tabular-nums' }}>{formatInsightCurrency(stats.totalRevenue)}</div>
-          <span className="kpi-trend" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>From all completed orders</span>
+          <span className="kpi-sublabel kpi-trend" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>From all completed orders</span>
         </div>
-        <div className="kpi-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '16px 20px', border: '1px solid rgba(26,26,26,0.08)' }}>
-          <span className="meta-label">ORDERS</span>
+        <div className="insights-kpi-block kpi-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '16px 20px', border: '1px solid rgba(26,26,26,0.08)' }}>
+          <span className="kpi-label meta-label">ORDERS</span>
           <div className="kpi-value" style={{ fontSize: '24px', fontWeight: 700, margin: '8px 0 4px 0', fontVariantNumeric: 'tabular-nums' }}>{stats.totalOrders}</div>
-          <span className="kpi-trend" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>In selected period</span>
+          <span className="kpi-sublabel kpi-trend" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>In selected period</span>
         </div>
-        <div className="kpi-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '16px 20px', border: '1px solid rgba(26,26,26,0.08)' }}>
-          <span className="meta-label">AVG ORDER VALUE</span>
+        <div className="insights-kpi-block kpi-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '16px 20px', border: '1px solid rgba(26,26,26,0.08)' }}>
+          <span className="kpi-label meta-label">AVG ORDER VALUE</span>
           <div className="kpi-value" style={{ fontSize: '24px', fontWeight: 700, margin: '8px 0 4px 0', fontVariantNumeric: 'tabular-nums' }}>{formatInsightCurrency(stats.avgOrderValue)}</div>
-          <span className="kpi-trend" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Per order average</span>
+          <span className="kpi-sublabel kpi-trend" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Per order average</span>
         </div>
-        <div className="kpi-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '16px 20px', border: '1px solid rgba(26,26,26,0.08)' }}>
-          <span className="meta-label">REPEAT CUSTOMER RATE</span>
+        <div className="insights-kpi-block kpi-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '16px 20px', border: '1px solid rgba(26,26,26,0.08)' }}>
+          <span className="kpi-label meta-label">REPEAT CUSTOMER RATE</span>
           <div className="kpi-value" style={{ fontSize: '24px', fontWeight: 700, margin: '8px 0 4px 0', fontVariantNumeric: 'tabular-nums' }}>{stats.repeatRate}%</div>
-          <span className="kpi-trend" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{stats.repeatCount} repeat / {stats.newCount} new</span>
+          <span className="kpi-sublabel kpi-trend" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{stats.repeatCount} repeat / {stats.newCount} new</span>
         </div>
       </div>
 
       <div className="insights-grid-2col" style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
-        <div className="chart-card insights-trend-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(26,26,26,0.08)' }}>
-          <div className="chart-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <span className="meta-label insights-desktop-section-label">{chartMode === 'revenue' ? 'REVENUE' : 'ORDERS'} TREND</span>
+        <div className="insights-trend-section chart-card insights-trend-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(26,26,26,0.08)' }}>
+          <div className="trend-header-row chart-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <span className="trend-title meta-label insights-desktop-section-label">{chartMode === 'revenue' ? 'REVENUE' : 'ORDERS'} TREND</span>
             <span className="insights-section-heading insights-mobile-section-label">{chartMode === 'revenue' ? 'Revenue trend' : 'Orders trend'}</span>
-            <div className="insights-chart-tabs mobile-underline-tabs" style={{ display: 'flex', gap: '4px' }}>
-              <button className={`xp-chip mobile-underline-tab ${chartMode === 'revenue' ? 'xp-on active' : ''}`} onClick={() => setChartMode('revenue')}>Revenue</button>
-              <button className={`xp-chip mobile-underline-tab ${chartMode === 'orders' ? 'xp-on active' : ''}`} onClick={() => setChartMode('orders')}>Orders</button>
+            <div className="trend-toggle-tabs insights-chart-tabs mobile-underline-tabs" style={{ display: 'flex', gap: '4px' }}>
+              <button className={`trend-toggle-tab mobile-underline-tab ${chartMode === 'revenue' ? 'active' : ''}`} onClick={() => setChartMode('revenue')}>Revenue</button>
+              <button className={`trend-toggle-tab mobile-underline-tab ${chartMode === 'orders' ? 'active' : ''}`} onClick={() => setChartMode('orders')}>Orders</button>
             </div>
           </div>
           <InsightsTrendChart orders={filteredOrders} mode={chartMode} />
         </div>
 
-        <div className="chart-card insights-category-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(26,26,26,0.08)' }}>
+        <div className="insights-category-section chart-card insights-category-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(26,26,26,0.08)' }}>
           <div className="chart-header-row" style={{ marginBottom: '16px' }}>
             <span className="meta-label insights-desktop-section-label">CATEGORY BREAKDOWN</span>
             <span className="insights-section-heading insights-mobile-section-label">Category breakdown</span>
@@ -881,15 +905,15 @@ export default function InsightsPage() {
           {categoryBreakdown.total > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
               {categoryBreakdown.categories.map(cat => (
-                <div key={cat.name} className="insights-category-breakdown-row" data-category={cat.name} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div key={cat.name} className="category-row insights-category-breakdown-row" data-category={cat.name} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 500 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span className="category-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span className="insights-category-marker" style={{ width: '8px', height: '8px', borderRadius: '50%', background: cat.color }} />
                       {cat.name}
                     </span>
-                    <span style={{ fontWeight: 600 }}>{formatInsightCurrency(cat.revenue)} ({cat.percentage}%)</span>
+                    <span className="category-value" style={{ fontWeight: 600 }}>{formatInsightCurrency(cat.revenue)} ({cat.percentage}%)</span>
                   </div>
-                  <div style={{ width: '100%', height: '6px', background: 'rgba(26,26,26,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div className="category-bar" style={{ width: '100%', height: '6px', background: 'rgba(26,26,26,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
                     <div style={{ width: `${cat.percentage}%`, height: '100%', background: cat.color, borderRadius: '3px' }} />
                   </div>
                 </div>
@@ -902,17 +926,17 @@ export default function InsightsPage() {
       </div>
 
       <div className="insights-grid-2col" style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
-        <div className="chart-card insights-products-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(26,26,26,0.08)' }}>
+        <div className="insights-products-section chart-card insights-products-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(26,26,26,0.08)' }}>
           <span className="meta-label insights-desktop-section-label">TOP PRODUCTS</span>
           <span className="insights-section-heading insights-mobile-section-label">Top products</span>
           {topProducts.length > 0 ? (
             <div className="top-products-list" style={{ marginTop: '12px' }}>
               {topProducts.map((product, index) => (
-                <div key={product.id} className="insights-product-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(26,26,26,0.05)' }}>
+                <div key={product.id} className="product-row insights-product-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(26,26,26,0.05)' }}>
                   <div className="insights-product-name" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: '14px', width: '24px' }}>#{index + 1}</span>
+                    <span className="product-rank" style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: '14px', width: '24px' }}>#{index + 1}</span>
                     <div>
-                      <div className="insights-product-title" style={{ fontWeight: 600, fontSize: '14px' }}>{product.name}</div>
+                      <div className="product-name insights-product-title" style={{ fontWeight: 600, fontSize: '14px' }}>{product.name}</div>
                       <div className="insights-product-revenue" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{formatInsightCurrency(product.revenue)}</div>
                     </div>
                   </div>
@@ -921,7 +945,7 @@ export default function InsightsPage() {
                       <div style={{ fontWeight: 700, fontSize: '15px', fontVariantNumeric: 'tabular-nums' }}>{product.units}</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>units sold</div>
                     </div>
-                    <span className="insights-product-mobile-summary">{product.units} sold · {formatInsightCurrency(product.revenue)}</span>
+                    <span className="product-metric insights-product-mobile-summary">{product.units} sold · {formatInsightCurrency(product.revenue)}</span>
                   </div>
                 </div>
               ))}

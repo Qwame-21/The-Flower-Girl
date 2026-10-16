@@ -106,7 +106,7 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="page-container">
+    <div className="page-container customers-page-container">
       {/* Monolith lines 22259–22271 */}
       <div className="page-header-row">
         <div className="page-title-group">
@@ -158,16 +158,16 @@ export default function CustomersPage() {
             {filteredCustomers.length > 0 ? (
               filteredCustomers.map(c => (
                 <tr key={c.id} className="customer-row" data-id={c.id} onClick={() => setActiveCustomer(c)}>
-                  <td style={{ fontWeight: 600 }}>
+                  <td data-label="Customer" style={{ fontWeight: 600 }}>
                     {c.name}
                     {c.isVip && <span className="vip-tag">VIP</span>}
                   </td>
-                  <td style={{ color: 'var(--text-muted)' }}>{c.email}</td>
-                  <td>{c.phone}</td>
-                  <td>{c.orderCount}</td>
-                  <td style={{ fontWeight: 600 }}>GHS {c.totalSpend.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                  <td style={{ color: 'var(--text-muted)' }}>{c.lastOrderDate}</td>
-                  <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                  <td data-label="Email" style={{ color: 'var(--text-muted)' }}>{c.email}</td>
+                  <td data-label="Phone">{c.phone}</td>
+                  <td data-label="Orders">{c.orderCount}</td>
+                  <td data-label="Total Spend" style={{ fontWeight: 600 }}>GHS {c.totalSpend.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                  <td data-label="Last Order" style={{ color: 'var(--text-muted)' }}>{c.lastOrderDate}</td>
+                  <td data-label="Actions" style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                     <div className="contact-actions-group" style={{ justifyContent: 'flex-end' }}>
                       {(() => {
                         const phone = c.phone || '';

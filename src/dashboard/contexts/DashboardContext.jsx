@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { getAppSettings } from '../data/settingsAdapter';
+import { logoutToLogin } from '../../admin/utils/logout';
 
 const DashboardContext = createContext(null);
 
@@ -9,6 +10,25 @@ const processedNotificationIds = new Set();
 export function DashboardProvider({ children, onSignOut }) {
   const audioContextRef = useRef(null);
   const notificationPermissionRef = useRef('default');
+  const [isSignOutConfirmationOpen, setIsSignOutConfirmationOpen] = useState(false);
+  const requestSignOut = () => setIsSignOutConfirmationOpen(true);
+  const confirmSignOut = () => {
+    setIsSignOutConfirmationOpen(false);
+    if (onSignOut) {
+      onSignOut();
+    } else {
+      logoutToLogin();
+    }
+  };
+
+  useEffect(() => {
+    if (!isSignOutConfirmationOpen) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setIsSignOutConfirmationOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSignOutConfirmationOpen]);
 
   // Unlock audio context on first user interaction
   useEffect(() => {
@@ -128,8 +148,29 @@ export function DashboardProvider({ children, onSignOut }) {
   };
 
   return (
-    <DashboardContext.Provider value={{ onSignOut, notifyNewOrder }}>
+    <DashboardContext.Provider value={{ onSignOut, notifyNewOrder, requestSignOut }}>
       {children}
+      {isSignOutConfirmationOpen && (
+        <div
+          className="signout-confirm-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setIsSignOutConfirmationOpen(false);
+          }}
+        >
+          <div className="signout-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="signout-confirm-title">
+            <h3 id="signout-confirm-title">Sign Out of the Admin?</h3>
+            <p>You will need to enter your staff credentials to sign back in.</p>
+            <div className="signout-confirm-actions">
+              <button type="button" className="btn" onClick={() => setIsSignOutConfirmationOpen(false)}>
+                CANCEL
+              </button>
+              <button type="button" className="btn d" onClick={confirmSignOut}>
+                SIGN OUT
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardContext.Provider>
   );
 }
@@ -139,5 +180,9 @@ export function useDashboard() {
   if (!context) {
     throw new Error('useDashboard must be used within DashboardProvider');
   }
-  return { onSignOut: context.onSignOut, notifyNewOrder: context.notifyNewOrder };
+  return {
+    onSignOut: context.onSignOut,
+    notifyNewOrder: context.notifyNewOrder,
+    requestSignOut: context.requestSignOut
+  };
 }

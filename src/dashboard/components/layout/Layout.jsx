@@ -1,42 +1,98 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import ToastContainer from '../ToastContainer';
 import { useIdleTimer } from '../../lib/idle';
 import AdminErrorBoundary from '../ErrorBoundary';
+import { useDashboard } from '../../contexts/DashboardContext';
 
 export default function Layout() {
   const location = useLocation();
+  const { requestSignOut } = useDashboard();
+  const mobileMenuRef = useRef(null);
+  const wasMobileMenuOpen = useRef(false);
   const [isLocked, setIsLocked] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [mobileDrawer, setMobileDrawer] = useState({ open: false, pathname: location.pathname });
   const isMobileOpen = mobileDrawer.open && mobileDrawer.pathname === location.pathname;
-  const closeMobileDrawer = () => setMobileDrawer({ open: false, pathname: location.pathname });
+  const closeMobileDrawer = useCallback(
+    () => setMobileDrawer({ open: false, pathname: location.pathname }),
+    [location.pathname]
+  );
   const { warningShown, secondsLeft, resetActivity } = useIdleTimer();
 
-  // Close mobile drawer on Escape key press
+  // Keep keyboard focus inside the mobile navigation while it is open.
   useEffect(() => {
-    if (!isMobileOpen) return;
+    if (!isMobileOpen) {
+      if (wasMobileMenuOpen.current) {
+        document.getElementById('mobileMenuBtn')?.focus();
+        wasMobileMenuOpen.current = false;
+      }
+      return undefined;
+    }
+
+    wasMobileMenuOpen.current = true;
+    const dialog = mobileMenuRef.current;
+    const closeButton = dialog?.querySelector('.mobile-drawer-close');
+    const menuBody = dialog?.querySelector('.menu-body');
+    if (menuBody) menuBody.scrollTop = 0;
+    closeButton?.focus();
+
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        setMobileDrawer({ open: false, pathname: location.pathname });
+        closeMobileDrawer();
+        return;
       }
+
+      if (e.key !== 'Tab' || !dialog) return;
+      const focusableElements = Array.from(
+        dialog.querySelectorAll('a[href], button:not([disabled]), [tabindex="0"]')
+      )
+        .filter((element) => element.getClientRects().length > 0)
+        .sort((first, second) => {
+          const getOrder = (element) => {
+            if (element === closeButton) return -1;
+            if (element.matches('.menu-item[data-page]')) {
+              return Number.parseInt(getComputedStyle(element).order, 10);
+            }
+            return 100;
+          };
+          return getOrder(first) - getOrder(second);
+        });
+      const activeIndex = focusableElements.indexOf(document.activeElement);
+      if (focusableElements.length === 0) return;
+
+      e.preventDefault();
+      const nextIndex = activeIndex === -1
+        ? (e.shiftKey ? focusableElements.length - 1 : 0)
+        : (activeIndex + (e.shiftKey ? -1 : 1) + focusableElements.length) % focusableElements.length;
+      focusableElements[nextIndex].focus();
     };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isMobileOpen, location.pathname]);
+    window.addEventListener('popstate', closeMobileDrawer);
+    window.addEventListener('hashchange', closeMobileDrawer);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('popstate', closeMobileDrawer);
+      window.removeEventListener('hashchange', closeMobileDrawer);
+    };
+  }, [closeMobileDrawer, isMobileOpen, location.pathname]);
 
   useEffect(() => {
     if (!isMobileOpen || !window.matchMedia('(max-width: 767px)').matches) return undefined;
 
     const scrollY = window.scrollY;
+    const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+    const bodyPaddingRight = parseFloat(getComputedStyle(document.body).paddingRight) || 0;
     const bodyStyles = {
       position: document.body.style.position,
       top: document.body.style.top,
       left: document.body.style.left,
       right: document.body.style.right,
       width: document.body.style.width,
+      paddingRight: document.body.style.paddingRight,
       overflow: document.body.style.overflow,
       overscrollBehavior: document.body.style.overscrollBehavior
     };
@@ -50,6 +106,7 @@ export default function Layout() {
     document.body.style.left = '0';
     document.body.style.right = '0';
     document.body.style.width = '100%';
+    document.body.style.paddingRight = `${bodyPaddingRight + scrollbarWidth}px`;
     document.body.style.setProperty('overflow', 'hidden', 'important');
     document.body.style.setProperty('overscroll-behavior', 'contain', 'important');
     document.documentElement.style.setProperty('overflow', 'hidden', 'important');
@@ -117,18 +174,21 @@ export default function Layout() {
           onMouseLeave={() => setIsHovered(false)}
           isMobileOpen={isMobileOpen}
           onCloseMobile={closeMobileDrawer}
-        />
-
-        {/* Mobile Backdrop Overlay */}
-        <div
-          className={`mobile-nav-backdrop ${isMobileOpen ? 'active' : ''}`}
-          id="mobileBackdrop"
-          onClick={closeMobileDrawer}
+          onRequestSignOut={requestSignOut}
+          mobileMenuRef={mobileMenuRef}
         />
 
         {/* Main Admin Content Area with Horizontal Top Title Bar */}
-        <section className="admin-main-canvas" id="adminCanvas">
-          <Header onToggleMobile={() => setMobileDrawer({ open: !isMobileOpen, pathname: location.pathname })} />
+        <section
+          className="admin-main-canvas"
+          id="adminCanvas"
+          aria-hidden={isMobileOpen ? 'true' : undefined}
+        >
+          <Header
+            isMobileMenuOpen={isMobileOpen}
+            onRequestSignOut={requestSignOut}
+            onToggleMobile={() => setMobileDrawer({ open: !isMobileOpen, pathname: location.pathname })}
+          />
 
           {/* Full-Width Extendable Content Body (Scroll Container) */}
           <div className="extendable-content-body" id="extendableContentBody">

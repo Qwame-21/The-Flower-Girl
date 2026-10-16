@@ -448,9 +448,9 @@ export default function CustomizationPage() {
           <input className="customization-search-input" type="text" placeholder="Search options..." value={search} onChange={e => setSearch(e.target.value)}
             style={{ width: "100%", padding: "8px 12px 8px 32px", borderRadius: "10px", border: "1px solid rgba(26,26,26,0.12)", fontSize: "13px", background: "rgba(255,255,255,0.8)", outline: "none", boxSizing: "border-box", fontFamily: "var(--font-family-base)" }} />
         </div>
-        <div className="customization-category-filters" style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+        <div className="category-pills customization-category-filters" style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
           {[{ id: "all", name: "All", count: categories.reduce((sum, c) => sum + c.options.length, 0) }, ...categories.map(c => ({ id: c.id, name: c.name, count: c.options.length, visible: c.visible }))].map(item => (
-            <button key={item.id} type="button" className={`customization-filter-chip${filterCat === item.id ? " selected" : ""}`} onClick={() => { setFilterCat(item.id); if (item.id !== "all") setExpandedCategoryId(item.id); }}
+            <button key={item.id} type="button" className={`category-pill customization-filter-chip${filterCat === item.id ? " active" : ""}`} onClick={() => { setFilterCat(item.id); if (item.id !== "all") setExpandedCategoryId(item.id); }}
               style={{ padding: "6px 12px", borderRadius: "9999px", fontSize: "11px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer", border: "1px solid", background: filterCat === item.id ? "#1a1a1a" : "transparent", color: filterCat === item.id ? "#fff" : "var(--text-muted)", borderColor: filterCat === item.id ? "#1a1a1a" : "rgba(26,26,26,0.15)", transition: "all var(--dur-fast) var(--ease)", opacity: item.visible === false ? 0.55 : 1 }}>
               {item.name} ({item.count})
             </button>
@@ -476,15 +476,15 @@ export default function CustomizationPage() {
           )}
           {visibleCats.map(cat => (
             <div key={cat.id} className="customization-category" data-expanded={expandedCategoryId === cat.id} style={{ background: "#f7f6f4", borderRadius: "16px", padding: "20px", border: "1px solid rgba(26,26,26,0.06)", opacity: cat.visible ? 1 : 0.7, transition: "opacity var(--dur-fast) var(--ease)" }}>
-              <div className="customization-category-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
+              <div className="category-section-header customization-category-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
                 <div className="customization-category-desktop-heading" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <h3 className="customization-category-name" style={{ margin: 0, fontSize: "15px", fontWeight: 700 }}>{cat.name}</h3>
-                  <span className="customization-category-count" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)", background: "rgba(26,26,26,0.06)", padding: "2px 8px", borderRadius: "9999px" }}>{cat.options.length} option{cat.options.length !== 1 ? "s" : ""}</span>
+                  <span className="category-count customization-category-count" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)", background: "rgba(26,26,26,0.06)", padding: "2px 8px", borderRadius: "9999px" }}>{cat.options.length} option{cat.options.length !== 1 ? "s" : ""}</span>
                   {!cat.visible && <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#c9612e", background: "rgba(201,97,46,0.08)", padding: "2px 8px", borderRadius: "9999px" }}>Hidden</span>}
                 </div>
                 <button type="button" className="customization-category-heading" aria-expanded={expandedCategoryId === cat.id} onClick={() => setExpandedCategoryId(expandedCategoryId === cat.id ? null : cat.id)} style={{ alignItems: "center", gap: "10px", padding: 0, border: 0, background: "transparent", color: "inherit", font: "inherit", textAlign: "left", cursor: "pointer" }}>
                   <span className="customization-category-name" role="heading" aria-level="3" style={{ margin: 0, fontSize: "15px", fontWeight: 700 }}>{cat.name}</span>
-                  <span className="customization-category-count" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)", background: "rgba(26,26,26,0.06)", padding: "2px 8px", borderRadius: "9999px" }}>{cat.options.length} option{cat.options.length !== 1 ? "s" : ""}</span>
+                  <span className="category-count customization-category-count" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)", background: "rgba(26,26,26,0.06)", padding: "2px 8px", borderRadius: "9999px" }}>{cat.options.length} option{cat.options.length !== 1 ? "s" : ""}</span>
                 </button>
                 <div className="customization-collapsed-actions">
                   <ToggleSwitch id={"cat-mobile-vis-" + cat.id} checked={cat.visible} onChange={() => toggleCategoryVisible(cat.id)} label={`${cat.name} visibility`} />
@@ -492,13 +492,13 @@ export default function CustomizationPage() {
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
                   </button>
                 </div>
-                <div className="customization-category-actions" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div className="category-action-row customization-category-actions" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <ToggleSwitch id={"cat-vis-" + cat.id} checked={cat.visible} onChange={() => toggleCategoryVisible(cat.id)} label={cat.visible ? "Visible" : "Hidden"} />
-                  <button type="button" onClick={() => openNewOption(cat.id)} style={{ padding: "6px 12px", borderRadius: "8px", border: "1px solid rgba(26,26,26,0.15)", background: "transparent", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "#1a1a1a", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHover(e, true)} onMouseLeave={e => btnHover(e, false)}>+ Add Option</button>
-                  <button type="button" onClick={() => openEditCategory(cat)} title="Edit category" style={{ padding: "6px", borderRadius: "8px", border: "none", background: "transparent", cursor: "pointer", color: "var(--text-muted)", display: "flex", alignItems: "center", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHover(e, true)} onMouseLeave={e => btnHover(e, false)}>
+                  <button type="button" onClick={() => openNewOption(cat.id)} className="add-option-btn" style={{ padding: "6px 12px", borderRadius: "8px", border: "1px solid rgba(26,26,26,0.15)", background: "transparent", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "#1a1a1a", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHover(e, true)} onMouseLeave={e => btnHover(e, false)}>+ Add Option</button>
+                  <button type="button" onClick={() => openEditCategory(cat)} title="Edit category" className="icon-action" style={{ padding: "6px", borderRadius: "8px", border: "none", background: "transparent", cursor: "pointer", color: "var(--text-muted)", display: "flex", alignItems: "center", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHover(e, true)} onMouseLeave={e => btnHover(e, false)}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                   </button>
-                  <button type="button" onClick={() => requestDeleteCategory(cat)} title="Delete category" style={{ padding: "6px", borderRadius: "8px", border: "none", background: "transparent", cursor: "pointer", color: "#e11d48", display: "flex", alignItems: "center", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHoverDanger(e, true)} onMouseLeave={e => btnHoverDanger(e, false)}>
+                  <button type="button" onClick={() => requestDeleteCategory(cat)} title="Delete category" className="icon-action" style={{ padding: "6px", borderRadius: "8px", border: "none", background: "transparent", cursor: "pointer", color: "#e11d48", display: "flex", alignItems: "center", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHoverDanger(e, true)} onMouseLeave={e => btnHoverDanger(e, false)}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
                   </button>
                 </div>
@@ -509,22 +509,22 @@ export default function CustomizationPage() {
                 ) : (
                   <div className="customization-options-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px" }}>
                     {cat.options.map(opt => (
-                      <div key={opt.id} className="customization-option-row" style={{ background: opt.visible ? "#fff" : "rgba(26,26,26,0.03)", border: "1px solid rgba(26,26,26,0.08)", borderRadius: "10px", padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", opacity: opt.visible ? 1 : 0.6, transition: "opacity var(--dur-fast) var(--ease)" }}>
+                      <div key={opt.id} className="option-row customization-option-row" style={{ background: opt.visible ? "#fff" : "rgba(26,26,26,0.03)", border: "1px solid rgba(26,26,26,0.08)", borderRadius: "10px", padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", opacity: opt.visible ? 1 : 0.6, transition: "opacity var(--dur-fast) var(--ease)" }}>
                         <div>
-                          <div style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a" }}>{opt.name}</div>
-                          <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>+ GHS {Number(opt.price).toLocaleString()}</div>
+                          <div className="option-name" style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a" }}>{opt.name}</div>
+                          <div className="option-price" style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>+ GHS {Number(opt.price).toLocaleString()}</div>
                         </div>
-                        <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
-                          <button type="button" onClick={() => toggleOptionVisible(cat.id, opt.id)} title={opt.visible ? "Hide" : "Show"} style={{ padding: "4px", borderRadius: "6px", border: "none", background: "transparent", cursor: "pointer", color: "var(--text-muted)", display: "flex", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHover(e, true)} onMouseLeave={e => btnHover(e, false)}>
+                        <div className="option-actions" style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                          <button type="button" onClick={() => toggleOptionVisible(cat.id, opt.id)} title={opt.visible ? "Hide" : "Show"} className="icon-action" style={{ padding: "4px", borderRadius: "6px", border: "none", background: "transparent", cursor: "pointer", color: "var(--text-muted)", display: "flex", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHover(e, true)} onMouseLeave={e => btnHover(e, false)}>
                             {opt.visible
                               ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
                               : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
                             }
                           </button>
-                          <button type="button" onClick={() => openEditOption(cat.id, opt)} title="Edit" style={{ padding: "4px", borderRadius: "6px", border: "none", background: "transparent", cursor: "pointer", color: "var(--text-muted)", display: "flex", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHover(e, true)} onMouseLeave={e => btnHover(e, false)}>
+                          <button type="button" onClick={() => openEditOption(cat.id, opt)} title="Edit" className="icon-action" style={{ padding: "4px", borderRadius: "6px", border: "none", background: "transparent", cursor: "pointer", color: "var(--text-muted)", display: "flex", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHover(e, true)} onMouseLeave={e => btnHover(e, false)}>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                           </button>
-                          <button type="button" onClick={() => requestDeleteOption(cat.id, opt)} title="Delete" style={{ padding: "4px", borderRadius: "6px", border: "none", background: "transparent", cursor: "pointer", color: "#e11d48", display: "flex", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHoverDanger(e, true)} onMouseLeave={e => btnHoverDanger(e, false)}>
+                          <button type="button" onClick={() => requestDeleteOption(cat.id, opt)} title="Delete" className="icon-action" style={{ padding: "4px", borderRadius: "6px", border: "none", background: "transparent", cursor: "pointer", color: "#e11d48", display: "flex", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHoverDanger(e, true)} onMouseLeave={e => btnHoverDanger(e, false)}>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
                           </button>
                         </div>

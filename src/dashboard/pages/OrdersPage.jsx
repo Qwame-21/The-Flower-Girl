@@ -1215,9 +1215,18 @@ export default function OrdersPage() {
                       <div className="order-amount-text">GHS {amount.toLocaleString('en-US')}</div>
                     </div>
 
-                    <div className={`expand-chevron ${isExpanded ? 'expanded' : ''}`}>
+                    <button
+                      type="button"
+                      className={`expand-chevron ${isExpanded ? 'expanded' : ''}`}
+                      aria-label={`${isExpanded ? 'Collapse' : 'Expand'} order details`}
+                      aria-expanded={isExpanded}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setExpandedId(prev => prev === order.id ? null : order.id);
+                      }}
+                    >
                       {SVG.chevron}
-                    </div>
+                    </button>
                   </div>
                 </div>
 

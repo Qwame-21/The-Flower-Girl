@@ -6,7 +6,6 @@ import { useState, useCallback, useEffect } from 'react';
 import { getAppSettings, syncSettingsWithSupabase, persistSettings } from '../data/settingsAdapter';
 import { supabase } from '../../config/supabase';
 import { useDashboard } from '../contexts/DashboardContext';
-import { logoutToLogin } from '../../admin/utils/logout';
 import PasswordConfirmModal from '../components/PasswordConfirmModal';
 
 // ─── tiny toast helper ───────────────────────────────────────────────────────
@@ -585,7 +584,7 @@ function ContentTextArea({ label, field, placeholder, form, setText, maxLength =
 
 // ─── Panel: Security ──────────────────────────────────────────────────────────
 function SecurityPanel({ s, onChange }) {
-  const { onSignOut } = useDashboard();
+  const { requestSignOut } = useDashboard();
   const [pwCurrent, setPwCurrent]   = useState('');
   const [pwNew,     setPwNew]       = useState('');
   const [pwConfirm, setPwConfirm]   = useState('');
@@ -597,7 +596,6 @@ function SecurityPanel({ s, onChange }) {
   const [errs, setErrs] = useState({ current: '', newPw: '', confirm: '' });
   const [successMsg, setSuccessMsg] = useState('');
   const [saving, setSaving]         = useState(false);
-  const [showSignOut, setShowSignOut] = useState(false);
   const [showSecurityPwConfirm, setShowSecurityPwConfirm] = useState(false);
   const [pendingDestructiveAction, setPendingDestructiveAction] = useState(null);
 
@@ -694,15 +692,6 @@ function SecurityPanel({ s, onChange }) {
       throw err; // Let modal handle the error
     }
   };
-
-  function handleSignOut() {
-    setShowSignOut(false);
-    if (onSignOut) {
-      onSignOut();
-    } else {
-      logoutToLogin();
-    }
-  }
 
   const EyeIcon = ({ visible }) => visible ? (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -811,7 +800,7 @@ function SecurityPanel({ s, onChange }) {
             <div className="sub">You will be returned to the login screen.</div>
           </div>
           <button className="btn" id="signOutBtn" type="button"
-            onClick={() => setShowSignOut(true)}>Sign out</button>
+            onClick={requestSignOut}>Sign out</button>
         </div>
       </div>
 
@@ -820,24 +809,6 @@ function SecurityPanel({ s, onChange }) {
           {saving ? 'Saving…' : 'Update password'}
         </button>
       </div>
-
-      {/* Sign-out confirm modal */}
-      {showSignOut && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-          <div style={{ background: '#ffffff', borderRadius: '16px', padding: '24px',
-            maxWidth: '400px', width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600 }}>Sign Out</h3>
-            <p style={{ fontSize: '13px', color: 'var(--mute,#747471)', margin: '0 0 16px 0' }}>
-              Sign out of the admin dashboard?
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button type="button" className="btn" onClick={() => setShowSignOut(false)}>Cancel</button>
-              <button type="button" className="btn d" onClick={handleSignOut}>Sign Out</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Password confirmation modal */}
       <PasswordConfirmModal

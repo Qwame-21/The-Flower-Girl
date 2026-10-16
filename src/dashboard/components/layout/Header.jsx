@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
-import { useDashboard } from '../../contexts/DashboardContext';
 import { listNotifications, deleteNotification, markAllNotificationsRead, clearAllNotifications, subscribeToNotifications, startNotificationPolling } from '../../data/notifications';
 import { supabase } from '../../../config/supabase';
 import { playNotificationSound, playUnmuteSound } from '../../lib/sounds';
@@ -157,11 +156,25 @@ function LiveMobileDateChip({ separator }) {
   );
 }
 
-export default function Header({ onToggleMobile }) {
+export default function Header({ onToggleMobile, onRequestSignOut, isMobileMenuOpen = false }) {
   const location = useLocation();
   const activeTitle = ROUTE_TITLE_MAP[location.pathname] || 'OVERVIEW';
   const usesReferenceMobileHeader = ['/log', '/customization', '/insights'].includes(location.pathname);
-  const { onSignOut } = useDashboard();
+
+  const [isDateChipHidden, setIsDateChipHidden] = useState(false);
+  const previousScrollY = useRef(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const scrollingDown = currentScrollY > previousScrollY.current;
+      setIsDateChipHidden(currentScrollY > 40 && scrollingDown);
+      previousScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Notification state
   const [isMuted, setIsMuted] = useState(() => localStorage.getItem('notifications-muted') === 'true');
@@ -409,7 +422,6 @@ export default function Header({ onToggleMobile }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   // Modal states — ported from admin-monolith.html lines 19588-19636
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showSignOutModal, setShowSignOutModal] = useState(false);
 
   // Refs for trigger & dropdown positioning
   const notifBtnRef = useRef(null);
@@ -431,18 +443,17 @@ export default function Header({ onToggleMobile }) {
     }
   }, [isProfileOpen]);
 
-  // Escape key listener to close profile side drawer and signout modal
+  // Escape key listener to close profile side drawer
   useEffect(() => {
-    if (!showProfileModal && !showSignOutModal) return;
+    if (!showProfileModal) return;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         setShowProfileModal(false);
-        setShowSignOutModal(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showProfileModal, showSignOutModal]);
+  }, [showProfileModal]);
 
   // Close dropdowns on outside click or scroll/resize
   useEffect(() => {
@@ -685,303 +696,317 @@ export default function Header({ onToggleMobile }) {
 
   return (
     <>
-    <div className={`top-title-bar${isNotifOpen ? ' notifications-open' : ''}${usesReferenceMobileHeader ? ' reference-mobile-header' : ''}`}>
-      <div className="title-bar-left">
-        <button
-          className="icon-btn mobile-menu-btn"
-          id="mobileMenuBtn"
-          aria-label="Open Navigation Menu"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleMobile();
-          }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" strokeWidth="1.75">
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="18" x2="21" y2="18" />
-          </svg>
-        </button>
+    {/* Mobile Header Zone - wraps island and date chip for fixed positioning */}
+    <div className="mobile-header-zone">
+      <div className={`top-title-bar${isNotifOpen ? ' notifications-open' : ''}${usesReferenceMobileHeader ? ' reference-mobile-header' : ''}`}>
+        <div className="title-bar-left">
+          <button
+            className="icon-btn mobile-menu-btn"
+            id="mobileMenuBtn"
+            aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-controls="sideNav"
+            aria-expanded={isMobileMenuOpen}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleMobile();
+            }}
+          >
+            {isMobileMenuOpen ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" strokeWidth="1.75" strokeLinecap="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" strokeWidth="1.75">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            )}
+          </button>
 
-        <span className="meta-label active-page-title" id="activePageTitle">
-          {activeTitle}
-        </span>
-      </div>
-
-      <div className="title-bar-right">
-        {/* Current Live Date and Time */}
-        <div className="top-bar-clock-box">
-          <LiveAccraClock />
+          <span className="meta-label active-page-title" id="activePageTitle">
+            {isMobileMenuOpen ? 'MENU' : activeTitle}
+          </span>
         </div>
 
-        {/* Grouped Notification Bell & Admin Profile Pair */}
-        <div className="notif-admin-group">
-          {/* Notification Bell Icon Button & Accent Badge */}
-          <div className="notif-wrapper">
-            <button
-              ref={notifBtnRef}
-              className="notif-btn"
-              id="notifBtn"
-              aria-expanded={isNotifOpen}
-              aria-label="Notifications"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsProfileOpen(false);
-                setIsNotifOpen((prev) => !prev);
-              }}
-            >
-              <div className="notif-icon-box">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-              </div>
-              {unreadCount > 0 && (
-                <span
-                  className="notif-accent-badge"
-                  id="notifAccentBadge"
-                >
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-              <span className="notif-btn-label" id="notifBtnLabel" aria-hidden="true"></span>
-            </button>
-
-            {/* Notification Dropdown Panel */}
-            <div
-              ref={notifDropdownRef}
-              className={`notif-dropdown ${isNotifOpen ? 'active' : ''}`}
-              id="notifDropdown"
-              aria-hidden={!isNotifOpen}
-            >
-              <div className="dropdown-header">
-                <span className="meta-label">NOTIFICATIONS</span>
-                <div className="dropdown-header-actions">
-                  <button
-                    type="button"
-                    className="notif-close-btn"
-                    aria-label="Close notifications"
-                    style={{ display: 'none' }}
-                    onClick={() => setIsNotifOpen(false)}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                  {/* Mute toggle */}
-                  <button
-                    className={`mute-toggle-btn ${isMuted ? 'muted' : ''} ${isExpanding ? 'expanding-capsule' : ''}`}
-                    id="muteToggleBtn"
-                    title={isMuted ? 'Unmute notifications' : 'Mute notifications'}
-                    onClick={handleToggleMute}
-                  >
-                    {isMuted ? (
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                        <line x1="23" y1="9" x2="17" y2="15"></line>
-                        <line x1="17" y1="9" x2="23" y2="15"></line>
-                      </svg>
-                    ) : (
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                      </svg>
-                    )}
-                    <span className="mute-btn-text">{isMuted ? 'Muted' : 'Unmuted'}</span>
-                  </button>
-
-                  {/* Multi-select delete */}
-                  {selectedNotifIds.length > 0 && (
-                    <button
-                      className="btn-capsule clear-all-btn"
-                      style={{ background: '#dc2626', color: '#fff', borderColor: 'transparent', fontSize: '10px', padding: '0 12px' }}
-                      onClick={handleDeleteSelected}
-                    >
-                      Delete ({selectedNotifIds.length})
-                    </button>
-                  )}
-
-                  {/* Clear All */}
-                  <button
-                    className="btn-capsule clear-all-btn"
-                    id="clearNotifBtn"
-                    onClick={handleClearAllFirst}
-                    disabled={notifications.length === 0}
-                  >
-                    Clear all
-                  </button>
-                </div>
-              </div>
-
-              {/* Clear All confirmation overlay */}
-              {clearAllConfirm && (
-                <div className="notif-clear-overlay">
-                  <p className="notif-clear-question">Clear all notifications?</p>
-                  <div className="notif-clear-actions">
-                    <button className="notif-clear-yes" onClick={handleClearAllConfirm}>Yes, clear all</button>
-                    <button className="notif-clear-no" onClick={handleClearAllCancel}>No, keep</button>
-                  </div>
-                </div>
-              )}
-              <div className="notif-tabs" role="tablist" aria-label="Notification categories">
-                {[
-                  ['orders', 'Orders'],
-                  ['requests', 'Requests'],
-                  ['other', 'Other'],
-                ].map(([tab, label]) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    role="tab"
-                    aria-selected={notificationTab === tab}
-                    className={`notif-tab${notificationTab === tab ? ' active' : ''}`}
-                    onClick={() => setNotificationTab(tab)}
-                  >
-                    {label}<span>{notificationCounts[tab]}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="notif-body" id="notifBody">
-                {displayedNotifications.length === 0 ? (
-                  <div className="notif-empty" id="notifEmpty" style={{ display: 'block' }}>
-                    <span className="meta-label">No {notificationTab === 'other' ? 'other ' : ''}{notificationTab} notifications</span>
-                  </div>
-                ) : (
-                  displayedNotifications.map((notif) => {
-                    const isSelected = selectedNotifIds.includes(notif.id);
-                    return (
-                      <div
-                        key={notif.id}
-                        className={`notif-item ${notif.readAt ? 'read' : ''} ${isSelected ? 'notif-selected' : ''}`}
-                        onClick={() => handleNotificationClick(notif)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        {/* Multi-select checkbox */}
-                        <span
-                          className={`notif-select-dot ${isSelected ? 'selected' : ''}`}
-                          onClick={(e) => toggleSelectNotif(notif.id, e)}
-                          title={isSelected ? 'Deselect' : 'Select'}
-                        />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <span className="meta-label">{notif.title}</span>
-                          {notif.body && <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{notif.body}</div>}
-                        </div>
-                        <button
-                          className="notif-clear-item-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDismissNotif(notif.id);
-                          }}
-                          title="Dismiss"
-                          aria-label="Dismiss notification"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="18" y1="6" x2="6" y2="18"/>
-                            <line x1="6" y1="6" x2="18" y2="18"/>
-                          </svg>
-                        </button>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
+        <div className="title-bar-right">
+          {/* Current Live Date and Time */}
+          <div className="top-bar-clock-box">
+            <LiveAccraClock />
           </div>
 
-          {/* Prominent Admin Profile Capsule */}
-          <div className="admin-profile-pill-wrapper">
-            <button
-              ref={adminProfileBtnRef}
-              className="admin-profile-pill prominent"
-              id="adminProfileBtn"
-              aria-expanded={isProfileOpen}
-              aria-label="Admin Profile Menu"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsNotifOpen(false);
-                setIsProfileOpen((prev) => !prev);
-              }}
-            >
-              {staffProfile?.avatar_url ? (
-                <img
-                  src={staffProfile.avatar_url}
-                  alt="Admin Avatar"
-                  style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }}
-                />
-              ) : (
-                <div className="avatar-flat-icon">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          {/* Grouped Notification Bell & Admin Profile Pair */}
+          <div className="notif-admin-group">
+            {/* Notification Bell Icon Button & Accent Badge */}
+            <div className="notif-wrapper">
+              <button
+                ref={notifBtnRef}
+                className="notif-btn"
+                id="notifBtn"
+                aria-expanded={isNotifOpen}
+                aria-label="Notifications"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsProfileOpen(false);
+                  setIsNotifOpen((prev) => !prev);
+                }}
+              >
+                <div className="notif-icon-box">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                  </svg>
+                </div>
+                {unreadCount > 0 && (
+                  <span
+                    className="notif-accent-badge"
+                    id="notifAccentBadge"
+                  >
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+                <span className="notif-btn-label" id="notifBtnLabel" aria-hidden="true"></span>
+              </button>
+
+              {/* Notification Dropdown Panel */}
+              <div
+                ref={notifDropdownRef}
+                className={`notif-dropdown ${isNotifOpen ? 'active' : ''}`}
+                id="notifDropdown"
+                aria-hidden={!isNotifOpen}
+              >
+                <div className="dropdown-header">
+                  <span className="meta-label">NOTIFICATIONS</span>
+                  <div className="dropdown-header-actions">
+                    <button
+                      type="button"
+                      className="notif-close-btn"
+                      aria-label="Close notifications"
+                      style={{ display: 'none' }}
+                      onClick={() => setIsNotifOpen(false)}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                    {/* Mute toggle */}
+                    <button
+                      type="button"
+                      className={`mute-toggle-btn ${isMuted ? 'muted' : ''} ${isExpanding ? 'expanding-capsule' : ''}`}
+                      id="muteToggleBtn"
+                      title={isMuted ? 'Unmute notifications' : 'Mute notifications'}
+                      aria-label={`Notifications ${isMuted ? 'muted' : 'unmuted'}. Activate to ${isMuted ? 'unmute' : 'mute'} notifications.`}
+                      aria-pressed={isMuted}
+                      onClick={handleToggleMute}
+                    >
+                      {isMuted ? (
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                          <line x1="23" y1="9" x2="17" y2="15"></line>
+                          <line x1="17" y1="9" x2="23" y2="15"></line>
+                        </svg>
+                      ) : (
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                        </svg>
+                      )}
+                      <span className="mute-btn-text">{isMuted ? 'Muted' : 'Unmuted'}</span>
+                    </button>
+
+                    {/* Multi-select delete */}
+                    {selectedNotifIds.length > 0 && (
+                      <button
+                        className="btn-capsule clear-all-btn"
+                        style={{ background: '#dc2626', color: '#fff', borderColor: 'transparent', fontSize: '10px', padding: '0 12px' }}
+                        onClick={handleDeleteSelected}
+                      >
+                        Delete ({selectedNotifIds.length})
+                      </button>
+                    )}
+
+                    {/* Clear All */}
+                    <button
+                      className="btn-capsule clear-all-btn"
+                      id="clearNotifBtn"
+                      onClick={handleClearAllFirst}
+                      disabled={notifications.length === 0}
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                </div>
+
+                {/* Clear All confirmation overlay */}
+                {clearAllConfirm && (
+                  <div className="notif-clear-overlay">
+                    <p className="notif-clear-question">Clear all notifications?</p>
+                    <div className="notif-clear-actions">
+                      <button className="notif-clear-yes" onClick={handleClearAllConfirm}>Yes, clear all</button>
+                      <button className="notif-clear-no" onClick={handleClearAllCancel}>No, keep</button>
+                    </div>
+                  </div>
+                )}
+                <div className="notif-tabs" role="tablist" aria-label="Notification categories">
+                  {[
+                    ['orders', 'Orders'],
+                    ['requests', 'Requests'],
+                    ['other', 'Other'],
+                  ].map(([tab, label]) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      role="tab"
+                      aria-selected={notificationTab === tab}
+                      className={`notif-tab${notificationTab === tab ? ' active' : ''}`}
+                      onClick={() => setNotificationTab(tab)}
+                    >
+                      {label}<span>{notificationCounts[tab]}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="notif-body" id="notifBody">
+                  {displayedNotifications.length === 0 ? (
+                    <div className="notif-empty" id="notifEmpty" style={{ display: 'block' }}>
+                      <span className="meta-label">No {notificationTab === 'other' ? 'other ' : ''}{notificationTab} notifications</span>
+                    </div>
+                  ) : (
+                    displayedNotifications.map((notif) => {
+                      const isSelected = selectedNotifIds.includes(notif.id);
+                      return (
+                        <div
+                          key={notif.id}
+                          className={`notif-item ${notif.readAt ? 'read' : ''} ${isSelected ? 'notif-selected' : ''}`}
+                          onClick={() => handleNotificationClick(notif)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          {/* Multi-select checkbox */}
+                          <span
+                            className={`notif-select-dot ${isSelected ? 'selected' : ''}`}
+                            onClick={(e) => toggleSelectNotif(notif.id, e)}
+                            title={isSelected ? 'Deselect' : 'Select'}
+                          />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span className="meta-label">{notif.title}</span>
+                            {notif.body && <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{notif.body}</div>}
+                          </div>
+                          <button
+                            className="notif-clear-item-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDismissNotif(notif.id);
+                            }}
+                            title="Dismiss"
+                            aria-label="Dismiss notification"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="18" y1="6" x2="6" y2="18"/>
+                              <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Prominent Admin Profile Capsule */}
+            <div className="admin-profile-pill-wrapper">
+              <button
+                ref={adminProfileBtnRef}
+                className="admin-profile-pill prominent"
+                id="adminProfileBtn"
+                aria-expanded={isProfileOpen}
+                aria-label="Admin Profile Menu"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsNotifOpen(false);
+                  setIsProfileOpen((prev) => !prev);
+                }}
+              >
+                {staffProfile?.avatar_url ? (
+                  <img
+                    src={staffProfile.avatar_url}
+                    alt="Admin Avatar"
+                    style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div className="avatar-flat-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </div>
+                )}
+                <span className="meta-label admin-name">ADMIN</span>
+              </button>
+
+              <div
+                ref={profileDropdownRef}
+                className={`profile-dropdown ${isProfileOpen ? 'active' : ''}`}
+                id="profileDropdown"
+                aria-hidden={!isProfileOpen}
+              >
+                <a
+                  href="#profile"
+                  className="dropdown-item"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setIsProfileOpen(false);
+                    setShowProfileModal(true);
+                    if (authUser?.id) {
+                      loadLogs(authUser.id);
+                      loadStaffProfile(authUser.id);
+                    }
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                     <circle cx="12" cy="7" r="4" />
                   </svg>
-                </div>
-              )}
-              <span className="meta-label admin-name">ADMIN</span>
-            </button>
-
-            <div
-              ref={profileDropdownRef}
-              className={`profile-dropdown ${isProfileOpen ? 'active' : ''}`}
-              id="profileDropdown"
-              aria-hidden={!isProfileOpen}
-            >
-              <a
-                href="#profile"
-                className="dropdown-item"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setIsProfileOpen(false);
-                  setShowProfileModal(true);
-                  if (authUser?.id) {
-                    loadLogs(authUser.id);
-                    loadStaffProfile(authUser.id);
-                  }
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-                <span className="meta-label">PROFILE</span>
-              </a>
-              <Link
-                to="/settings"
-                className="dropdown-item"
-                onClick={() => setIsProfileOpen(false)}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                </svg>
-                <span className="meta-label">ACCOUNT SETTINGS</span>
-              </Link>
-              <div className="dropdown-divider"></div>
-              <a
-                href="#signout"
-                className="dropdown-item signout-item"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setIsProfileOpen(false);
-                  setShowSignOutModal(true);
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
-                <span className="meta-label">SIGN OUT</span>
-              </a>
+                  <span className="meta-label">PROFILE</span>
+                </a>
+                <Link
+                  to="/settings"
+                  className="dropdown-item"
+                  onClick={() => setIsProfileOpen(false)}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                  </svg>
+                  <span className="meta-label">ACCOUNT SETTINGS</span>
+                </Link>
+                <div className="dropdown-divider"></div>
+                <a
+                  href="#signout"
+                  className="dropdown-item signout-item"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setIsProfileOpen(false);
+                    onRequestSignOut();
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                  <span className="meta-label">SIGN OUT</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    {/* Floating Translucent Date Chip (Mobile <768px only) */}
-    <div className={`mobile-floating-date-chip${usesReferenceMobileHeader ? ' reference-mobile-date-chip' : ''}`} id="mobileFloatingDateChip" aria-hidden="true">
-      <LiveMobileDateChip separator={usesReferenceMobileHeader ? '·' : '•'} />
+      {/* Scroll-aware Date Chip inside the zone */}
+      <div className={`mobile-floating-date-chip${usesReferenceMobileHeader ? ' reference-mobile-date-chip' : ''}${isDateChipHidden ? ' hidden' : ''}`} id="mobileFloatingDateChip" aria-hidden="true">
+        <LiveMobileDateChip separator={usesReferenceMobileHeader ? '·' : '•'} />
+      </div>
     </div>
 
     {/* Admin Profile Side Drawer */}
@@ -1253,7 +1278,7 @@ export default function Header({ onToggleMobile }) {
                 style={{ width: '100%', padding: '10px 0', background: '#dc2626', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}
                 onClick={() => {
                   setShowProfileModal(false);
-                  setShowSignOutModal(true);
+                  onRequestSignOut();
                 }}
               >
                 Sign Out
@@ -1264,49 +1289,6 @@ export default function Header({ onToggleMobile }) {
       </>
     )}
 
-    {/* Sign Out confirm modal — asks "Sign out of the admin?" matching Style Lock look */}
-    {showSignOutModal && (
-      <div style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000
-      }}>
-        <div style={{
-          background: '#ffffff', borderRadius: '16px', padding: '24px',
-          maxWidth: '400px', width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-        }}>
-          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 700, color: '#1a1a1a' }}>Sign out of the admin?</h3>
-          <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 20px 0' }}>
-            You will need to enter your staff credentials to sign back in.
-          </p>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-            <button
-              type="button"
-              className="btn"
-              style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(26,26,26,0.15)', background: '#fff', cursor: 'pointer', fontWeight: 600 }}
-              onClick={() => setShowSignOutModal(false)}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn d"
-              style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#dc2626', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
-              onClick={() => {
-                setShowSignOutModal(false);
-                if (onSignOut) {
-                  onSignOut();
-                } else {
-                  window.dispatchEvent(new CustomEvent('xa12:toast', { detail: { message: 'Signed out.' } }));
-                  setTimeout(() => window.location.reload(), 400);
-                }
-              }}
-            >
-              Sign out
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
     </>
   );
 }

@@ -206,7 +206,7 @@ export default function CareersPage() {
   }
 
   return (
-    <div className="page-container">
+    <div className="page-container careers-page-container">
       {/* Page Header — Monolith lines 24900–24910 */}
       <div className="page-header-row">
         <div className="page-title-group">

@@ -11,7 +11,9 @@ export default function Sidebar({
   onMouseEnter,
   onMouseLeave,
   isMobileOpen,
-  onCloseMobile
+  onCloseMobile,
+  onRequestSignOut,
+  mobileMenuRef
 }) {
   const sideNavClass = `side-navigation ${
     isLocked || isHovered ? 'expanded' : 'collapsed'
@@ -74,7 +76,16 @@ export default function Sidebar({
   }, []);
 
   return (
-    <aside className={sideNavClass} id="sideNav" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+    <aside
+      className={sideNavClass}
+      id="sideNav"
+      ref={mobileMenuRef}
+      role={isMobileOpen ? 'dialog' : undefined}
+      aria-modal={isMobileOpen ? 'true' : undefined}
+      aria-labelledby={isMobileOpen ? 'mobileMenuTitle' : undefined}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
       <div className="side-nav-inner">
         {/* Side Nav Header with Lock Icon */}
         <div className="menu-header">
@@ -111,7 +122,9 @@ export default function Sidebar({
             </span>
           </button>
 
-          <h2 className="menu-header-title">Menu</h2>
+          <h2 className="menu-header-title" id="mobileMenuTitle">
+            {isMobileOpen ? 'MENU' : 'Menu'}
+          </h2>
           <button
             type="button"
             className="mobile-drawer-close"
@@ -125,10 +138,18 @@ export default function Sidebar({
         </div>
 
         {/* Menu Scroll Body (12 Approved Pages in 3 Groups) */}
-        <div className="menu-body">
+        <nav className="menu-body" aria-label="Admin navigation">
           {/* Group 1: Commerce & Operations */}
-          <div className="menu-group">
+          <div className="menu-group" data-mobile-group="workspace">
             <span className="meta-label group-header-label">Commerce & Operations</span>
+            <span
+              className="mobile-menu-section-title"
+              role="heading"
+              aria-level="3"
+              style={{ display: 'none' }}
+            >
+              WORKSPACE
+            </span>
 
             {/* 01. Overview */}
             <NavLink
@@ -259,8 +280,16 @@ export default function Sidebar({
           <div className="group-divider"></div>
 
           {/* Group 2: Analytics & Audience */}
-          <div className="menu-group">
+          <div className="menu-group" data-mobile-group="catalog">
             <span className="meta-label group-header-label">Analytics & Audience</span>
+            <span
+              className="mobile-menu-section-title"
+              role="heading"
+              aria-level="3"
+              style={{ display: 'none' }}
+            >
+              CATALOG
+            </span>
 
             {/* 08. Insights */}
             <NavLink
@@ -348,8 +377,16 @@ export default function Sidebar({
           <div className="group-divider"></div>
 
           {/* Group 3: Platform & Utilities */}
-          <div className="menu-group">
+          <div className="menu-group" data-mobile-group="people">
             <span className="meta-label group-header-label">Platform & Utilities</span>
+            <span
+              className="mobile-menu-section-title"
+              role="heading"
+              aria-level="3"
+              style={{ display: 'none' }}
+            >
+              PEOPLE & INSIGHTS
+            </span>
 
             {/* 12. Careers */}
             <NavLink
@@ -400,8 +437,6 @@ export default function Sidebar({
               <span className="menu-item-label">Settings</span>
             </NavLink>
           </div>
-        </div>
-
         <div className="mobile-drawer-footer">
           <NavLink
             to="/settings"
@@ -416,7 +451,25 @@ export default function Sidebar({
             </div>
             <span className="menu-item-label">Settings</span>
           </NavLink>
+          <button
+            type="button"
+            className="menu-item mobile-sign-out"
+            onClick={() => {
+              onCloseMobile();
+              onRequestSignOut();
+            }}
+          >
+            <div className="menu-item-icon-wrapper">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            </div>
+            <span className="menu-item-label">Sign out</span>
+          </button>
         </div>
+        </nav>
       </div>
     </aside>
   );
