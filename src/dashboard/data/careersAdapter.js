@@ -1,7 +1,7 @@
 // Adapter to make HOPESON CareersPage work with Supabase
 // Returns data in the exact shape HOPESON expects
 
-import { listCareers, listApplications, updateApplicationStatus, deleteApplication, createCareer, updateCareer, deleteCareer } from './careers';
+import { listCareers, listApplications, updateApplicationStatus, deleteApplication, createCareer, updateCareer, deleteCareer, createApplicationResumeUrl as createApplicationResumeUrlFromStorage } from './careers';
 
 const CAREERS_KEY = 'xa12-careers-data-v1';
 
@@ -39,14 +39,17 @@ export async function syncCareersWithSupabase() {
 
   const mappedApplicants = applicants.map(a => ({
     id: a.id,
-    name: a.name,
-    job: a.careers?.title || a.job_title || '',
+    name: a.full_name || a.name || 'Applicant',
+    job: a.careers?.title || a.job_title || 'General application',
     email: a.email,
     phone: a.phone,
     location: a.location,
     date: a.created_at ? new Date(a.created_at).toLocaleDateString('en-GB', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric' }) : '',
     portfolio_url: a.portfolio_url,
-    resume: a.resume,
+    resume: a.resume || a.resume_path || '',
+    resume_path: a.resume_path || '',
+    experience: a.experience || '',
+    motivation: a.motivation || '',
     status: a.status,
     rating: a.rating
   }));
@@ -90,6 +93,10 @@ export async function updateApplicationStatusSync(id, status) {
     await syncCareersWithSupabase();
   }
   return result;
+}
+
+export function createApplicationResumeUrl(path) {
+  return createApplicationResumeUrlFromStorage(path);
 }
 
 // Delete application in Supabase and update cache

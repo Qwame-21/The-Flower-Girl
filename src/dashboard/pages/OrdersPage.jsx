@@ -3,7 +3,7 @@ import CustomDropdown from '../components/shared/CustomDropdown';
 import CopyIcon from '../components/shared/CopyIcon';
 import AutoGrowTextarea from '../components/shared/AutoGrowTextarea';
 import PasswordConfirmModal from '../components/PasswordConfirmModal';
-import { ORDER_CATEGORIES, formatGHS } from '../lib/ordersModel';
+import { ORDER_CATEGORIES, formatGHS, formatNumber } from '../lib/ordersModel';
 import { getOrderCustomerFields } from '../../shared/trackingFields';
 import { listOrders, updateOrderStatus, deleteOrder, deleteOrders, updateOrderNote } from '../data/orders';
 import { supabase } from '../../config/supabase';
@@ -819,13 +819,13 @@ export default function OrdersPage() {
         <div className="stat-card">
           <div className="stat-card-icon">{SVG.shoppingBag}</div>
           <div className="stat-card-label">Active Orders</div>
-          <div className="stat-card-value">{stats.activeOrders}</div>
+          <div className="stat-card-value">{formatNumber(stats.activeOrders)}</div>
           <div className="stat-card-caption">Not yet delivered</div>
         </div>
         <div className="stat-card">
           <div className="stat-card-icon">{SVG.clock}</div>
           <div className="stat-card-label">Pending Payment</div>
-          <div className="stat-card-value">{stats.pendingPayment}</div>
+          <div className="stat-card-value">{formatNumber(stats.pendingPayment)}</div>
           <div className="stat-card-caption">Awaiting payment</div>
         </div>
       </div>
@@ -858,7 +858,7 @@ export default function OrdersPage() {
                 className={`category-tab ${filters.category === tab.id ? 'active' : ''}`}
                 onClick={() => setFilters(prev => ({ ...prev, category: tab.id }))}
               >
-                {tab.name} ({tab.count})
+                {tab.name} ({formatNumber(tab.count)})
               </button>
             ))}
           </div>
@@ -873,7 +873,7 @@ export default function OrdersPage() {
                 className={`status-filter ${filters.status === opt.id ? 'active' : ''}`}
                 onClick={() => setFilters(prev => ({ ...prev, status: opt.id }))}
               >
-                {opt.name} ({opt.count})
+                {opt.name} ({formatNumber(opt.count)})
               </button>
             ))}
           </div>
@@ -895,7 +895,7 @@ export default function OrdersPage() {
       {/* Helper Line with Selection Island */}
       <div className="helper-line-with-island">
         <span className="helper-text">
-          Showing {filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'}
+          Showing {formatNumber(filteredOrders.length)} {filteredOrders.length === 1 ? 'order' : 'orders'}
         </span>
         {hasActiveFilters && (
           <button
@@ -1511,7 +1511,7 @@ export default function OrdersPage() {
                         {/* Right: Items & Price Breakdown */}
                         <div className="details-column items-column">
                           <div className="column-header-row">
-                            <span className="column-title">ITEMS ({(order.items || []).length})</span>
+                            <span className="column-title">ITEMS ({formatNumber((order.items || []).length)})</span>
                           </div>
                           <div className="items-list">
                             {(order.items || []).map((item, idx) => {
@@ -1541,7 +1541,7 @@ export default function OrdersPage() {
                                         {itemCode}
                                       </span>
                                       <span className="item-name" style={{ fontWeight: 600 }}>{item.name}</span>
-                                      <span className="item-qty" style={{ color: 'var(--text-muted)' }}>×{item.qty}</span>
+                                      <span className="item-qty" style={{ color: 'var(--text-muted)' }}>×{formatNumber(item.qty)}</span>
                                     </div>
                                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                       <span>GHS {Number(item.unitPrice).toLocaleString('en-US')} each</span>

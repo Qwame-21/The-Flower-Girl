@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { getAppSettings } from '../data/settingsAdapter';
+import { formatNumber } from '../lib/ordersModel';
 import { logoutToLogin } from '../../admin/utils/logout';
 
 const DashboardContext = createContext(null);
@@ -138,7 +139,7 @@ export function DashboardProvider({ children, onSignOut }) {
     }
 
     const tracking = order.tracking_number || order.order_code || 'Unknown';
-    const total = order.total ? `GHS ${order.total}` : '';
+    const total = order.total ? `GHS ${formatNumber(order.total, 2)}` : '';
     const title = 'New order';
     const body = `${tracking} · ${total}`;
     const tag = `order-${order.id}`;

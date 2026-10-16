@@ -3,7 +3,7 @@
 // Storage key: 'xa12-customers-data-v1'
 
 import { useState, useEffect } from 'react';
-import { formatGHS } from '../lib/ordersModel';
+import { formatGHS, formatNumber } from '../lib/ordersModel';
 import { loadCustomersData, saveCustomersData, syncCustomersWithSupabase } from '../data/customersAdapter';
 import { fetchOrders, getCachedData, isDataLoading } from '../data/dataCache';
 import CustomDropdown from '../components/shared/CustomDropdown';
@@ -164,7 +164,7 @@ export default function CustomersPage() {
                   </td>
                   <td data-label="Email" style={{ color: 'var(--text-muted)' }}>{c.email}</td>
                   <td data-label="Phone">{c.phone}</td>
-                  <td data-label="Orders">{c.orderCount}</td>
+                  <td data-label="Orders">{formatNumber(c.orderCount)}</td>
                   <td data-label="Total Spend" style={{ fontWeight: 600 }}>GHS {c.totalSpend.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                   <td data-label="Last Order" style={{ color: 'var(--text-muted)' }}>{c.lastOrderDate}</td>
                   <td data-label="Actions" style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
@@ -257,7 +257,7 @@ export default function CustomersPage() {
                   <p style={{ margin: '4px 0 0 0', fontSize: '18px', fontWeight: 700, color: '#1a1a1a' }}>
                     GHS {activeCustomer.totalSpend.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </p>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{activeCustomer.orderCount} total orders</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formatNumber(activeCustomer.orderCount)} total orders</span>
                 </div>
 
                 <button
@@ -312,7 +312,7 @@ export default function CustomersPage() {
                           </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontWeight: 600, fontSize: '12px' }}>GHS {(o.amount || 0).toFixed(2)}</div>
+                          <div style={{ fontWeight: 600, fontSize: '12px' }}>{formatGHS(o.amount || 0)}</div>
                           <span className="status-badge status-published" style={{ fontSize: '9px', padding: '1px 5px' }}>
                             {o.fulfillmentStatus || o.status || 'delivered'}
                           </span>

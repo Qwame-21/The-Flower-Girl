@@ -10,6 +10,7 @@ import { loadRequestsData, saveRequestsData, syncRequestsWithSupabase, convertRe
 import { fetchRequests, getCachedData, isDataLoading, subscribeToCache } from '../data/dataCache';
 import { supabase } from '../../config/supabase';
 import { parseDateString, formatDateDisplay, formatTimestampDisplay } from '../../shared/dateUtils';
+import { formatNumber, formatNumberText } from '../lib/ordersModel';
 
 const REQUESTS_KEY = 'xa12_custom_requests';
 
@@ -459,7 +460,7 @@ export default function RequestsPage() {
       : normalizedPhone.startsWith('233')
         ? normalizedPhone
         : normalizedPhone;
-    const waMessage = `Hello ${quoteModalReq.customer_name || 'Customer'}, this is The Gifting Factory. Your request ${quoteModalReq.reference || quoteModalReq.id} is priced at GHS ${amount.toLocaleString()}.${quoteNoteVal ? ' ' + quoteNoteVal : ''} Reply YES to approve.`;
+    const waMessage = `Hello ${quoteModalReq.customer_name || 'Customer'}, this is The Gifting Factory. Your request ${quoteModalReq.reference || quoteModalReq.id} is priced at GHS ${formatNumber(amount, 2)}.${quoteNoteVal ? ' ' + quoteNoteVal : ''} Reply YES to approve.`;
 
     setWhatsappPrompt({
       phoneDigits,
@@ -473,7 +474,7 @@ export default function RequestsPage() {
 
   // Mark Approved Flow — Monolith lines 23942–23966
   function handleMarkApproved(req) {
-    const amountStr = req.confirmed_quote ? `GHS ${req.confirmed_quote.toLocaleString()}` : 'the agreed quote';
+    const amountStr = req.confirmed_quote ? `GHS ${formatNumber(req.confirmed_quote, 2)}` : 'the agreed quote';
     setConfirmModal({
       title: 'Mark Quote Approved',
       message: `Has ${req.customer_name || 'the customer'} confirmed the price of ${amountStr}?`,
@@ -507,7 +508,7 @@ export default function RequestsPage() {
     }
 
     const selItems = (req.selections && req.selections.length) ? req.selections.join(', ') : (req.occasion || 'Custom Gift');
-    const totalStr = `GHS ${req.confirmed_quote.toLocaleString()}`;
+    const totalStr = `GHS ${formatNumber(req.confirmed_quote, 2)}`;
 
     // Open conversion modal with form fields
     setConfirmModal({
@@ -702,8 +703,9 @@ export default function RequestsPage() {
           const hasSentQuote = Boolean(req.confirmed_quote && req.status !== 'new');
           const amountLabel = hasSentQuote ? 'Quote' : 'Budget';
           const amountVal = hasSentQuote
-            ? req.confirmed_quote.toLocaleString()
-            : (req.budget || (req.estimate_low ? `${req.estimate_low} – ${req.estimate_high}` : '—'));
+            ? formatNumber(req.confirmed_quote, 2)
+            : formatNumberText(req.budget || (req.estimate_low ? `${req.estimate_low} – ${req.estimate_high}` : '—'));
+          const amountText = String(amountVal).startsWith('GHS ') ? amountVal : `GHS ${amountVal}`;
           const metaCategory = req.occasion || req.service || (req.request_type === 'service' ? 'Service' : 'Bespoke gift');
           const whenText = req.created_at || 'Recently';
           const displayRef = req.short_code || req.reference || req.id;
@@ -725,7 +727,7 @@ export default function RequestsPage() {
               <div className="motif">{motifSvg}</div>
               <div>
                 <div className="name">{req.customer_name || req.client || 'Client'}</div>
-                <div className="meta">{metaCategory} · {amountLabel} <b>GHS {String(amountVal)}</b></div>
+                <div className="meta">{metaCategory} · {amountLabel} <b>{amountText}</b></div>
                 {req.selections && req.selections.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
                     {req.selections.slice(0, 3).map((item, sIdx) => (
@@ -748,7 +750,7 @@ export default function RequestsPage() {
                     ))}
                     {req.selections.length > 3 && (
                       <span style={{ fontSize: '10px', color: '#888', alignSelf: 'center' }}>
-                        +{req.selections.length - 3} more
+                        +{formatNumber(req.selections.length - 3)} more
                       </span>
                     )}
                   </div>
@@ -937,19 +939,19 @@ export default function RequestsPage() {
                     )}
                     <div className="drow">
                       <div className="k">Quantity</div>
-                      <div className="v">{drawerTarget.quantity || 1} identical gift{Number(drawerTarget.quantity) > 1 ? 's' : ''}</div>
+                      <div className="v">{formatNumber(drawerTarget.quantity || 1)} identical gift{Number(drawerTarget.quantity) > 1 ? 's' : ''}</div>
                     </div>
                     {drawerTarget.budget && (
                       <div className="drow">
                         <div className="k">Customer Budget</div>
-                        <div className="v">{drawerTarget.budget.startsWith?.('GHS') ? drawerTarget.budget : `GHS ${drawerTarget.budget}`}</div>
+                        <div className="v">{formatNumberText(drawerTarget.budget.startsWith?.('GHS') ? drawerTarget.budget : `GHS ${drawerTarget.budget}`)}</div>
                       </div>
                     )}
                   </div>
                   {drawerTarget.selections && drawerTarget.selections.length > 0 && (
                     <div style={{ marginTop: '12px' }}>
                       <div className="k" style={{ marginBottom: '6px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--mute, #747471)' }}>
-                        Selected items ({drawerTarget.selections.length})
+                        Selected items ({formatNumber(drawerTarget.selections.length)})
                       </div>
                       <div className="chips">
                         {drawerTarget.selections.map((s, idx) => (
@@ -1098,7 +1100,7 @@ export default function RequestsPage() {
                             : 'Proposed quote'}
                       </span>
                       <span className="amt">
-                        GHS {(drawerTarget.confirmed_quote || drawerTarget.estimate_high || 0).toLocaleString()}
+                        GHS {formatNumber(drawerTarget.confirmed_quote || drawerTarget.estimate_high || 0, 2)}
                       </span>
                     </div>
                   </div>
@@ -1228,7 +1230,7 @@ export default function RequestsPage() {
           <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '440px', width: '90%' }}>
             <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 700 }}>Quote saved.</h3>
             <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>
-              Quote of <strong>GHS {whatsappPrompt.amount.toLocaleString()}</strong> has been saved for request {whatsappPrompt.ref}.
+              Quote of <strong>GHS {formatNumber(whatsappPrompt.amount, 2)}</strong> has been saved for request {whatsappPrompt.ref}.
             </p>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button

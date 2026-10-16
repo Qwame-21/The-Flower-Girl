@@ -19,9 +19,14 @@ import {
   deletePromotion
 } from '../data/products';
 import { getAppSettings } from '../data/settingsAdapter';
+import { formatNumber } from '../lib/ordersModel';
 import { getProductDiscountPercent, calculateProductPrice } from '../../shared/pricing';
 
 const PRODUCTS_KEY = 'xa12-products-data-v1';
+
+function showToast(message) {
+  window.dispatchEvent(new CustomEvent('xa12:toast', { detail: { message } }));
+}
 
 const DEFAULT_PRODUCTS = [
   {
@@ -459,6 +464,9 @@ export default function ProductsPage() {
           const normalizedProducts = productsData.map((p, idx) => normalizeProduct(p, idx));
           setProducts(normalizedProducts);
           setConfirmDeleteId(null);
+          showToast('Product deleted');
+        } else {
+          showToast(result.error || 'Failed to delete product');
         }
       });
       setShowPwConfirm(true);
@@ -471,6 +479,9 @@ export default function ProductsPage() {
       const normalizedProducts = productsData.map((p, idx) => normalizeProduct(p, idx));
       setProducts(normalizedProducts);
       setConfirmDeleteId(null);
+      showToast('Product deleted');
+    } else {
+      showToast(result.error || 'Failed to delete product');
     }
   };
 
@@ -651,7 +662,7 @@ export default function ProductsPage() {
                 <div key={p.id} style={{ padding: '12px', background: 'rgba(26,26,26,0.04)', borderRadius: '6px', fontSize: '12px' }}>
                   <div style={{ fontWeight: 600, marginBottom: '4px' }}>{p.name}</div>
                   <div style={{ color: 'var(--text-muted)' }}>{CATEGORY_MAP[p.category] || p.category}</div>
-                  <div style={{ marginTop: '4px' }}>GHS {p.price}</div>
+                  <div style={{ marginTop: '4px' }}>GHS {formatNumber(p.price, 2)}</div>
                 </div>
               ))}
             </div>
@@ -738,7 +749,7 @@ export default function ProductsPage() {
           aria-pressed={selectedCategoryFilter === 'ALL'}
           onClick={() => setSelectedCategoryFilter('ALL')}
         >
-          All <small>{products.length}</small>
+          All <small>{formatNumber(products.length)}</small>
         </button>
         {activeCategories.map(cat => {
           const count = products.filter(p => p.category === cat).length;
@@ -751,7 +762,7 @@ export default function ProductsPage() {
               aria-pressed={selectedCategoryFilter === cat}
               onClick={() => setSelectedCategoryFilter(cat)}
             >
-              {cat} <small>{count}</small>
+              {cat} <small>{formatNumber(count)}</small>
             </button>
           );
         })}
@@ -759,7 +770,7 @@ export default function ProductsPage() {
 
       {/* Meta */}
       <p className="xp-meta">
-        <span><b>{products.length} products</b> &nbsp;·&nbsp; {lowStockCount} low stock &nbsp;·&nbsp; {outOfStockCount} out of stock</span>
+        <span><b>{formatNumber(products.length)} products</b> &nbsp;·&nbsp; {formatNumber(lowStockCount)} low stock &nbsp;·&nbsp; {formatNumber(outOfStockCount)} out of stock</span>
         {" "}<a id="xpToggleAll" onClick={handleToggleAll}>{allCollapsed ? 'Expand all' : 'Collapse all'}</a>
       </p>
 
@@ -769,7 +780,7 @@ export default function ProductsPage() {
           <span className="xp-label">Top ordered</span>
           {topOrdered.filter(item => item.count > 0).slice(0, 10).map((item, idx) => (
             <span key={item.name} className="xp-to-chip">
-              <i>#{idx + 1}</i> {item.name} <em>{item.count}</em>
+              <i>#{formatNumber(idx + 1)}</i> {item.name} <em>{formatNumber(item.count)}</em>
             </span>
           ))}
         </div>
@@ -833,7 +844,7 @@ export default function ProductsPage() {
                 </svg>
               </button>
               <h2>{category}</h2>
-              <span className="xp-count">{categoryProds.length}</span>
+              <span className="xp-count">{formatNumber(categoryProds.length)}</span>
               <span className="xp-rule"></span>
             </div>
 
@@ -852,7 +863,7 @@ export default function ProductsPage() {
                     return (
                       <article
                         key={p.id}
-                        className={`xp-card product-card ${isOutOfStock ? 'xp-out' : ''} ${isConfirming ? 'confirming' : ''}`}
+                        className={`xp-card product-card ${isOutOfStock ? 'xp-out' : ''} ${isConfirming ? 'xp-confirming' : ''}`}
                         data-id={p.id}
                         data-name={p.name.toLowerCase()}
                       >
@@ -864,47 +875,47 @@ export default function ProductsPage() {
                               e.currentTarget.src = '/assets/hamper-editorial-v2.png';
                             }}
                           />
-                        </div>
 
-                        <div className="xp-tags">
-                          {isOutOfStock ? (
-                            <span className="xp-tag xp-out">Out of stock</span>
-                          ) : isLowStock ? (
-                            <span className="xp-tag xp-low">Low · {p.stock} left</span>
-                          ) : (
-                            <span className="xp-tag">{p.stock} in stock</span>
-                          )}
-                          {discountVal > 0 && (
-                            <span className="xp-tag xp-off">-{discountVal}%</span>
-                          )}
-                        </div>
+                          <div className="xp-tags">
+                            {isOutOfStock ? (
+                              <span className="xp-tag xp-out">Out of stock</span>
+                            ) : isLowStock ? (
+                              <span className="xp-tag xp-low">Low · {formatNumber(p.stock)} left</span>
+                            ) : (
+                              <span className="xp-tag">{formatNumber(p.stock)} in stock</span>
+                            )}
+                            {discountVal > 0 && (
+                              <span className="xp-tag xp-off">-{discountVal}%</span>
+                            )}
+                          </div>
 
-                        <div className="xp-icons">
-                          <button
-                            type="button"
-                            className="xp-ib xp-edit-btn"
-                            data-id={p.id}
-                            aria-label="Edit"
-                            onClick={() => openEditDrawer(p.id)}
-                            title="Edit product"
-                          >
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M12 20h9" />
-                              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            className="xp-ib xp-del-btn"
-                            data-id={p.id}
-                            aria-label="Delete"
-                            onClick={() => setConfirmDeleteId(p.id)}
-                            title="Delete product"
-                          >
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" />
-                            </svg>
-                          </button>
+                          <div className="xp-icons">
+                            <button
+                              type="button"
+                              className="xp-ib xp-edit-btn"
+                              data-id={p.id}
+                              aria-label="Edit"
+                              onClick={() => openEditDrawer(p.id)}
+                              title="Edit product"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 20h9" />
+                                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              className="xp-ib xp-del-btn"
+                              data-id={p.id}
+                              aria-label="Delete"
+                              onClick={() => setConfirmDeleteId(p.id)}
+                              title="Delete product"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
 
                         <div className="xp-body">
@@ -912,7 +923,9 @@ export default function ProductsPage() {
                             <span className="xp-name" title={p.name}>{p.name}</span>
                             <div className="xp-price">
                               {discountVal > 0 && <s className="xp-old-price">GHS {Math.round(p.price).toLocaleString('en-US')}</s>}
-                              <span>GHS {Math.round(discountedPrice).toLocaleString('en-US')}</span>
+                              <span className={discountVal > 0 ? 'xp-current-price is-discounted' : 'xp-current-price'}>
+                                GHS {Math.round(discountedPrice).toLocaleString('en-US')}
+                              </span>
                             </div>
                           </div>
                         </div>

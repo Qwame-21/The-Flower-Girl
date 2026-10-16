@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { loadReviews, saveReviews, loadInstagramUrl, saveInstagramUrl, syncReviewsWithSupabase, createReviewSync, updateReviewStatusSync, deleteReviewSync } from '../data/reviewsAdapter';
+import { formatNumber } from '../lib/ordersModel';
 
 const REVIEWS_KEY  = 'xa12-reviews-data-v1';
 const INSTAGRAM_KEY = 'xa12-instagram-url-v1';
@@ -299,7 +300,7 @@ export default function ReviewsPage() {
       {/* Metrics Strip — monolith lines 21935–21953 */}
       <div className="reviews-metrics-strip">
         <div className="rev-metric-cell">
-          <span className="rev-metric-value">{total}</span>
+          <span className="rev-metric-value">{formatNumber(total)}</span>
           <span className="rev-metric-label">Total Reviews</span>
         </div>
         <div className="rev-metric-cell">
@@ -311,7 +312,7 @@ export default function ReviewsPage() {
           <span className="rev-metric-label">5-Star Share</span>
         </div>
         <div className="rev-metric-cell">
-          <span className="rev-metric-value">{shownCount}</span>
+          <span className="rev-metric-value">{formatNumber(shownCount)}</span>
           <span className="rev-metric-label">Shown on Site</span>
         </div>
       </div>

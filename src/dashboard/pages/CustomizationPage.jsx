@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../../config/supabase";
 import { focusAndScrollToFirstError } from "../lib/formValidationHelper";
 import { getAppSettings } from "../data/settingsAdapter";
+import { formatNumber } from "../lib/ordersModel";
 import PasswordConfirmModal from "../components/PasswordConfirmModal";
 import { buildStorefrontCustomizationSnapshot, CUSTOMIZATION_SYNC_CHANNEL } from "../../shared/customizationSync";
 
@@ -452,7 +453,7 @@ export default function CustomizationPage() {
           {[{ id: "all", name: "All", count: categories.reduce((sum, c) => sum + c.options.length, 0) }, ...categories.map(c => ({ id: c.id, name: c.name, count: c.options.length, visible: c.visible }))].map(item => (
             <button key={item.id} type="button" className={`category-pill customization-filter-chip${filterCat === item.id ? " active" : ""}`} onClick={() => { setFilterCat(item.id); if (item.id !== "all") setExpandedCategoryId(item.id); }}
               style={{ padding: "6px 12px", borderRadius: "9999px", fontSize: "11px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer", border: "1px solid", background: filterCat === item.id ? "#1a1a1a" : "transparent", color: filterCat === item.id ? "#fff" : "var(--text-muted)", borderColor: filterCat === item.id ? "#1a1a1a" : "rgba(26,26,26,0.15)", transition: "all var(--dur-fast) var(--ease)", opacity: item.visible === false ? 0.55 : 1 }}>
-              {item.name} ({item.count})
+              {item.name} ({formatNumber(item.count)})
             </button>
           ))}
         </div>
@@ -479,12 +480,12 @@ export default function CustomizationPage() {
               <div className="category-section-header customization-category-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
                 <div className="customization-category-desktop-heading" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <h3 className="customization-category-name" style={{ margin: 0, fontSize: "15px", fontWeight: 700 }}>{cat.name}</h3>
-                  <span className="category-count customization-category-count" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)", background: "rgba(26,26,26,0.06)", padding: "2px 8px", borderRadius: "9999px" }}>{cat.options.length} option{cat.options.length !== 1 ? "s" : ""}</span>
+                  <span className="category-count customization-category-count" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)", background: "rgba(26,26,26,0.06)", padding: "2px 8px", borderRadius: "9999px" }}>{formatNumber(cat.options.length)} option{cat.options.length !== 1 ? "s" : ""}</span>
                   {!cat.visible && <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#c9612e", background: "rgba(201,97,46,0.08)", padding: "2px 8px", borderRadius: "9999px" }}>Hidden</span>}
                 </div>
                 <button type="button" className="customization-category-heading" aria-expanded={expandedCategoryId === cat.id} onClick={() => setExpandedCategoryId(expandedCategoryId === cat.id ? null : cat.id)} style={{ alignItems: "center", gap: "10px", padding: 0, border: 0, background: "transparent", color: "inherit", font: "inherit", textAlign: "left", cursor: "pointer" }}>
                   <span className="customization-category-name" role="heading" aria-level="3" style={{ margin: 0, fontSize: "15px", fontWeight: 700 }}>{cat.name}</span>
-                  <span className="category-count customization-category-count" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)", background: "rgba(26,26,26,0.06)", padding: "2px 8px", borderRadius: "9999px" }}>{cat.options.length} option{cat.options.length !== 1 ? "s" : ""}</span>
+                  <span className="category-count customization-category-count" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)", background: "rgba(26,26,26,0.06)", padding: "2px 8px", borderRadius: "9999px" }}>{formatNumber(cat.options.length)} option{cat.options.length !== 1 ? "s" : ""}</span>
                 </button>
                 <div className="customization-collapsed-actions">
                   <ToggleSwitch id={"cat-mobile-vis-" + cat.id} checked={cat.visible} onChange={() => toggleCategoryVisible(cat.id)} label={`${cat.name} visibility`} />
@@ -512,7 +513,7 @@ export default function CustomizationPage() {
                       <div key={opt.id} className="option-row customization-option-row" style={{ background: opt.visible ? "#fff" : "rgba(26,26,26,0.03)", border: "1px solid rgba(26,26,26,0.08)", borderRadius: "10px", padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", opacity: opt.visible ? 1 : 0.6, transition: "opacity var(--dur-fast) var(--ease)" }}>
                         <div>
                           <div className="option-name" style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a" }}>{opt.name}</div>
-                          <div className="option-price" style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>+ GHS {Number(opt.price).toLocaleString()}</div>
+                          <div className="option-price" style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>+ GHS {formatNumber(opt.price)}</div>
                         </div>
                         <div className="option-actions" style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
                           <button type="button" onClick={() => toggleOptionVisible(cat.id, opt.id)} title={opt.visible ? "Hide" : "Show"} className="icon-action" style={{ padding: "4px", borderRadius: "6px", border: "none", background: "transparent", cursor: "pointer", color: "var(--text-muted)", display: "flex", transition: "background var(--dur-fast) var(--ease)" }} onMouseEnter={e => btnHover(e, true)} onMouseLeave={e => btnHover(e, false)}>

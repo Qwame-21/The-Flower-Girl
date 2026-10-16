@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { fetchRequests, getCachedData, subscribeToCache } from '../../data/dataCache';
 import { getAppSettings } from '../../data/settingsAdapter';
+import { formatNumber } from '../../lib/ordersModel';
 import { supabase } from '../../../config/supabase';
 
 export default function Sidebar({
@@ -21,7 +22,7 @@ export default function Sidebar({
 
   const [activeOrdersCount, setActiveOrdersCount] = useState(0);
   const [stockAlertsCount, setStockAlertsCount] = useState(0);
-  const [newRequestsCount, setNewRequestsCount] = useState(0);
+  const [activeRequestsCount, setActiveRequestsCount] = useState(0);
 
   // Compute badge counts from cached data
   useEffect(() => {
@@ -44,12 +45,11 @@ export default function Sidebar({
         return p.stock <= threshold;
       }).length : 0;
 
-      // Unread new requests stop contributing once their drawer has been opened.
-      const newRequests = requests.filter(r => r.status === 'new' && !r.viewed_at).length;
+      const activeRequests = requests.filter(r => !['converted', 'closed'].includes(r.status)).length;
 
       setActiveOrdersCount(activeOrders);
       setStockAlertsCount(lowStock);
-      setNewRequestsCount(newRequests);
+      setActiveRequestsCount(activeRequests);
     };
 
     updateCounts();
@@ -186,11 +186,11 @@ export default function Sidebar({
                   <span
                     className="nav-status-badge"
                     id="ordersStatusBadge"
-                    title={`${activeOrdersCount} active ${activeOrdersCount === 1 ? 'order' : 'orders'}`}
-                    aria-label={`${activeOrdersCount} active ${activeOrdersCount === 1 ? 'order' : 'orders'}`}
+                    title={`${formatNumber(activeOrdersCount)} active ${activeOrdersCount === 1 ? 'order' : 'orders'}`}
+                    aria-label={`${formatNumber(activeOrdersCount)} active ${activeOrdersCount === 1 ? 'order' : 'orders'}`}
                     style={{ display: 'flex' }}
                   >
-                    {activeOrdersCount}
+                    {formatNumber(activeOrdersCount)}
                   </span>
                 )}
               </div>
@@ -234,10 +234,10 @@ export default function Sidebar({
                   <span
                     className="nav-status-badge"
                     id="productsStatusBadge"
-                    title={`${stockAlertsCount} low stock products`}
+                    title={`${formatNumber(stockAlertsCount)} low stock products`}
                     style={{ display: 'flex' }}
                   >
-                    {stockAlertsCount}
+                    {formatNumber(stockAlertsCount)}
                   </span>
                 )}
               </div>
@@ -358,15 +358,15 @@ export default function Sidebar({
                   <path d="M8 8c-2 0-4-1-4-3 0-1.5 1.5-2 3-1L12 8" />
                   <path d="M16 8c2 0 4-1 4-3 0-1.5-1.5-2-3-1L12 8" />
                 </svg>
-                {newRequestsCount > 0 && (
+                {activeRequestsCount > 0 && (
                   <span
                     className="nav-status-badge"
                     id="requestsStatusBadge"
-                    title={`${newRequestsCount} new ${newRequestsCount === 1 ? 'request' : 'requests'}`}
-                    aria-label={`${newRequestsCount} new ${newRequestsCount === 1 ? 'request' : 'requests'}`}
+                    title={`${formatNumber(activeRequestsCount)} active ${activeRequestsCount === 1 ? 'request' : 'requests'}`}
+                    aria-label={`${formatNumber(activeRequestsCount)} active ${activeRequestsCount === 1 ? 'request' : 'requests'}`}
                     style={{ display: 'flex' }}
                   >
-                    {newRequestsCount}
+                    {formatNumber(activeRequestsCount)}
                   </span>
                 )}
               </div>

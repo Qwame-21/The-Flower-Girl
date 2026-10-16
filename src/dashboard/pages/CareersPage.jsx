@@ -4,7 +4,8 @@
 
 import { useState, useEffect } from 'react';
 import CustomDropdown from '../components/shared/CustomDropdown';
-import { loadCareersData, saveCareersData, syncCareersWithSupabase, createCareerSync, updateCareerSync, deleteCareerSync, updateApplicationStatusSync, deleteApplicationSync } from '../data/careersAdapter';
+import { loadCareersData, saveCareersData, syncCareersWithSupabase, createCareerSync, updateCareerSync, deleteCareerSync, updateApplicationStatusSync, deleteApplicationSync, createApplicationResumeUrl } from '../data/careersAdapter';
+import { formatNumber } from '../lib/ordersModel';
 
 const CAREERS_KEY = 'xa12-careers-data-v1';
 
@@ -127,6 +128,29 @@ export default function CareersPage() {
   const [createForm, setCreateForm] = useState({ title: '', location: '', empType: 'Full-Time', description: '', status: 'open' });
   const [activeJobMenu, setActiveJobMenu] = useState(null);
   const [activeApplicant, setActiveApplicant] = useState(null);
+
+  const handleOpenResume = async applicant => {
+    const resumeWindow = window.open('', '_blank');
+    if (!resumeWindow) {
+      showToast('Allow pop-ups to open the resume.');
+      return;
+    }
+
+    try {
+      const result = await createApplicationResumeUrl(applicant.resume_path);
+      if (!result.success) {
+        resumeWindow.close();
+        showToast(result.error || 'Could not open resume.');
+        return;
+      }
+
+      resumeWindow.location.href = result.url;
+    } catch (error) {
+      resumeWindow.close();
+      console.error('Error opening application resume:', error);
+      showToast('Could not open resume.');
+    }
+  };
 
   const saveAndSetData = (newData) => {
     saveCareersData(newData);
@@ -260,7 +284,7 @@ export default function CareersPage() {
                   {job.description}
                 </p>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 }}>
-                  {applicantCount} applicant{applicantCount !== 1 ? 's' : ''}
+                  {formatNumber(applicantCount)} applicant{applicantCount !== 1 ? 's' : ''}
                 </div>
               </div>
             );
@@ -269,10 +293,12 @@ export default function CareersPage() {
       )}
 
       {/* Candidate Applications Table Section — Monolith lines 24943–24993 */}
-      <span className="meta-label" style={{ display: 'block', marginBottom: '12px' }}>CANDIDATE APPLICATIONS</span>
+      <span className="meta-label" style={{ display: 'block', marginBottom: '12px' }}>
+        CANDIDATE APPLICATIONS <span className="career-applicant-count">{formatNumber(data.applicants.length)}</span>
+      </span>
       {data.applicants.length === 0 ? (
         <div className="careers-empty-state">
-          No applications yet. Applications from the storefront will appear here.
+          No applications have been received yet.
         </div>
       ) : (
         <div className="table-wrapper" style={{ border: '1px solid rgba(28,28,27,0.12)', borderRadius: '16px', overflow: 'auto', background: 'var(--card-bg,#f7f7f3)' }}>
@@ -316,12 +342,11 @@ export default function CareersPage() {
                           Portfolio {SVG_ICONS.external}
                         </a>
                       )}
-                      {app.resume && (
+                      {app.resume_path && (
                         <button
                           type="button"
                           className="xp-pill view-cv-btn"
-                          data-cv={app.resume}
-                          onClick={() => showToast(`Opening CV: ${app.resume}`)}
+                          onClick={() => handleOpenResume(app)}
                           style={{ height: '26px', padding: '0 10px', fontSize: '10px' }}
                         >
                           CV
@@ -414,6 +439,12 @@ export default function CareersPage() {
           <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '380px', width: '90%' }}>
             <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700 }}>{activeApplicant.name}</h3>
             <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 16px 0' }}>Applied for: {activeApplicant.job}</p>
+            {(activeApplicant.experience || activeApplicant.motivation) && (
+              <div style={{ marginBottom: '16px', fontSize: '12px', lineHeight: 1.55, color: '#4b4b47' }}>
+                {activeApplicant.experience && <p><strong>Experience:</strong> {activeApplicant.experience}</p>}
+                {activeApplicant.motivation && <p><strong>Cover letter:</strong> {activeApplicant.motivation}</p>}
+              </div>
+            )}
             <div style={{ marginBottom: '16px' }}>
               <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: '#747471', display: 'block', marginBottom: '6px' }}>Application Status</label>
               <CustomDropdown

@@ -10,6 +10,7 @@ import CopyIcon from '../components/shared/CopyIcon';
 import DatePickerDropdowns from '../components/shared/DatePickerDropdowns';
 import { focusAndScrollToFirstError } from '../lib/formValidationHelper';
 import { getImageUrl } from '../lib/imageUrlHelper';
+import { formatNumber } from '../lib/ordersModel';
 import { applyPromotionsToProducts, calculateCartTotals } from '../../shared/pricing';
 
 const CATEGORY_IMAGE_FALLBACKS = {
@@ -267,6 +268,7 @@ export default function ShopPOSPage() {
   const cartTotals = calculateCartTotals(shopCart);
   const cartSubtotal = cartTotals.subtotal;
   const cartItemCount = shopCart.reduce((sum, item) => sum + item.qty, 0);
+  const cartItemLabel = `${formatNumber(cartItemCount)} ${cartItemCount === 1 ? 'item' : 'items'}`;
 
   const cartItemsWithStock = shopCart.map(item => {
     const product = products.find(p => p.id === item.id);
@@ -426,7 +428,7 @@ export default function ShopPOSPage() {
             aria-pressed={shopSelectedCategory === 'ALL'}
             onClick={() => setShopSelectedCategory('ALL')}
           >
-            All <small>{products.length}</small>
+            All <small>{formatNumber(products.length)}</small>
           </button>
           {categories.map(cat => {
             const count = products.filter(p => p.category === cat).length;
@@ -439,7 +441,7 @@ export default function ShopPOSPage() {
                 aria-pressed={shopSelectedCategory === cat}
                 onClick={() => setShopSelectedCategory(cat)}
               >
-                {cat} <small>{count}</small>
+                {cat} <small>{formatNumber(count)}</small>
               </button>
             );
           })}
@@ -470,52 +472,46 @@ export default function ShopPOSPage() {
                       e.currentTarget.src = '/assets/hamper-editorial-v2.png';
                     }}
                   />
-                </div>
-
-                <div className="shop-card-badges">
-                  {p.discountPercent > 0 && (
-                    <span className="shop-badge shop-discount-badge" style={{ background: '#0284c7', color: '#fff' }}>
-                      {p.discountPercent}% OFF
-                    </span>
+                  {canAdd && (
+                    <button
+                      type="button"
+                      className="shop-add-btn"
+                      data-id={p.id}
+                      aria-label={`Add ${p.name} to order`}
+                      onClick={() => handleAddToCart(p)}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                      <span>Add</span>
+                    </button>
                   )}
-                  {isOutOfStock ? (
-                    <span className="shop-badge shop-out-badge">Out of stock</span>
-                  ) : isLowStock ? (
-                    <span className="shop-badge shop-low-badge">Low · {p.stock} left</span>
-                  ) : (
-                    <span className="shop-badge shop-stock-badge">{p.stock} in stock</span>
-                  )}
-                </div>
-
-                <div className="shop-card-body">
-                  <div className="shop-card-bottom">
-                    <span className="shop-card-name" title={p.name}>{p.name}</span>
-                    <div className="shop-card-price" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {p.discountPercent > 0 ? (
-                        <>
-                          <del style={{ color: 'var(--text-muted, #888)', fontSize: '0.85em' }}>GHS {Math.round(p.originalPrice).toLocaleString('en-US')}</del>
-                          <span style={{ color: '#0284c7', fontWeight: 600 }}>GHS {Math.round(p.price).toLocaleString('en-US')}</span>
-                        </>
-                      ) : (
-                        <span>GHS {Math.round(p.price).toLocaleString('en-US')}</span>
-                      )}
-                    </div>
+                  <div className="shop-card-badges">
+                    {p.discountPercent > 0 && (
+                      <span className="shop-badge shop-discount-badge">
+                        {formatNumber(p.discountPercent)}% OFF
+                      </span>
+                    )}
+                    {isOutOfStock ? (
+                      <span className="shop-badge shop-out-badge">Out of stock</span>
+                    ) : isLowStock ? (
+                      <span className="shop-badge shop-low-badge">Low · {formatNumber(p.stock)} left</span>
+                    ) : (
+                      <span className="shop-badge shop-stock-badge">{formatNumber(p.stock)} in stock</span>
+                    )}
                   </div>
                 </div>
 
-                {canAdd && (
-                  <button
-                    type="button"
-                    className="shop-add-btn"
-                    data-id={p.id}
-                    onClick={() => handleAddToCart(p)}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <path d="M12 5v14M5 12h14" />
-                    </svg>
-                    Add
-                  </button>
-                )}
+                <div className="shop-card-body">
+                  <span className="shop-card-category">{p.category}</span>
+                  <span className="shop-card-name" title={p.name}>{p.name}</span>
+                  <div className="shop-card-price">
+                    {p.discountPercent > 0 && (
+                      <del>GHS {formatNumber(Math.round(p.originalPrice))}</del>
+                    )}
+                    <strong>GHS {formatNumber(Math.round(p.price))}</strong>
+                  </div>
+                </div>
               </div>
             );
           }) : (
@@ -530,27 +526,21 @@ export default function ShopPOSPage() {
       <div
         className={`shop-cart-indicator ${cartItemCount > 0 ? 'shop-has-items' : ''}`}
         id="shopCartIndicator"
-        role="button"
-        tabIndex={cartItemCount > 0 ? 0 : -1}
-        aria-label={`Open current order, ${cartItemCount} items, total GHS ${Math.round(cartSubtotal)}`}
+        aria-label={`Current order: ${cartItemLabel}, total GHS ${formatNumber(Math.round(cartSubtotal))}`}
         style={{ display: cartItemCount > 0 ? 'flex' : 'none' }}
-        onClick={() => setIsShopDrawerOpen(true)}
-        onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setIsShopDrawerOpen(true);
-          }
-        }}
       >
         <div className="shop-cart-info">
-          <span className="shop-cart-count">{cartItemCount} items</span>
-          <span className="shop-cart-total">GHS {Math.round(cartSubtotal)}</span>
+          <span className="shop-cart-count">{cartItemLabel}</span>
+          <span className="shop-cart-separator" aria-hidden="true">·</span>
+          <span className="shop-cart-total">GHS {formatNumber(Math.round(cartSubtotal))}</span>
         </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-          <line x1="3" y1="6" x2="21" y2="6" />
-          <path d="M16 10a4 4 0 0 1-8 0" />
-        </svg>
+        <button
+          type="button"
+          className="shop-cart-view-order"
+          onClick={() => setIsShopDrawerOpen(true)}
+        >
+          View order
+        </button>
       </div>
 
       {/* Order Drawer (reusing existing drawer component) */}
@@ -568,7 +558,7 @@ export default function ShopPOSPage() {
             <div>
               <h3 className="drawer-title" style={{ margin: 0 }}>Current Order</h3>
               <span className="shop-panel-count" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                {cartItemCount} items
+                {cartItemLabel}
               </span>
             </div>
             <button
@@ -630,45 +620,46 @@ export default function ShopPOSPage() {
                     </div>
                     <div className="shop-item-details">
                       <span className="shop-item-name">{item.name}</span>
-                      <div className="shop-item-price" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <div className="shop-item-price">
+                        <span className="shop-item-unit-price">GHS {formatNumber(Math.round(item.price))} each</span>
                         {item.discountPercent > 0 && item.originalPrice ? (
                           <>
-                            <del style={{ color: 'var(--text-muted, #888)', fontSize: '0.85em' }}>GHS {Math.round(item.originalPrice)}</del>
-                            <span style={{ color: '#0284c7', fontWeight: 600 }}>GHS {Math.round(item.price)} each ({item.discountPercent}% OFF)</span>
+                            <del>GHS {formatNumber(Math.round(item.originalPrice))}</del>
+                            <span className="shop-item-discount">{formatNumber(item.discountPercent)}% OFF</span>
                           </>
-                        ) : (
-                          <span>GHS {Math.round(item.price)} each</span>
-                        )}
+                        ) : null}
                       </div>
                     </div>
-                    <div className="shop-item-qty">
-                      <button
-                        type="button"
-                        className="shop-qty-btn shop-minus"
-                        data-id={item.id}
-                        disabled={item.qty <= 1}
-                        aria-label="Decrease quantity"
-                        onClick={() => handleDecreaseQty(item.id)}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                          <line x1="5" y1="12" x2="19" y2="12" />
-                        </svg>
-                      </button>
-                      <span className="shop-qty-value">{item.qty}</span>
-                      <button
-                        type="button"
-                        className="shop-qty-btn shop-plus"
-                        data-id={item.id}
-                        disabled={item.qty >= item.maxQty}
-                        aria-label="Increase quantity"
-                        onClick={() => handleIncreaseQty(item.id)}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                          <path d="M12 5v14M5 12h14" />
-                        </svg>
-                      </button>
+                    <div className="shop-item-controls">
+                      <div className="shop-item-qty">
+                        <button
+                          type="button"
+                          className="shop-qty-btn shop-minus"
+                          data-id={item.id}
+                          disabled={item.qty <= 1}
+                          aria-label="Decrease quantity"
+                          onClick={() => handleDecreaseQty(item.id)}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                          </svg>
+                        </button>
+                        <span className="shop-qty-value">{formatNumber(item.qty)}</span>
+                        <button
+                          type="button"
+                          className="shop-qty-btn shop-plus"
+                          data-id={item.id}
+                          disabled={item.qty >= item.maxQty}
+                          aria-label="Increase quantity"
+                          onClick={() => handleIncreaseQty(item.id)}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <path d="M12 5v14M5 12h14" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="shop-item-total">GHS {formatNumber(Math.round(item.price * item.qty))}</div>
                     </div>
-                    <div className="shop-item-total">GHS {Math.round(item.price * item.qty)}</div>
                     <button
                       type="button"
                       className="shop-item-remove"
@@ -700,22 +691,22 @@ export default function ShopPOSPage() {
               {cartTotals.totalDiscount > 0 && (
                 <div className="shop-total-row" style={{ color: 'var(--text-muted)' }}>
                   <span>Original Total</span>
-                  <del>GHS {Math.round(cartTotals.originalSubtotal)}</del>
+                  <del>GHS {formatNumber(Math.round(cartTotals.originalSubtotal))}</del>
                 </div>
               )}
               {cartTotals.totalDiscount > 0 && (
                 <div className="shop-total-row" style={{ color: '#0284c7', fontWeight: 600 }}>
                   <span>Discount Savings</span>
-                  <span>-GHS {Math.round(cartTotals.totalDiscount)}</span>
+                  <span>-GHS {formatNumber(Math.round(cartTotals.totalDiscount))}</span>
                 </div>
               )}
               <div className="shop-total-row">
                 <span>Subtotal</span>
-                <span>GHS {Math.round(cartSubtotal)}</span>
+                <span>GHS {formatNumber(Math.round(cartSubtotal))}</span>
               </div>
               <div className="shop-total-row shop-total-final">
                 <span>Total</span>
-                <span>GHS {Math.round(cartSubtotal)}</span>
+                <span>GHS {formatNumber(Math.round(cartSubtotal))}</span>
               </div>
             </div>
 

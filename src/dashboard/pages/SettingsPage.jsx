@@ -4,6 +4,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { getAppSettings, syncSettingsWithSupabase, persistSettings } from '../data/settingsAdapter';
+import { formatNumber } from '../lib/ordersModel';
 import { supabase } from '../../config/supabase';
 import { useDashboard } from '../contexts/DashboardContext';
 import PasswordConfirmModal from '../components/PasswordConfirmModal';
@@ -576,7 +577,7 @@ function ContentTextArea({ label, field, placeholder, form, setText, maxLength =
         style={{ resize: 'vertical', fontFamily: 'inherit' }}
       />
       <div className="sub" style={{ marginTop: '4px' }}>
-        {form[field].length} / 10000 characters • Leave empty to use fallback text
+        {formatNumber(form[field].length)} / {formatNumber(10000)} characters • Leave empty to use fallback text
       </div>
     </div>
   );
@@ -1057,7 +1058,7 @@ function DataPanel() {
         <div className="set-row">
           <div><b>Live Database Table Counts</b><div className="sub">Actual rows stored in production tables.</div></div>
           <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main,#1c1c1b)' }}>
-            {loadingCounts ? 'Loading counts…' : `${dbCounts.orders} orders · ${dbCounts.products} products · ${dbCounts.requests} requests · ${dbCounts.reviews} reviews`}
+            {loadingCounts ? 'Loading counts…' : `${formatNumber(dbCounts.orders)} orders · ${formatNumber(dbCounts.products)} products · ${formatNumber(dbCounts.requests)} requests · ${formatNumber(dbCounts.reviews)} reviews`}
           </span>
         </div>
       </div>
@@ -1124,21 +1125,21 @@ function DataPanel() {
         <div className="set-row">
           <div>
             <b>Orders</b>
-            <div className="sub">{dbCounts.orders} records (includes items and events)</div>
+            <div className="sub">{formatNumber(dbCounts.orders)} records (includes items and events)</div>
           </div>
           <input type="checkbox" checked={deleteCategories.orders} onChange={(e) => setDeleteCategories({...deleteCategories, orders: e.target.checked})} />
         </div>
         <div className="set-row">
           <div>
             <b>Customer requests</b>
-            <div className="sub">{dbCounts.requests} records</div>
+            <div className="sub">{formatNumber(dbCounts.requests)} records</div>
           </div>
           <input type="checkbox" checked={deleteCategories.requests} onChange={(e) => setDeleteCategories({...deleteCategories, requests: e.target.checked})} />
         </div>
         <div className="set-row">
           <div>
             <b>Reviews</b>
-            <div className="sub">{dbCounts.reviews} records</div>
+            <div className="sub">{formatNumber(dbCounts.reviews)} records</div>
           </div>
           <input type="checkbox" checked={deleteCategories.reviews} onChange={(e) => setDeleteCategories({...deleteCategories, reviews: e.target.checked})} />
         </div>

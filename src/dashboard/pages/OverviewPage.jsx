@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CopyIcon from '../components/shared/CopyIcon';
-import { formatGHS, CATEGORY_MAP } from '../lib/ordersModel';
+import { formatGHS, formatNumber, CATEGORY_MAP } from '../lib/ordersModel';
 import { listOrders } from '../data/orders';
 import { getInventorySummary } from '../data/products';
 import { FULFILLMENT_STATUS_LABELS } from '../data/statusMap';
@@ -301,8 +301,8 @@ function TrendChart({ series, mode }) {
         {ticks.map(t => {
           const y = getY(t);
           const label = mode === 'revenue'
-            ? (t >= 1000 ? `GHS ${(t/1000).toFixed(1)}k` : `GHS ${Math.round(t).toLocaleString('en-US')}`)
-            : Math.round(t).toLocaleString('en-US');
+            ? `GHS ${formatNumber(Math.round(t))}`
+            : formatNumber(Math.round(t));
           return (
             <g key={t}>
               <line
@@ -760,7 +760,7 @@ export default function OverviewPage() {
             <div className="metric-icon-square">{SVG.shoppingBag}</div>
           </div>
           <div className="metric-label">Active Orders</div>
-          <div className="metric-value">{loading ? '—' : activeOrdersCount}</div>
+          <div className="metric-value">{loading ? '—' : formatNumber(activeOrdersCount)}</div>
           <div className="metric-divider"></div>
           <div className="metric-comparison">
             <span className="comparison-label">vs prev period</span>
@@ -776,7 +776,7 @@ export default function OverviewPage() {
             <div className="metric-icon-square">{SVG.clock}</div>
           </div>
           <div className="metric-label">Pending Payment</div>
-          <div className="metric-value">{loading ? '—' : pendingPaymentCount}</div>
+          <div className="metric-value">{loading ? '—' : formatNumber(pendingPaymentCount)}</div>
           <div className="metric-divider"></div>
           <div className="metric-comparison">
             <span className="comparison-label">vs prev period</span>
@@ -962,7 +962,7 @@ export default function OverviewPage() {
                     </div>
                   </div>
                   <div className="product-metric" style={{ textAlign: 'right' }}>
-                    <div className="metric-value" style={{ fontWeight: 700, fontSize: '15px' }}>{p.units}</div>
+                    <div className="metric-value" style={{ fontWeight: 700, fontSize: '15px' }}>{formatNumber(p.units)}</div>
                     <div className="metric-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>sold</div>
                   </div>
                 </div>

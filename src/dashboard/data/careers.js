@@ -115,6 +115,28 @@ export async function listApplications() {
   return applications;
 }
 
+export async function createApplicationResumeUrl(path) {
+  if (!supabase) {
+    console.warn('Supabase not configured');
+    return { success: false, error: 'Supabase not configured' };
+  }
+  if (!path) {
+    return { success: false, error: 'Resume file is unavailable' };
+  }
+
+  const { data, error } = await supabase
+    .storage
+    .from('career-files')
+    .createSignedUrl(path, 60);
+
+  if (error) {
+    console.error('Error creating application resume link:', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, url: data.signedUrl };
+}
+
 // Update application status
 export async function updateApplicationStatus(id, status) {
   if (!supabase) {

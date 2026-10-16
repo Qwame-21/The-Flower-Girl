@@ -37,6 +37,22 @@ export const VALID_TRANSITIONS = {
   cancelled: []
 };
 
+export function formatNumber(value, maximumFractionDigits = 0) {
+  const number = typeof value === 'number'
+    ? value
+    : Number(String(value ?? '').replace(/,/g, ''));
+
+  if (!Number.isFinite(number)) {
+    return String(value ?? '—');
+  }
+
+  return number.toLocaleString('en-US', { maximumFractionDigits });
+}
+
+export function formatNumberText(value) {
+  return String(value ?? '').replace(/-?\d[\d,]*(?:\.\d+)?/g, match => formatNumber(match, 2));
+}
+
 export function formatGHS(amount) {
   const num = Number(amount);
   if (!Number.isFinite(num) || isNaN(num)) {
@@ -48,4 +64,3 @@ export function formatGHS(amount) {
 export function isPendingPayment(o) {
   return o.paymentStatus === 'pending' && o.fulfillmentStatus !== 'cancelled';
 }
-

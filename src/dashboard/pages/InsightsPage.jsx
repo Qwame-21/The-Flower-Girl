@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchOrders, getCachedData, isDataLoading } from '../data/dataCache';
+import { formatNumber } from '../lib/ordersModel';
 
 // Category color map for Insights category breakdown
 const CATEGORY_COLORS = {
@@ -248,8 +249,8 @@ function InsightsTrendChart({ orders, mode }) {
             const val = (i / steps) * niceMax;
             const y = padT + plotH - (i / steps) * plotH;
             const formatted = mode === 'revenue'
-              ? (val >= 1000 ? `GHS ${(val / 1000).toFixed(1)}k` : `GHS ${Math.round(val).toLocaleString()}`)
-              : Math.round(val).toLocaleString();
+              ? `GHS ${formatNumber(Math.round(val))}`
+              : formatNumber(Math.round(val));
             return (
               <text key={i} x={isMobile ? -29 : padL - 10} y={(y + 4).toFixed(1)} textAnchor="end" fill="var(--text-muted, #7a7a7a)" fontSize="11" fontWeight="500">
                 {formatted}
@@ -869,7 +870,7 @@ export default function InsightsPage() {
         </div>
         <div className="insights-kpi-block kpi-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '16px 20px', border: '1px solid rgba(26,26,26,0.08)' }}>
           <span className="kpi-label meta-label">ORDERS</span>
-          <div className="kpi-value" style={{ fontSize: '24px', fontWeight: 700, margin: '8px 0 4px 0', fontVariantNumeric: 'tabular-nums' }}>{stats.totalOrders}</div>
+          <div className="kpi-value" style={{ fontSize: '24px', fontWeight: 700, margin: '8px 0 4px 0', fontVariantNumeric: 'tabular-nums' }}>{formatNumber(stats.totalOrders)}</div>
           <span className="kpi-sublabel kpi-trend" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>In selected period</span>
         </div>
         <div className="insights-kpi-block kpi-card" style={{ background: 'var(--card-bg, #f2f1ef)', borderRadius: '16px', padding: '16px 20px', border: '1px solid rgba(26,26,26,0.08)' }}>
@@ -942,10 +943,10 @@ export default function InsightsPage() {
                   </div>
                   <div className="insights-product-metrics" style={{ textAlign: 'right' }}>
                     <div className="insights-product-units">
-                      <div style={{ fontWeight: 700, fontSize: '15px', fontVariantNumeric: 'tabular-nums' }}>{product.units}</div>
+                      <div style={{ fontWeight: 700, fontSize: '15px', fontVariantNumeric: 'tabular-nums' }}>{formatNumber(product.units)}</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>units sold</div>
                     </div>
-                    <span className="product-metric insights-product-mobile-summary">{product.units} sold · {formatInsightCurrency(product.revenue)}</span>
+                    <span className="product-metric insights-product-mobile-summary">{formatNumber(product.units)} sold · {formatInsightCurrency(product.revenue)}</span>
                   </div>
                 </div>
               ))}

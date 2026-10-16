@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import CustomDropdown from '../components/shared/CustomDropdown';
 import CopyIcon from '../components/shared/CopyIcon';
-import { formatGHS } from '../lib/ordersModel';
+import { formatGHS, formatNumber } from '../lib/ordersModel';
 import { listOrders, updateOrderStatus } from '../data/orders';
 import { supabase } from '../../config/supabase';
 
@@ -439,7 +439,7 @@ export default function LogPage() {
                   <div className="log-day-orders">
                     {groupOrders.map(order => {
                       const isExpanded = expandedOrderIds.has(order.id);
-                      const itemsSummary = (order.items || []).map(i => `${i.name || i.title || ''} × ${i.qty || 1}`).join(', ');
+                      const itemsSummary = (order.items || []).map(i => `${i.name || i.title || ''} × ${formatNumber(i.qty || 1)}`).join(', ');
                       const deliveredTime = formatDeliveredTimeString(order);
                       const formattedAmount = formatGHS(order.total ?? order.amount ?? 0);
                       const initials = order.customerName
@@ -546,7 +546,7 @@ export default function LogPage() {
                                   <div className="log-items-list" style={{ fontSize: '13px', color: '#333' }}>
                                     {(order.items || []).map((item, idx) => (
                                       <div key={idx} className="log-item-row" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                        <span>{item.name || item.title} {item.variant ? `(${item.variant})` : ''} × {item.qty || 1}</span>
+                                        <span>{item.name || item.title} {item.variant ? `(${item.variant})` : ''} × {formatNumber(item.qty || 1)}</span>
                                         <span style={{ fontWeight: 600 }}>
                                           {formatGHS((item.unitPrice || item.price || 0) * (item.qty || 1))}
                                         </span>
